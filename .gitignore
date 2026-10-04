@@ -9,3 +9,8 @@ coverage/
 .vite/
 /artifacts/
 .DS_Store
+*.local
+test-results/
+playwright-report/
+__pycache__/
+*.pyc

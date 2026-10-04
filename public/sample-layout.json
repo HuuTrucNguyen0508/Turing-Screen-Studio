@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "name": "TURZX sample",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "dynamic",
+    "background": "#0a0f0f",
+    "surface": "#131b1b",
+    "surfaceRaised": "#192121",
+    "text": "#dce8e7",
+    "muted": "#a2adad",
+    "primary": "#9bd0d1",
+    "secondary": "#b0cccc",
+    "outline": "#3f4a4a"
+  },
+  "widgets": [
+    {
+      "id": "cpu",
+      "type": "metric",
+      "x": 64,
+      "y": 160,
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "CPU load",
+        "value": "24",
+        "unit": "%",
+        "detail": "8 cores · 42 °C"
+      }
+    },
+    {
+      "id": "gpu",
+      "type": "metric",
+      "x": 440,
+      "y": 160,
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "GPU load",
+        "value": "18",
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM"
+      }
+    },
+    {
+      "id": "memory",
+      "type": "metric",
+      "x": 64,
+      "y": 408,
+      "width": 728,
+      "height": 240,
+      "settings": {
+        "label": "Memory",
+        "value": "12.4",
+        "unit": "GB",
+        "detail": "32 GB installed · 39% used"
+      }
+    },
+    {
+      "id": "weather",
+      "type": "weather",
+      "x": 816,
+      "y": 160,
+      "width": 400,
+      "height": 488,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "°C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14"
+      }
+    }
+  ]
+}
