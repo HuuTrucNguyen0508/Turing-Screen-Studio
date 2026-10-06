@@ -85,7 +85,7 @@ describe('version 1 layout documents', () => {
     const validated = validateLayout(source);
     validated.canvas.width = 1000;
     validated.palette.primary = '#ffffff';
-    validated.widgets[0].settings.unit = 'changed';
+    if (validated.widgets[0].type === 'metric') validated.widgets[0].settings.unit = 'changed';
     validated.widgets[0].x = 2;
     expect(source).toEqual(createSampleLayout());
     const next = createSampleLayout();
@@ -112,8 +112,8 @@ describe('version 1 layout documents', () => {
     const doc = createSampleLayout();
     expect(parseLayout(serializeLayout(doc))).not.toHaveProperty('paletteMode');
     doc.paletteMode = 'live';
-    doc.widgets[0].settings.source = 'cpu';
-    doc.widgets[3].settings.source = 'weather';
+    if (doc.widgets[0].type === 'metric') doc.widgets[0].settings.source = 'cpu';
+    if (doc.widgets[3].type === 'weather') doc.widgets[3].settings.source = 'weather';
     expect(parseLayout(serializeLayout(doc))).toEqual(doc);
     expect(() => validateLayout({ ...doc, paletteMode: 'unknown' })).toThrow('$.paletteMode');
     const raw = rawLayout();
@@ -148,7 +148,7 @@ describe('version 1 layout documents', () => {
     { label: 'nonarray widgets', path: '$.widgets', edit: (doc) => { (doc as Record<string, unknown>).widgets = {}; } },
     { label: 'duplicate ID', path: '$.widgets[1].id', edit: (doc) => { doc.widgets[1].id = doc.widgets[0].id; } },
     { label: 'blank ID', path: '$.widgets[0].id', edit: (doc) => { doc.widgets[0].id = ' '; } },
-    { label: 'unsupported widget', path: '$.widgets[0].type', edit: (doc) => { doc.widgets[0].type = 'clock'; } },
+    { label: 'unsupported widget', path: '$.widgets[0].type', edit: (doc) => { doc.widgets[0].type = 'unsupported'; } },
     { label: 'unknown widget field', path: '$.widgets[0].rotation', edit: (doc) => { doc.widgets[0].rotation = 0; } },
     { label: 'missing geometry', path: '$.widgets[0].x', edit: (doc) => { delete doc.widgets[0].x; } },
     { label: 'fractional coordinate', path: '$.widgets[0].x', edit: (doc) => { doc.widgets[0].x = 0.5; } },

@@ -1,0 +1,28 @@
+.catalog-dialog.saved-layouts-dialog { width: min(980px, calc(100% - 32px)); }
+.saved-layouts-lede { margin-top: 12px; max-width: 70ch; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.rotation-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.rotation-controls > span { margin-left: auto; color: var(--muted); font-size: 12px; }
+.rotation-add { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--outline); }
+.rotation-add label { display: grid; gap: 6px; font-size: 11px; color: var(--muted); }
+.rotation-add select { padding: 10px; background: var(--surfaceRaised); color: var(--text); border: 1px solid var(--outline); border-radius: 7px; }
+.rotation-add button, .rotation-controls button { font-size: 12px; }
+.saved-layouts-error { color: #fa746f; font-size: 13px; line-height: 1.6; margin-top: 14px; }
+.saved-layout-list { list-style: none; margin: 22px 0 0; padding: 0; }
+.saved-layout-list > li { display: flex; align-items: center; gap: 18px; padding: 18px 0; border-top: 1px solid var(--outline); }
+.saved-layout-list > li.active-layout { border-top-color: var(--primary); }
+.layout-order { color: var(--muted); font-size: 13px; flex: 0 0 14px; }
+.saved-layout-list .preset-thumbnail { flex: 0 0 240px; }
+.saved-layout-info { min-width: 0; flex: 1; }
+.saved-layout-info h3 { font-size: 17px; font-weight: 500; overflow-wrap: anywhere; }
+.saved-layout-info p { margin-top: 8px; font-size: 11px; color: var(--muted); }
+.on-panel { color: var(--primary); margin-left: 16px; }
+.saved-layout-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 16px; }
+.saved-layout-actions button { padding: 8px 10px; font-size: 11px; }
+.layout-order-controls { display: grid; gap: 8px; }
+.layout-order-controls button { padding: 5px 10px; }
+@media (max-width: 700px) {
+  .saved-layout-list > li { flex-wrap: wrap; gap: 12px; }
+  .saved-layout-list .preset-thumbnail { flex-basis: 240px; margin-right: auto; }
+  .saved-layout-info { flex-basis: calc(100% - 52px); margin-left: 32px; order: 1; }
+  .rotation-controls > span { width: 100%; margin-left: 0; }
+}

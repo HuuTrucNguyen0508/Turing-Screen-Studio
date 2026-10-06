@@ -16,6 +16,12 @@ from urllib.parse import unquote, urlsplit
 from turzx_studio.layout import parse_layout, revision, serialize_layout, validate_layout
 from turzx_studio.renderer import LayoutRenderer
 from turzx_studio.storage import PaletteWatcher, Paths, atomic_write
+from turzx_studio.archives import archive_layout, layout_write_lock, list_archives, read_archive
+from turzx_studio.layout_library import (
+    LayoutLibrary, LibraryTooLarge, active_id, library_revision, select_entry, validate_library,
+)
+from turzx_studio.usage import UsageCollector
+from turzx_studio.usage_display import USAGE_SOURCES
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BODY_BYTES = 1024 * 1024
@@ -119,9 +125,11 @@ class StudioApplication:
         self.renderer = LayoutRenderer(font_dir=Path(font_dir).expanduser() if font_dir is not None
                                        else Path.home() / "Documents/turing-smart-screen-python/res/fonts")
         self.layout_lock = threading.RLock()
+        self.library = LayoutLibrary(self.paths, ROOT / 'public/layout-presets.json')
         self.render_lock = threading.Lock()
         self.palette_lock = threading.Lock()
         self.seed_error: str | None = None
+        self.usage = UsageCollector()
         with self.layout_lock:
             # lexists behavior preserves broken symlinks too, rather than seeding over them.
             if self.paths.layout.exists() or self.paths.layout.is_symlink():
@@ -151,6 +159,11 @@ class StudioApplication:
             return {"document": document, "revision": revision(document)}
 
     def save(self, raw: object, if_match: str | None) -> dict:
+        with self.layout_lock, layout_write_lock(self.paths):
+            return self._save_locked(raw, if_match)
+
+    def _save_locked(self, raw: object, if_match: str | None) -> dict:
+        """Shared save transaction; caller holds layout_lock and layout_write_lock."""
         if if_match is None:
             raise APIError(428, "Saving requires the current layout revision in If-Match")
         try:
@@ -160,15 +173,112 @@ class StudioApplication:
             raise APIError(422, str(error)) from error
         if len(encoded) > MAX_BODY_BYTES:
             raise APIError(413, "Canonical layout exceeds the 1 MB limit")
-        with self.layout_lock:
-            current = revision(self._read_layout())
-            if if_match not in (current, f'"{current}"'):
-                raise APIError(409, "Saved layout changed; reload it before saving", revision=current)
+        try:
+            previous = read_bounded(self.paths.layout)
+            current = revision(parse_layout(previous.decode('utf-8'), panel=True))
+        except (OSError, ValueError) as error:
+            raise APIError(422, f"Cannot load saved layout: {error}") from error
+        if if_match not in (current, f'"{current}"'):
+            raise APIError(409, "Saved layout changed; reload it before saving", revision=current)
+        try:
+            runtime = strict_json(read_bounded(self.paths.status))
+        except (OSError, ValueError, APIError):
+            runtime = {}
+        if isinstance(runtime, dict) and runtime_is_running(runtime):
+            supported = runtime.get('supportedWidgetTypes', ['metric', 'weather'])
+            if (not isinstance(supported, list) or
+                    any(widget['type'] not in supported for widget in document['widgets'])):
+                raise APIError(409, 'The panel runtime needs an update before saving these widgets. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
+            styles = runtime.get('supportedGaugeStyles', [])
+            usage_sources = runtime.get('supportedUsageSources', [])
+            requested_sources = [widget['settings'].get('source') for widget in document['widgets']
+                                 if widget['settings'].get('source') in USAGE_SOURCES]
+            if requested_sources and (not isinstance(usage_sources, list) or
+                    any(source not in usage_sources for source in requested_sources)):
+                raise APIError(409, 'The panel runtime needs an update before saving usage or storage widgets. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
+            requested_styles = [widget['settings']['style'] for widget in document['widgets']
+                                if widget['type'] == 'gauge' and 'style' in widget['settings']]
+            if requested_styles and (not isinstance(styles, list) or
+                    any(style not in styles for style in requested_styles)):
+                raise APIError(409, 'The panel runtime needs an update before saving these gauge styles. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
+        try:
+            if revision(document) == current:
+                return {"document": document, "revision": current, "archive": None}
+            archive = archive_layout(self.paths, previous)
+            atomic_write(self.paths.layout, encoded)
+        except OSError as error:
+            raise APIError(500, f"Cannot archive the previous layout or save the replacement: {error}") from error
+        return {"document": document, "revision": revision(document), "archive": archive}
+
+    def _read_library(self, current: dict, *, initialize: bool = False) -> dict:
+        try:
+            return self.library.read()
+        except FileNotFoundError as error:
+            if not initialize:
+                raise APIError(422, 'Saved layouts are missing. Open the saved dashboard library or run pnpm layout saved to initialize it.') from error
             try:
-                atomic_write(self.paths.layout, encoded)
+                library = self.library.initial(current)
+                self.library.write(library)
+                return library
+            except (OSError, ValueError, RecursionError) as error:
+                raise APIError(500, f'Cannot initialize saved layouts: {error}') from error
+        except (OSError, ValueError, RecursionError) as error:
+            raise APIError(422, f'Cannot load saved layouts: {error}. Preserve layouts.json and repair the saved dashboard library before switching.') from error
+
+    @staticmethod
+    def _library_result(library: dict, current: dict) -> dict:
+        return {**library, 'revision': library_revision(library),
+                'activeId': active_id(library, revision(current))}
+
+    def layouts(self) -> dict:
+        with self.layout_lock, layout_write_lock(self.paths):
+            current = self._read_layout()
+            library = self._read_library(current, initialize=True)
+            return self._library_result(library, current)
+
+    def save_layouts(self, raw: object, if_match: str | None) -> dict:
+        if if_match is None:
+            raise APIError(428, 'Updating saved layouts requires the library revision in If-Match')
+        try:
+            library = validate_library(raw)
+        except LibraryTooLarge as error:
+            raise APIError(413, str(error)) from error
+        except (ValueError, RecursionError) as error:
+            raise APIError(422, str(error)) from error
+        with self.layout_lock, layout_write_lock(self.paths):
+            current = self._read_layout()
+            previous = self._read_library(current)
+            current_revision = library_revision(previous)
+            if if_match not in (current_revision, f'"{current_revision}"'):
+                raise APIError(409, 'Saved layouts changed; reload the library before updating it', revision=current_revision)
+            try:
+                replacements = {entry['id']: entry for entry in library['entries']}
+                for entry in previous['entries']:
+                    replacement = replacements.get(entry['id'])
+                    if replacement is None or revision(replacement['document']) != revision(entry['document']):
+                        archive_layout(self.paths, serialize_layout(entry['document']).encode('utf-8'),
+                                       reason='saved-layout-list-change')
+                self.library.write(library)
             except OSError as error:
-                raise APIError(500, f"Cannot save layout: {error}") from error
-            return {"document": document, "revision": revision(document)}
+                raise APIError(500, f'Cannot preserve older saved layouts or save the dashboard library: {error}') from error
+            return self._library_result(library, current)
+
+    def switch_layout(self, raw: object, if_match: str | None) -> dict:
+        if if_match is None:
+            raise APIError(428, 'Switching requires the current panel layout revision in If-Match')
+        with self.layout_lock, layout_write_lock(self.paths):
+            current = self._read_layout()
+            current_revision = revision(current)
+            if if_match not in (current_revision, f'"{current_revision}"'):
+                raise APIError(409, 'Saved layout changed; reload it before switching', revision=current_revision)
+            library = self._read_library(current)
+            try:
+                entry = select_entry(library, current_revision, raw)
+            except ValueError as error:
+                raise APIError(422, str(error)) from error
+            # Reuse every save check and reread the panel file under the same flock.
+            result = self._save_locked(entry['document'], if_match)
+            return {**result, 'activeId': active_id(library, result['revision'])}
 
     def status(self) -> dict:
         try:
@@ -299,8 +409,21 @@ class StudioHandler(BaseHTTPRequestHandler):
                 if path == "/api/layout":
                     result = app.layout()
                     self._json(200, result, etag=result["revision"])
+                elif path == "/api/layouts":
+                    result = app.layouts()
+                    self._json(200, result, etag=result['revision'])
                 elif path == "/api/status":
                     self._json(200, app.status())
+                elif path == "/api/usage":
+                    self._json(200, app.usage.snapshot())
+                elif path == "/api/history":
+                    self._json(200, {"archives": list_archives(app.paths)})
+                elif path.startswith('/api/history/'):
+                    try:
+                        result = read_archive(app.paths, path.removeprefix('/api/history/'))
+                    except (OSError, ValueError) as error:
+                        raise APIError(404, f'Archived layout unavailable: {error}') from error
+                    self._json(200, result, etag=result['revision'])
                 elif path == "/api/palette":
                     with app.palette_lock:
                         self._json(200, {"palette": app.palette.poll(), "error": app.palette.error})
@@ -315,14 +438,16 @@ class StudioHandler(BaseHTTPRequestHandler):
                 else:
                     self._static(path)
             elif self.command == "POST":
-                if path not in ("/api/layout", "/api/preview"):
+                if path not in ("/api/layout", "/api/layouts", "/api/layouts/switch", "/api/preview"):
                     raise APIError(404, "API endpoint not found")
                 raw = self._body()
-                if path == "/api/layout":
+                if path in ("/api/layout", "/api/layouts", "/api/layouts/switch"):
                     matches = self.headers.get_all("If-Match", [])
                     if len(matches) > 1:
                         raise APIError(400, "Send only one If-Match header")
-                    result = app.save(raw, matches[0] if matches else None)
+                    action = {'/api/layout': app.save, '/api/layouts': app.save_layouts,
+                              '/api/layouts/switch': app.switch_layout}[path]
+                    result = action(raw, matches[0] if matches else None)
                     self._json(200, result, etag=result["revision"])
                 else:
                     self._reply(200, app.preview(raw), "image/png")

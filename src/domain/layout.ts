@@ -1,3 +1,5 @@
+import { usageSources } from './usage';
+
 export interface Palette {
   name: string;
   background: string;
@@ -23,7 +25,7 @@ export interface MetricWidget extends Geometry {
   settings: { label: string; value: string; unit: string; detail: string; source?: MetricSource };
 }
 
-export const metricSources = ['sample', 'cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up'] as const;
+export const metricSources = ['sample', 'cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature', ...usageSources] as const;
 export type MetricSource = typeof metricSources[number];
 
 export interface WeatherWidget extends Geometry {
@@ -40,7 +42,35 @@ export interface WeatherWidget extends Geometry {
   };
 }
 
-export type Widget = MetricWidget | WeatherWidget;
+export interface ClockWidget extends Geometry {
+  id: string;
+  type: 'clock';
+  settings: { label: string; time: string; date: string; format: '24h' | '12h'; showDate: boolean; source?: 'sample' | 'clock' };
+}
+
+export interface TextWidget extends Geometry {
+  id: string;
+  type: 'text';
+  settings: { label: string; text: string };
+}
+
+export const gaugeStyles = ['arc', 'ring', 'bar', 'segments', 'thermometer', 'number'] as const;
+export type GaugeStyle = typeof gaugeStyles[number];
+
+export interface GaugeWidget extends Geometry {
+  id: string;
+  type: 'gauge';
+  settings: { label: string; value: number; min: number; max: number; unit: string; detail: string; source?: MetricSource; style?: GaugeStyle };
+}
+
+export const storageStyles = ['bars', 'table'] as const;
+export interface StorageWidget extends Geometry {
+  id: string;
+  type: 'storage';
+  settings: { label: string; style: typeof storageStyles[number]; source?: 'sample' | 'mounted-storage' };
+}
+
+export type Widget = MetricWidget | WeatherWidget | ClockWidget | TextWidget | GaugeWidget | StorageWidget;
 
 export interface LayoutDocument {
   version: 1;
@@ -134,8 +164,8 @@ function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']):
   const value = object(input, path);
   exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path);
   const id = string(value.id, `${path}.id`, true);
-  if (value.type !== 'metric' && value.type !== 'weather') {
-    fail(`${path}.type`, 'unsupported widget type; expected "metric" or "weather"');
+  if (typeof value.type !== 'string' || !['metric', 'weather', 'clock', 'text', 'gauge', 'storage'].includes(value.type)) {
+    fail(`${path}.type`, 'unsupported widget type; expected metric, weather, clock, text, gauge, storage');
   }
   const geometry: Geometry = {
     x: integer(value.x, `${path}.x`, 0),
@@ -150,6 +180,49 @@ function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']):
     fail(`${path}.height`, 'y + height must fit inside canvas.height');
   }
   const settings = object(value.settings, `${path}.settings`);
+  const settingsPath = `${path}.settings`;
+  if (value.type === 'storage') {
+    exactKeys(settings, ['label', 'style'], settingsPath, ['source']);
+    const style = optionalChoice(settings, 'style', settingsPath, storageStyles)!;
+    const source = optionalChoice(settings, 'source', settingsPath, ['sample', 'mounted-storage'] as const);
+    return { id, type: 'storage', ...geometry, settings: {
+      label: string(settings.label, `${settingsPath}.label`), style,
+      ...(source === undefined ? {} : { source }),
+    } };
+  }
+  if (value.type === 'text') {
+    exactKeys(settings, ['label', 'text'], settingsPath);
+    return { id, type: 'text', ...geometry, settings: {
+      label: string(settings.label, `${settingsPath}.label`), text: string(settings.text, `${settingsPath}.text`),
+    } };
+  }
+  if (value.type === 'clock') {
+    exactKeys(settings, ['label', 'time', 'date', 'format', 'showDate'], settingsPath, ['source']);
+    const format = optionalChoice(settings, 'format', settingsPath, ['24h', '12h'] as const)!;
+    const source = optionalChoice(settings, 'source', settingsPath, ['sample', 'clock'] as const);
+    if (typeof settings.showDate !== 'boolean') fail(`${settingsPath}.showDate`, 'expected a boolean');
+    return { id, type: 'clock', ...geometry, settings: {
+      label: string(settings.label, `${settingsPath}.label`), time: string(settings.time, `${settingsPath}.time`),
+      date: string(settings.date, `${settingsPath}.date`), format, showDate: settings.showDate,
+      ...(source === undefined ? {} : { source }),
+    } };
+  }
+  if (value.type === 'gauge') {
+    exactKeys(settings, ['label', 'value', 'min', 'max', 'unit', 'detail'], settingsPath, ['source', 'style']);
+    const style = optionalChoice(settings, 'style', settingsPath, gaugeStyles);
+    const min = finite(settings.min, `${settingsPath}.min`);
+    const max = finite(settings.max, `${settingsPath}.max`);
+    const valueNumber = finite(settings.value, `${settingsPath}.value`);
+    if (max <= min) fail(`${settingsPath}.max`, 'must be greater than min');
+    if (valueNumber < min || valueNumber > max) fail(`${settingsPath}.value`, 'must be between min and max');
+    const source = optionalChoice(settings, 'source', settingsPath, metricSources);
+    return { id, type: 'gauge', ...geometry, settings: {
+      label: string(settings.label, `${settingsPath}.label`), value: valueNumber, min, max,
+      unit: string(settings.unit, `${settingsPath}.unit`), detail: string(settings.detail, `${settingsPath}.detail`),
+      ...(style === undefined ? {} : { style }),
+      ...(source === undefined ? {} : { source }),
+    } };
+  }
   if (value.type === 'metric') {
     exactKeys(settings, METRIC_SETTINGS, `${path}.settings`, ['source']);
     const source = optionalChoice(settings, 'source', `${path}.settings`, metricSources);

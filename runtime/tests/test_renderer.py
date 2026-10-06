@@ -1,14 +1,16 @@
 """Pixel and live-binding tests without collectors, USB, or external assets."""
 
 from copy import deepcopy
+from contextlib import ExitStack
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from PIL import ImageChops, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
-from turzx_studio.layout import parse_layout
+from turzx_studio.layout import GAUGE_STYLES, parse_layout
 from turzx_studio.renderer import LayoutRenderer, rendered_content
 
 SAMPLE_PATH = Path(__file__).resolve().parents[2] / "public" / "sample-layout.json"
@@ -19,6 +21,187 @@ def rgb(value):
 
 
 class RendererTests(unittest.TestCase):
+    def expanded_widgets(self):
+        base = self.doc["widgets"][0]
+        return [
+            {**base, "type": "clock", "settings": {"label": "Clock", "time": "10:24", "date": "Sunday, 4 October", "format": "12h", "showDate": True, "source": "clock"}},
+            {**base, "type": "text", "settings": {"label": "Note", "text": "First line\nSecond line"}},
+            {**base, "type": "gauge", "settings": {"label": "Gauge", "value": 24, "min": 0, "max": 100, "unit": "%", "detail": "CPU load", "source": "cpu"}},
+        ]
+
+    def test_new_widget_pixels_are_deterministic_and_clipped_even_when_tiny(self):
+        empty = {**self.doc, "widgets": []}
+        background = self.renderer.render(empty)
+        for widget in self.expanded_widgets():
+            for width, height in ((1, 1), (1, 17), (17, 1), (8, 8), (20, 70), (400, 224)):
+                document = {**empty, "widgets": [{**widget, "x": 10, "y": 200, "width": width, "height": height}]}
+                original = deepcopy(document)
+                with self.subTest(kind=widget["type"], width=width, height=height):
+                    image = self.renderer.render(document)
+                    self.assertEqual(image.tobytes(), self.renderer.render(document).tobytes())
+                    difference = ImageChops.difference(background, image)
+                    if widget["type"] == "clock":
+                        # Clock widgets deliberately suppress the fixed header clock.
+                        ImageDraw.Draw(difference).rectangle((900, 30, 1220, 130), fill=(0, 0, 0))
+                    changed = difference.getbbox()
+                    self.assertGreaterEqual(changed[0], 10)
+                    self.assertGreaterEqual(changed[1], 200)
+                    self.assertLessEqual(changed[2], 10 + width)
+                    self.assertLessEqual(changed[3], 200 + height)
+                    self.assertEqual(document, original)
+
+    def test_live_clock_uses_collector_minutes_and_12_hour_format(self):
+        widget = self.expanded_widgets()[0]
+        self.assertEqual(rendered_content(widget)["time"], "10:24")
+        actual = rendered_content(widget, self.stats)
+        self.assertEqual(actual["time"], "1:27 PM")
+        self.assertEqual(actual["date"], "Sun 04 Oct")
+        self.stats.clock = "Tue 06 Oct  00:01:59"
+        self.assertEqual(rendered_content(widget, self.stats)["time"], "12:01 AM")
+        widget["settings"]["format"] = "24h"
+        self.assertEqual(rendered_content(widget, self.stats)["time"], "00:01")
+        self.assertEqual(rendered_content(widget, SimpleNamespace())["time"], "—")
+
+    def test_temperature_sources_and_all_gauge_readings_reuse_stats(self):
+        for source, attr, value in (("cpu", "cpu_percent", 24.2), ("gpu", "gpu_percent", 18.2),
+                                    ("memory", "ram_percent", 38.7), ("disk", "disk_percent", 61.2),
+                                    ("network-down", "net_down_kbps", 2048), ("network-up", "net_up_kbps", 512),
+                                    ("cpu-temperature", "cpu_temp", 42.2), ("gpu-temperature", "gpu_temp", 55.1)):
+            widget = self.expanded_widgets()[2]
+            widget["settings"]["source"] = source
+            original = deepcopy(widget)
+            with self.subTest(source=source):
+                self.assertEqual(rendered_content(widget, self.stats)["value"], value)
+                self.assertIsNone(rendered_content(widget, SimpleNamespace())["value"])
+                self.assertIsNone(rendered_content(widget, SimpleNamespace(**{attr: float("nan")}))["value"])
+                self.assertEqual(widget, original)
+        for source, expected in (("cpu-temperature", "42"), ("gpu-temperature", "55")):
+            widget = deepcopy(self.doc["widgets"][0])
+            widget["settings"]["source"] = source
+            self.assertEqual(rendered_content(widget, self.stats)["value"], expected)
+            self.assertEqual(rendered_content(widget, self.stats)["unit"], "°C")
+
+    def test_gauge_extreme_bounds_missing_and_out_of_range_live_values_render(self):
+        from turzx_studio.renderer import gauge_fraction
+        self.assertEqual(gauge_fraction(0, -1e308, 1e308), .5)
+        widget = self.expanded_widgets()[2]
+        document = {**self.doc, "widgets": [widget]}
+        for value in (None, -500, 900, float("inf")):
+            with self.subTest(value=value):
+                self.renderer.render(document, SimpleNamespace(cpu_percent=value))
+
+    def test_clock_suppresses_only_header_clock_and_honors_date_visibility(self):
+        widget = self.expanded_widgets()[0]
+        widget["settings"].update(time="14:32", showDate=False)
+        with patch.object(self.renderer, "_draw_text", wraps=self.renderer._draw_text) as draw:
+            self.renderer.render({**self.doc, "widgets": [widget]})
+            texts = [call.args[2] for call in draw.call_args_list]
+            self.assertIn("System overview", texts)
+            self.assertIn("2:32", texts)
+            self.assertNotIn("10:24", texts)
+            self.assertNotIn(widget["settings"]["date"], texts)
+        with patch.object(self.renderer, "_draw_text", wraps=self.renderer._draw_text) as draw:
+            self.renderer.render({**self.doc, "widgets": []})
+            self.assertIn("10:24", [call.args[2] for call in draw.call_args_list])
+
+    def test_text_wraps_words_and_long_tokens_and_caches_only_bounded_lines(self):
+        widget = self.expanded_widgets()[1]
+        widget.update(width=200, height=180)
+        widget["settings"]["text"] = "First line\nA verylongwordthatmustwrap and more words\nLast line"
+        document = {**self.doc, "widgets": [widget]}
+        with patch.object(self.renderer, "_draw_text", wraps=self.renderer._draw_text) as draw:
+            self.renderer.render(document)
+            body_calls = [call for call in draw.call_args_list if call.args[4] == 20]
+            self.assertEqual(body_calls[0].args[2], "First line")
+            self.assertLessEqual(len(body_calls), 4)
+            for call in body_calls:
+                self.assertLessEqual(self.renderer._font("sans", 20).getlength(call.args[2]), 142)
+                self.assertLessEqual(call.args[1][1] + 24, 160)
+        lines = self.renderer._wrapped[(widget["settings"]["text"], 142)]
+        self.renderer.render(document)
+        self.assertIs(self.renderer._wrapped[(widget["settings"]["text"], 142)], lines)
+
+    def test_legacy_rgb_and_explicit_arc_are_unchanged(self):
+        self.assertEqual(hashlib.sha256(self.renderer.render(self.doc).tobytes()).hexdigest(),
+                         "cfc7a95c0cc69d89153815f8a9a9ad01d66b314e39e449c4ec473eaddbaa4620")
+        gauge = {**self.doc["widgets"][0], "type": "gauge", "width": 270, "height": 304,
+                 "settings": {"label": "CPU load", "value": 24, "min": 0, "max": 100,
+                              "unit": "%", "detail": "8 cores · 42 °C", "source": "cpu"}}
+        document = {**self.doc, "widgets": [gauge]}
+        old = self.renderer.render(document).tobytes()
+        self.assertEqual(hashlib.sha256(old).hexdigest(), "65636366310ad6a490203f933c9a9db42296f961c587c63bb932a64fa97ea3b0")
+        gauge["settings"]["style"] = "arc"
+        self.assertEqual(self.renderer.render(document).tobytes(), old)
+
+    def test_six_styles_change_pixels_at_identical_reading_and_geometry(self):
+        widget = self.expanded_widgets()[2]
+        widget.update(width=352, height=304)
+        pixels = []
+        for style in GAUGE_STYLES:
+            widget["settings"]["style"] = style
+            document = {**self.doc, "widgets": [widget]}
+            image = self.renderer.render(document)
+            pixels.append(image.tobytes())
+            self.assertEqual(image.tobytes(), self.renderer.render(document).tobytes())
+        self.assertEqual(len(set(pixels)), 6)
+
+    def test_missing_tracks_and_clamped_progress_keep_the_actual_reading(self):
+        widget = self.expanded_widgets()[2]
+        palette = self.doc["palette"]
+        for style in GAUGE_STYLES:
+            operations = {}
+            for value in (None, 0, -500, 50, 100, 900):
+                settings = {**widget["settings"], "style": style, "value": value}
+                draw = ImageDraw.Draw(Image.new("RGB", (352, 304), palette["surface"]))
+                with ExitStack() as stack:
+                    spies = {name: stack.enter_context(patch.object(draw, name, wraps=getattr(draw, name)))
+                             for name in ("arc", "ellipse", "rectangle")}
+                    text = stack.enter_context(patch.object(self.renderer, "_draw_text", wraps=self.renderer._draw_text))
+                    self.renderer._gauge(draw, 352, 304, settings, palette)
+                    self.assertIn("—" if value is None else str(value), [call.args[2] for call in text.call_args_list])
+                    operations[value] = [(name, call.args, call.kwargs) for name, spy in spies.items()
+                                         for call in spy.call_args_list]
+                    if value is None:
+                        self.assertFalse(any(call.kwargs.get("fill") == palette["primary"]
+                                             for spy in spies.values() for call in spy.call_args_list))
+            with self.subTest(style=style):
+                self.assertEqual(operations[None], operations[0])
+                self.assertEqual(operations[-500], operations[0])
+                self.assertEqual(operations[900], operations[100])
+                if style != "number":
+                    self.assertNotEqual(operations[50], operations[0])
+                    self.assertNotEqual(operations[50], operations[100])
+
+    def test_all_styles_clip_tiny_cards_and_preserve_live_missing_readings(self):
+        widget = self.expanded_widgets()[2]
+        for style in GAUGE_STYLES:
+            widget["settings"]["style"] = style
+            for width, height in ((1, 1), (1, 17), (17, 1), (8, 8), (20, 70), (352, 304), (1200, 1), (1, 600)):
+                widget.update(x=10, y=150, width=width, height=height)
+                document = {**self.doc, "widgets": [widget]}
+                for value in (0, 50, 100, -500, 900, None, float("nan")):
+                    with self.subTest(style=style, width=width, height=height, value=value):
+                        stats = SimpleNamespace(cpu_percent=value)
+                        content = rendered_content(widget, stats)
+                        if value is None or value != value:
+                            self.assertIsNone(content["value"])
+                        else:
+                            self.assertEqual(content["value"], value)
+                        actual = self.renderer.render(document, stats)
+                        background = self.renderer.render({**document, "widgets": []}, stats)
+                        changed = ImageChops.difference(background, actual).getbbox()
+                        self.assertGreaterEqual(changed[0], 10)
+                        self.assertGreaterEqual(changed[1], 150)
+                        self.assertLessEqual(changed[2], 10 + width)
+                        self.assertLessEqual(changed[3], 150 + height)
+            widget.update(width=352, height=304)
+            for minimum, maximum, sample, live in ((-1e308, 1e308, 0, 0),
+                    (0, 1e308, 24, 24), (0, 1e-308, 0, 5e-309),
+                    (1e308, 1.0000000000000002e308, 1e308, 1e308)):
+                widget["settings"].update(min=minimum, max=maximum, value=sample)
+                self.renderer.render({**self.doc, "widgets": [widget]}, SimpleNamespace(cpu_percent=live))
+            widget["settings"].update(min=0, max=100, value=24)
+
     def setUp(self):
         self.doc = parse_layout(SAMPLE_PATH.read_text(encoding="utf-8"))
         self.renderer = LayoutRenderer()

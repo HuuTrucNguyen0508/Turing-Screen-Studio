@@ -1,0 +1,1993 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "metricSources": [
+    "sample",
+    "cpu",
+    "gpu",
+    "memory",
+    "disk",
+    "network-down",
+    "network-up",
+    "cpu-temperature",
+    "gpu-temperature",
+    "codex-tokens",
+    "codex-cost",
+    "codex-weekly",
+    "codex-reset",
+    "codex-models",
+    "claude-tokens",
+    "claude-cost",
+    "claude-session",
+    "claude-weekly",
+    "claude-reset",
+    "claude-models",
+    "storage"
+  ],
+  "widgets": [
+    {
+      "id": "cpu",
+      "name": "CPU load",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "CPU load",
+        "value": "24",
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu"
+      },
+      "group": "system",
+      "family": "cpu",
+      "variant": "Standard",
+      "description": "Current reading, detail and a chart area."
+    },
+    {
+      "id": "gpu",
+      "name": "GPU load",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "GPU load",
+        "value": "18",
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu"
+      },
+      "group": "system",
+      "family": "gpu",
+      "variant": "Standard",
+      "description": "Current reading, detail and a chart area."
+    },
+    {
+      "id": "memory",
+      "name": "Memory",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Memory",
+        "value": "12.4",
+        "unit": "GB",
+        "detail": "32 GB installed \u00b7 39% used",
+        "source": "memory"
+      },
+      "group": "system",
+      "family": "memory",
+      "variant": "Standard",
+      "description": "Memory used in GB, with installed capacity."
+    },
+    {
+      "id": "disk",
+      "name": "Disk usage",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Disk usage",
+        "value": "45",
+        "unit": "%",
+        "detail": "225 / 500 GB",
+        "source": "disk"
+      },
+      "group": "system",
+      "family": "disk",
+      "variant": "Standard",
+      "description": "Current reading, detail and a chart area."
+    },
+    {
+      "id": "network-down",
+      "name": "Download",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Download",
+        "value": "128",
+        "unit": "KB/s",
+        "detail": "Download \u00b7 wlan0",
+        "source": "network-down"
+      },
+      "group": "network",
+      "family": "network-down",
+      "variant": "Standard",
+      "description": "Transfer rate, interface and a chart area."
+    },
+    {
+      "id": "network-up",
+      "name": "Upload",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Upload",
+        "value": "32",
+        "unit": "KB/s",
+        "detail": "Upload \u00b7 wlan0",
+        "source": "network-up"
+      },
+      "group": "network",
+      "family": "network-up",
+      "variant": "Standard",
+      "description": "Transfer rate, interface and a chart area."
+    },
+    {
+      "id": "cpu-temperature",
+      "name": "CPU temperature",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "CPU temperature",
+        "value": "48",
+        "unit": "\u00b0C",
+        "detail": "CPU package",
+        "source": "cpu-temperature"
+      },
+      "group": "temperature",
+      "family": "cpu-temperature",
+      "variant": "Standard",
+      "description": "Sensor temperature in degrees Celsius."
+    },
+    {
+      "id": "gpu-temperature",
+      "name": "GPU temperature",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "GPU temperature",
+        "value": "41",
+        "unit": "\u00b0C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature"
+      },
+      "group": "temperature",
+      "family": "gpu-temperature",
+      "variant": "Standard",
+      "description": "Sensor temperature in degrees Celsius."
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "type": "weather",
+      "width": 400,
+      "height": 488,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "\u00b0C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14",
+        "source": "weather"
+      },
+      "group": "weather",
+      "family": "weather",
+      "variant": "Standard",
+      "description": "Weather, temperature and condition in a tall card."
+    },
+    {
+      "id": "clock",
+      "name": "Clock",
+      "type": "clock",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Local time",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "group": "clock",
+      "family": "clock",
+      "variant": "Standard",
+      "description": "Time and date with an editable label."
+    },
+    {
+      "id": "text",
+      "name": "Text",
+      "type": "text",
+      "width": 400,
+      "height": 180,
+      "settings": {
+        "label": "Notes",
+        "text": "One task at a time."
+      },
+      "group": "text",
+      "family": "text",
+      "variant": "Standard",
+      "description": "A short note with a label and wrapped text."
+    },
+    {
+      "id": "gauge",
+      "name": "Gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Gauge",
+        "value": 24,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Current utilization",
+        "source": "sample",
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "custom",
+      "variant": "Ring",
+      "description": "A custom reading with a full circular ring."
+    },
+    {
+      "id": "cpu-wide",
+      "name": "CPU load wide",
+      "type": "metric",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "CPU load",
+        "value": "24",
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu"
+      },
+      "group": "system",
+      "family": "cpu",
+      "variant": "Wide",
+      "description": "A wider reading and chart card for a spacious layout."
+    },
+    {
+      "id": "gpu-wide",
+      "name": "GPU load wide",
+      "type": "metric",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "GPU load",
+        "value": "18",
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu"
+      },
+      "group": "system",
+      "family": "gpu",
+      "variant": "Wide",
+      "description": "A wider reading and chart card for a spacious layout."
+    },
+    {
+      "id": "memory-wide",
+      "name": "Memory wide",
+      "type": "metric",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "Memory",
+        "value": "12.4",
+        "unit": "GB",
+        "detail": "32 GB installed \u00b7 39% used",
+        "source": "memory"
+      },
+      "group": "system",
+      "family": "memory",
+      "variant": "Wide",
+      "description": "A wider reading and chart card for a spacious layout."
+    },
+    {
+      "id": "disk-wide",
+      "name": "Disk usage wide",
+      "type": "metric",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "Disk usage",
+        "value": "45",
+        "unit": "%",
+        "detail": "225 / 500 GB",
+        "source": "disk"
+      },
+      "group": "system",
+      "family": "disk",
+      "variant": "Wide",
+      "description": "A wider reading and chart card for a spacious layout."
+    },
+    {
+      "id": "network-down-wide",
+      "name": "Download wide",
+      "type": "metric",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "Download",
+        "value": "128",
+        "unit": "KB/s",
+        "detail": "Download \u00b7 wlan0",
+        "source": "network-down"
+      },
+      "group": "network",
+      "family": "network-down",
+      "variant": "Wide",
+      "description": "A wider reading and chart card for a spacious layout."
+    },
+    {
+      "id": "network-up-wide",
+      "name": "Upload wide",
+      "type": "metric",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "Upload",
+        "value": "32",
+        "unit": "KB/s",
+        "detail": "Upload \u00b7 wlan0",
+        "source": "network-up"
+      },
+      "group": "network",
+      "family": "network-up",
+      "variant": "Wide",
+      "description": "A wider reading and chart card for a spacious layout."
+    },
+    {
+      "id": "cpu-temperature-wide",
+      "name": "CPU temperature wide",
+      "type": "metric",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "CPU temperature",
+        "value": "48",
+        "unit": "\u00b0C",
+        "detail": "CPU package",
+        "source": "cpu-temperature"
+      },
+      "group": "temperature",
+      "family": "cpu-temperature",
+      "variant": "Wide",
+      "description": "A wider reading and chart card for a spacious layout."
+    },
+    {
+      "id": "gpu-temperature-wide",
+      "name": "GPU temperature wide",
+      "type": "metric",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "GPU temperature",
+        "value": "41",
+        "unit": "\u00b0C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature"
+      },
+      "group": "temperature",
+      "family": "gpu-temperature",
+      "variant": "Wide",
+      "description": "A wider reading and chart card for a spacious layout."
+    },
+    {
+      "id": "cpu-gauge",
+      "name": "CPU load gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100
+      },
+      "group": "gauge",
+      "family": "cpu",
+      "variant": "Arc",
+      "description": "Percentage shown on a 0\u2013100 arc."
+    },
+    {
+      "id": "gpu-gauge",
+      "name": "GPU load gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "GPU load",
+        "value": 18.0,
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu",
+        "min": 0,
+        "max": 100
+      },
+      "group": "gauge",
+      "family": "gpu",
+      "variant": "Arc",
+      "description": "Percentage shown on a 0\u2013100 arc."
+    },
+    {
+      "id": "memory-gauge",
+      "name": "Memory gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Memory",
+        "value": 39,
+        "unit": "%",
+        "detail": "12.4 / 32 GB",
+        "source": "memory",
+        "min": 0,
+        "max": 100
+      },
+      "group": "gauge",
+      "family": "memory",
+      "variant": "Arc",
+      "description": "Percentage shown on a 0\u2013100 arc."
+    },
+    {
+      "id": "disk-gauge",
+      "name": "Disk usage gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Disk usage",
+        "value": 45.0,
+        "unit": "%",
+        "detail": "225 / 500 GB",
+        "source": "disk",
+        "min": 0,
+        "max": 100
+      },
+      "group": "gauge",
+      "family": "disk",
+      "variant": "Arc",
+      "description": "Percentage shown on a 0\u2013100 arc."
+    },
+    {
+      "id": "network-down-gauge",
+      "name": "Download gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Download",
+        "value": 128.0,
+        "unit": "KB/s",
+        "detail": "Download \u00b7 wlan0",
+        "source": "network-down",
+        "min": 0,
+        "max": 1024
+      },
+      "group": "gauge",
+      "family": "network-down",
+      "variant": "Arc",
+      "description": "Transfer rate on a fixed 0\u20131024 KB/s scale."
+    },
+    {
+      "id": "network-up-gauge",
+      "name": "Upload gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Upload",
+        "value": 32.0,
+        "unit": "KB/s",
+        "detail": "Upload \u00b7 wlan0",
+        "source": "network-up",
+        "min": 0,
+        "max": 1024
+      },
+      "group": "gauge",
+      "family": "network-up",
+      "variant": "Arc",
+      "description": "Transfer rate on a fixed 0\u20131024 KB/s scale."
+    },
+    {
+      "id": "cpu-temperature-gauge",
+      "name": "CPU temperature gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "CPU temperature",
+        "value": 48.0,
+        "unit": "\u00b0C",
+        "detail": "CPU package",
+        "source": "cpu-temperature",
+        "min": 0,
+        "max": 100
+      },
+      "group": "gauge",
+      "family": "cpu-temperature",
+      "variant": "Arc",
+      "description": "Temperature on a 0\u2013100 \u00b0C scale."
+    },
+    {
+      "id": "gpu-temperature-gauge",
+      "name": "GPU temperature gauge",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "GPU temperature",
+        "value": 41.0,
+        "unit": "\u00b0C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature",
+        "min": 0,
+        "max": 100
+      },
+      "group": "gauge",
+      "family": "gpu-temperature",
+      "variant": "Arc",
+      "description": "Temperature on a 0\u2013100 \u00b0C scale."
+    },
+    {
+      "id": "clock-compact",
+      "name": "Compact clock",
+      "type": "clock",
+      "width": 270,
+      "height": 80,
+      "settings": {
+        "label": "",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "group": "clock",
+      "family": "clock",
+      "variant": "Compact",
+      "description": "A small time and date card for the header."
+    },
+    {
+      "id": "clock-large",
+      "name": "Large clock",
+      "type": "clock",
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "Local time",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "group": "clock",
+      "family": "clock",
+      "variant": "Large",
+      "description": "A large time card with space for its date and label."
+    },
+    {
+      "id": "clock-12h",
+      "name": "12-hour clock",
+      "type": "clock",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Local time",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "12h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "group": "clock",
+      "family": "clock",
+      "variant": "12-hour",
+      "description": "Time with AM/PM and a date."
+    },
+    {
+      "id": "weather-tall",
+      "name": "Slim weather",
+      "type": "weather",
+      "width": 270,
+      "height": 552,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "\u00b0C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14",
+        "source": "weather"
+      },
+      "group": "weather",
+      "family": "weather",
+      "variant": "Slim",
+      "description": "A narrow weather column beside other cards."
+    },
+    {
+      "id": "text-note",
+      "name": "Large note",
+      "type": "text",
+      "width": 564,
+      "height": 304,
+      "settings": {
+        "label": "Notes",
+        "text": "Finish one useful thing.\nThen take a break."
+      },
+      "group": "text",
+      "family": "text",
+      "variant": "Large",
+      "description": "A larger note with room for several lines."
+    },
+    {
+      "id": "text-compact",
+      "name": "Compact note",
+      "type": "text",
+      "width": 352,
+      "height": 112,
+      "settings": {
+        "label": "",
+        "text": "One task at a time."
+      },
+      "group": "text",
+      "family": "text",
+      "variant": "Compact",
+      "description": "An unlabelled short note for a small space."
+    },
+    {
+      "id": "cpu-ring",
+      "name": "CPU load ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "cpu",
+      "variant": "Ring",
+      "description": "A full circular ring with the reading at its centre."
+    },
+    {
+      "id": "cpu-bar",
+      "name": "CPU load bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "bar"
+      },
+      "group": "gauge",
+      "family": "cpu",
+      "variant": "Bar",
+      "description": "A horizontal fill bar with a prominent reading."
+    },
+    {
+      "id": "cpu-segments",
+      "name": "CPU load segmented meter",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "segments"
+      },
+      "group": "gauge",
+      "family": "cpu",
+      "variant": "Segments",
+      "description": "Discrete illuminated blocks show the reading."
+    },
+    {
+      "id": "cpu-number",
+      "name": "CPU load reading",
+      "type": "gauge",
+      "width": 270,
+      "height": 180,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "number"
+      },
+      "group": "gauge",
+      "family": "cpu",
+      "variant": "Number",
+      "description": "A large numerical reading without a chart."
+    },
+    {
+      "id": "gpu-ring",
+      "name": "GPU load ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "GPU load",
+        "value": 18.0,
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu",
+        "min": 0,
+        "max": 100,
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "gpu",
+      "variant": "Ring",
+      "description": "A full circular ring with the reading at its centre."
+    },
+    {
+      "id": "gpu-bar",
+      "name": "GPU load bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "GPU load",
+        "value": 18.0,
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu",
+        "min": 0,
+        "max": 100,
+        "style": "bar"
+      },
+      "group": "gauge",
+      "family": "gpu",
+      "variant": "Bar",
+      "description": "A horizontal fill bar with a prominent reading."
+    },
+    {
+      "id": "gpu-segments",
+      "name": "GPU load segmented meter",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "GPU load",
+        "value": 18.0,
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu",
+        "min": 0,
+        "max": 100,
+        "style": "segments"
+      },
+      "group": "gauge",
+      "family": "gpu",
+      "variant": "Segments",
+      "description": "Discrete illuminated blocks show the reading."
+    },
+    {
+      "id": "gpu-number",
+      "name": "GPU load reading",
+      "type": "gauge",
+      "width": 270,
+      "height": 180,
+      "settings": {
+        "label": "GPU load",
+        "value": 18.0,
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu",
+        "min": 0,
+        "max": 100,
+        "style": "number"
+      },
+      "group": "gauge",
+      "family": "gpu",
+      "variant": "Number",
+      "description": "A large numerical reading without a chart."
+    },
+    {
+      "id": "memory-ring",
+      "name": "Memory ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Memory",
+        "value": 39,
+        "unit": "%",
+        "detail": "12.4 / 32 GB",
+        "source": "memory",
+        "min": 0,
+        "max": 100,
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "memory",
+      "variant": "Ring",
+      "description": "A full circular ring with the reading at its centre."
+    },
+    {
+      "id": "memory-bar",
+      "name": "Memory bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "Memory",
+        "value": 39,
+        "unit": "%",
+        "detail": "12.4 / 32 GB",
+        "source": "memory",
+        "min": 0,
+        "max": 100,
+        "style": "bar"
+      },
+      "group": "gauge",
+      "family": "memory",
+      "variant": "Bar",
+      "description": "A horizontal fill bar with a prominent reading."
+    },
+    {
+      "id": "memory-segments",
+      "name": "Memory segmented meter",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Memory",
+        "value": 39,
+        "unit": "%",
+        "detail": "12.4 / 32 GB",
+        "source": "memory",
+        "min": 0,
+        "max": 100,
+        "style": "segments"
+      },
+      "group": "gauge",
+      "family": "memory",
+      "variant": "Segments",
+      "description": "Discrete illuminated blocks show the reading."
+    },
+    {
+      "id": "memory-number",
+      "name": "Memory reading",
+      "type": "gauge",
+      "width": 270,
+      "height": 180,
+      "settings": {
+        "label": "Memory",
+        "value": 39,
+        "unit": "%",
+        "detail": "12.4 / 32 GB",
+        "source": "memory",
+        "min": 0,
+        "max": 100,
+        "style": "number"
+      },
+      "group": "gauge",
+      "family": "memory",
+      "variant": "Number",
+      "description": "A large numerical reading without a chart."
+    },
+    {
+      "id": "disk-ring",
+      "name": "Disk usage ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Disk usage",
+        "value": 45.0,
+        "unit": "%",
+        "detail": "225 / 500 GB",
+        "source": "disk",
+        "min": 0,
+        "max": 100,
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "disk",
+      "variant": "Ring",
+      "description": "A full circular ring with the reading at its centre."
+    },
+    {
+      "id": "disk-bar",
+      "name": "Disk usage bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "Disk usage",
+        "value": 45.0,
+        "unit": "%",
+        "detail": "225 / 500 GB",
+        "source": "disk",
+        "min": 0,
+        "max": 100,
+        "style": "bar"
+      },
+      "group": "gauge",
+      "family": "disk",
+      "variant": "Bar",
+      "description": "A horizontal fill bar with a prominent reading."
+    },
+    {
+      "id": "disk-segments",
+      "name": "Disk usage segmented meter",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Disk usage",
+        "value": 45.0,
+        "unit": "%",
+        "detail": "225 / 500 GB",
+        "source": "disk",
+        "min": 0,
+        "max": 100,
+        "style": "segments"
+      },
+      "group": "gauge",
+      "family": "disk",
+      "variant": "Segments",
+      "description": "Discrete illuminated blocks show the reading."
+    },
+    {
+      "id": "disk-number",
+      "name": "Disk usage reading",
+      "type": "gauge",
+      "width": 270,
+      "height": 180,
+      "settings": {
+        "label": "Disk usage",
+        "value": 45.0,
+        "unit": "%",
+        "detail": "225 / 500 GB",
+        "source": "disk",
+        "min": 0,
+        "max": 100,
+        "style": "number"
+      },
+      "group": "gauge",
+      "family": "disk",
+      "variant": "Number",
+      "description": "A large numerical reading without a chart."
+    },
+    {
+      "id": "network-down-ring",
+      "name": "Download ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Download",
+        "value": 128.0,
+        "unit": "KB/s",
+        "detail": "Download \u00b7 wlan0",
+        "source": "network-down",
+        "min": 0,
+        "max": 1024,
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "network-down",
+      "variant": "Ring",
+      "description": "A full circular ring with the reading at its centre."
+    },
+    {
+      "id": "network-down-bar",
+      "name": "Download bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "Download",
+        "value": 128.0,
+        "unit": "KB/s",
+        "detail": "Download \u00b7 wlan0",
+        "source": "network-down",
+        "min": 0,
+        "max": 1024,
+        "style": "bar"
+      },
+      "group": "gauge",
+      "family": "network-down",
+      "variant": "Bar",
+      "description": "A horizontal fill bar with a prominent reading."
+    },
+    {
+      "id": "network-down-segments",
+      "name": "Download segmented meter",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Download",
+        "value": 128.0,
+        "unit": "KB/s",
+        "detail": "Download \u00b7 wlan0",
+        "source": "network-down",
+        "min": 0,
+        "max": 1024,
+        "style": "segments"
+      },
+      "group": "gauge",
+      "family": "network-down",
+      "variant": "Segments",
+      "description": "Discrete illuminated blocks show the reading."
+    },
+    {
+      "id": "network-down-number",
+      "name": "Download reading",
+      "type": "gauge",
+      "width": 270,
+      "height": 180,
+      "settings": {
+        "label": "Download",
+        "value": 128.0,
+        "unit": "KB/s",
+        "detail": "Download \u00b7 wlan0",
+        "source": "network-down",
+        "min": 0,
+        "max": 1024,
+        "style": "number"
+      },
+      "group": "gauge",
+      "family": "network-down",
+      "variant": "Number",
+      "description": "A large numerical reading without a chart."
+    },
+    {
+      "id": "network-up-ring",
+      "name": "Upload ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Upload",
+        "value": 32.0,
+        "unit": "KB/s",
+        "detail": "Upload \u00b7 wlan0",
+        "source": "network-up",
+        "min": 0,
+        "max": 1024,
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "network-up",
+      "variant": "Ring",
+      "description": "A full circular ring with the reading at its centre."
+    },
+    {
+      "id": "network-up-bar",
+      "name": "Upload bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "Upload",
+        "value": 32.0,
+        "unit": "KB/s",
+        "detail": "Upload \u00b7 wlan0",
+        "source": "network-up",
+        "min": 0,
+        "max": 1024,
+        "style": "bar"
+      },
+      "group": "gauge",
+      "family": "network-up",
+      "variant": "Bar",
+      "description": "A horizontal fill bar with a prominent reading."
+    },
+    {
+      "id": "network-up-segments",
+      "name": "Upload segmented meter",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Upload",
+        "value": 32.0,
+        "unit": "KB/s",
+        "detail": "Upload \u00b7 wlan0",
+        "source": "network-up",
+        "min": 0,
+        "max": 1024,
+        "style": "segments"
+      },
+      "group": "gauge",
+      "family": "network-up",
+      "variant": "Segments",
+      "description": "Discrete illuminated blocks show the reading."
+    },
+    {
+      "id": "network-up-number",
+      "name": "Upload reading",
+      "type": "gauge",
+      "width": 270,
+      "height": 180,
+      "settings": {
+        "label": "Upload",
+        "value": 32.0,
+        "unit": "KB/s",
+        "detail": "Upload \u00b7 wlan0",
+        "source": "network-up",
+        "min": 0,
+        "max": 1024,
+        "style": "number"
+      },
+      "group": "gauge",
+      "family": "network-up",
+      "variant": "Number",
+      "description": "A large numerical reading without a chart."
+    },
+    {
+      "id": "cpu-temperature-ring",
+      "name": "CPU temperature ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "CPU temperature",
+        "value": 48.0,
+        "unit": "\u00b0C",
+        "detail": "CPU package",
+        "source": "cpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "cpu-temperature",
+      "variant": "Ring",
+      "description": "A full circular ring with the reading at its centre."
+    },
+    {
+      "id": "cpu-temperature-bar",
+      "name": "CPU temperature bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "CPU temperature",
+        "value": 48.0,
+        "unit": "\u00b0C",
+        "detail": "CPU package",
+        "source": "cpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "bar"
+      },
+      "group": "gauge",
+      "family": "cpu-temperature",
+      "variant": "Bar",
+      "description": "A horizontal fill bar with a prominent reading."
+    },
+    {
+      "id": "cpu-temperature-segments",
+      "name": "CPU temperature segmented meter",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "CPU temperature",
+        "value": 48.0,
+        "unit": "\u00b0C",
+        "detail": "CPU package",
+        "source": "cpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "segments"
+      },
+      "group": "gauge",
+      "family": "cpu-temperature",
+      "variant": "Segments",
+      "description": "Discrete illuminated blocks show the reading."
+    },
+    {
+      "id": "cpu-temperature-number",
+      "name": "CPU temperature reading",
+      "type": "gauge",
+      "width": 270,
+      "height": 180,
+      "settings": {
+        "label": "CPU temperature",
+        "value": 48.0,
+        "unit": "\u00b0C",
+        "detail": "CPU package",
+        "source": "cpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "number"
+      },
+      "group": "gauge",
+      "family": "cpu-temperature",
+      "variant": "Number",
+      "description": "A large numerical reading without a chart."
+    },
+    {
+      "id": "gpu-temperature-ring",
+      "name": "GPU temperature ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "GPU temperature",
+        "value": 41.0,
+        "unit": "\u00b0C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "ring"
+      },
+      "group": "gauge",
+      "family": "gpu-temperature",
+      "variant": "Ring",
+      "description": "A full circular ring with the reading at its centre."
+    },
+    {
+      "id": "gpu-temperature-bar",
+      "name": "GPU temperature bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "GPU temperature",
+        "value": 41.0,
+        "unit": "\u00b0C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "bar"
+      },
+      "group": "gauge",
+      "family": "gpu-temperature",
+      "variant": "Bar",
+      "description": "A horizontal fill bar with a prominent reading."
+    },
+    {
+      "id": "gpu-temperature-segments",
+      "name": "GPU temperature segmented meter",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "GPU temperature",
+        "value": 41.0,
+        "unit": "\u00b0C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "segments"
+      },
+      "group": "gauge",
+      "family": "gpu-temperature",
+      "variant": "Segments",
+      "description": "Discrete illuminated blocks show the reading."
+    },
+    {
+      "id": "gpu-temperature-number",
+      "name": "GPU temperature reading",
+      "type": "gauge",
+      "width": 270,
+      "height": 180,
+      "settings": {
+        "label": "GPU temperature",
+        "value": 41.0,
+        "unit": "\u00b0C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "number"
+      },
+      "group": "gauge",
+      "family": "gpu-temperature",
+      "variant": "Number",
+      "description": "A large numerical reading without a chart."
+    },
+    {
+      "id": "cpu-temperature-thermometer",
+      "name": "CPU temperature thermometer",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "CPU temperature",
+        "value": 48.0,
+        "unit": "\u00b0C",
+        "detail": "CPU package",
+        "source": "cpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "thermometer"
+      },
+      "group": "gauge",
+      "family": "cpu-temperature",
+      "variant": "Thermometer",
+      "description": "A vertical stem and bulb show sensor temperature."
+    },
+    {
+      "id": "gpu-temperature-thermometer",
+      "name": "GPU temperature thermometer",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "GPU temperature",
+        "value": 41.0,
+        "unit": "\u00b0C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature",
+        "min": 0,
+        "max": 100,
+        "style": "thermometer"
+      },
+      "group": "gauge",
+      "family": "gpu-temperature",
+      "variant": "Thermometer",
+      "description": "A vertical stem and bulb show sensor temperature."
+    },
+    {
+      "id": "codex-tokens",
+      "name": "Codex tokens",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Codex tokens",
+        "value": "2.4",
+        "unit": "M tokens",
+        "detail": "Demo \u00b7 UTC today",
+        "source": "codex-tokens"
+      },
+      "group": "ai-usage",
+      "family": "codex",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "codex-cost",
+      "name": "Codex API cost",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Codex API cost",
+        "value": "12.50",
+        "unit": "USD",
+        "detail": "Demo API estimate \u00b7 not a subscription bill",
+        "source": "codex-cost"
+      },
+      "group": "ai-usage",
+      "family": "codex",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "codex-weekly",
+      "name": "Codex weekly limit",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Codex weekly limit",
+        "value": "41",
+        "unit": "%",
+        "detail": "Demo weekly allowance",
+        "source": "codex-weekly"
+      },
+      "group": "ai-usage",
+      "family": "codex",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "codex-reset",
+      "name": "Codex reset",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Codex reset",
+        "value": "2h 05m",
+        "unit": "",
+        "detail": "Demo reset countdown",
+        "source": "codex-reset"
+      },
+      "group": "ai-usage",
+      "family": "codex",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "codex-models",
+      "name": "Codex models",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Codex models",
+        "value": "2",
+        "unit": "models",
+        "detail": "*Demo API estimates\ngpt-6.1-sol\t2.1M\t11.50\ngpt-6-luna\t300K\t1.00",
+        "source": "codex-models"
+      },
+      "group": "ai-usage",
+      "family": "codex",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "claude-tokens",
+      "name": "Claude tokens",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Claude tokens",
+        "value": "2.4",
+        "unit": "M tokens",
+        "detail": "Demo \u00b7 UTC today",
+        "source": "claude-tokens"
+      },
+      "group": "ai-usage",
+      "family": "claude",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "claude-cost",
+      "name": "Claude API cost",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Claude API cost",
+        "value": "12.50",
+        "unit": "USD",
+        "detail": "Demo API estimate \u00b7 not a subscription bill",
+        "source": "claude-cost"
+      },
+      "group": "ai-usage",
+      "family": "claude",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "claude-session",
+      "name": "Claude 5-hour limit",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Claude 5-hour limit",
+        "value": "68",
+        "unit": "%",
+        "detail": "Demo 5-hour allowance",
+        "source": "claude-session"
+      },
+      "group": "ai-usage",
+      "family": "claude",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "claude-weekly",
+      "name": "Claude weekly limit",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Claude weekly limit",
+        "value": "41",
+        "unit": "%",
+        "detail": "Demo weekly allowance",
+        "source": "claude-weekly"
+      },
+      "group": "ai-usage",
+      "family": "claude",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "claude-reset",
+      "name": "Claude reset",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Claude reset",
+        "value": "2h 05m",
+        "unit": "",
+        "detail": "Demo reset countdown",
+        "source": "claude-reset"
+      },
+      "group": "ai-usage",
+      "family": "claude",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "claude-models",
+      "name": "Claude models",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Claude models",
+        "value": "2",
+        "unit": "models",
+        "detail": "*Demo API estimates\nclaude-opus\t740K\t7.20\nclaude-sonnet\t100K\t1.20",
+        "source": "claude-models"
+      },
+      "group": "ai-usage",
+      "family": "claude",
+      "variant": "Reading",
+      "description": "Local usage snapshot. Costs are API equivalents; cached limits show their age."
+    },
+    {
+      "id": "storage",
+      "name": "Root storage",
+      "type": "metric",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Root storage",
+        "value": "60",
+        "unit": "%",
+        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "source": "storage"
+      },
+      "group": "storage",
+      "family": "storage",
+      "variant": "Reading",
+      "description": "Root filesystem used and available space."
+    },
+    {
+      "id": "codex-weekly-ring",
+      "name": "Codex weekly limit ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Codex weekly limit",
+        "value": 41,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "codex-weekly",
+        "style": "ring"
+      },
+      "group": "ai-usage",
+      "family": "codex-weekly",
+      "variant": "Ring",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "codex-weekly-bar",
+      "name": "Codex weekly limit bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "Codex weekly limit",
+        "value": 41,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "codex-weekly",
+        "style": "bar"
+      },
+      "group": "ai-usage",
+      "family": "codex-weekly",
+      "variant": "Bar",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "codex-weekly-segments",
+      "name": "Codex weekly limit segments",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Codex weekly limit",
+        "value": 41,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "codex-weekly",
+        "style": "segments"
+      },
+      "group": "ai-usage",
+      "family": "codex-weekly",
+      "variant": "Segments",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "claude-session-ring",
+      "name": "Claude 5-hour limit ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Claude 5-hour limit",
+        "value": 68,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "claude-session",
+        "style": "ring"
+      },
+      "group": "ai-usage",
+      "family": "claude-session",
+      "variant": "Ring",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "claude-session-bar",
+      "name": "Claude 5-hour limit bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "Claude 5-hour limit",
+        "value": 68,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "claude-session",
+        "style": "bar"
+      },
+      "group": "ai-usage",
+      "family": "claude-session",
+      "variant": "Bar",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "claude-session-segments",
+      "name": "Claude 5-hour limit segments",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Claude 5-hour limit",
+        "value": 68,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "claude-session",
+        "style": "segments"
+      },
+      "group": "ai-usage",
+      "family": "claude-session",
+      "variant": "Segments",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "claude-weekly-ring",
+      "name": "Claude weekly limit ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Claude weekly limit",
+        "value": 41,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "claude-weekly",
+        "style": "ring"
+      },
+      "group": "ai-usage",
+      "family": "claude-weekly",
+      "variant": "Ring",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "claude-weekly-bar",
+      "name": "Claude weekly limit bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "Claude weekly limit",
+        "value": 41,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "claude-weekly",
+        "style": "bar"
+      },
+      "group": "ai-usage",
+      "family": "claude-weekly",
+      "variant": "Bar",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "claude-weekly-segments",
+      "name": "Claude weekly limit segments",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Claude weekly limit",
+        "value": 41,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo \u00b7 cached provider allowance",
+        "source": "claude-weekly",
+        "style": "segments"
+      },
+      "group": "ai-usage",
+      "family": "claude-weekly",
+      "variant": "Segments",
+      "description": "Percentage from a cached provider limit."
+    },
+    {
+      "id": "storage-arc",
+      "name": "Root storage arc",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Root storage",
+        "value": 60,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "source": "storage",
+        "style": "arc"
+      },
+      "group": "storage",
+      "family": "storage",
+      "variant": "Arc",
+      "description": "Root filesystem percentage with used/free capacity."
+    },
+    {
+      "id": "storage-ring",
+      "name": "Root storage ring",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Root storage",
+        "value": 60,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "source": "storage",
+        "style": "ring"
+      },
+      "group": "storage",
+      "family": "storage",
+      "variant": "Ring",
+      "description": "Root filesystem percentage with used/free capacity."
+    },
+    {
+      "id": "storage-bar",
+      "name": "Root storage bar",
+      "type": "gauge",
+      "width": 352,
+      "height": 180,
+      "settings": {
+        "label": "Root storage",
+        "value": 60,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "source": "storage",
+        "style": "bar"
+      },
+      "group": "storage",
+      "family": "storage",
+      "variant": "Bar",
+      "description": "Root filesystem percentage with used/free capacity."
+    },
+    {
+      "id": "storage-segments",
+      "name": "Root storage segments",
+      "type": "gauge",
+      "width": 352,
+      "height": 224,
+      "settings": {
+        "label": "Root storage",
+        "value": 60,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "source": "storage",
+        "style": "segments"
+      },
+      "group": "storage",
+      "family": "storage",
+      "variant": "Segments",
+      "description": "Root filesystem percentage with used/free capacity."
+    },
+    {
+      "id": "storage-thermometer",
+      "name": "Root storage thermometer",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Root storage",
+        "value": 60,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "source": "storage",
+        "style": "thermometer"
+      },
+      "group": "storage",
+      "family": "storage",
+      "variant": "Thermometer",
+      "description": "Root filesystem percentage with used/free capacity."
+    },
+    {
+      "id": "storage-number",
+      "name": "Root storage number",
+      "type": "gauge",
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Root storage",
+        "value": 60,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "source": "storage",
+        "style": "number"
+      },
+      "group": "storage",
+      "family": "storage",
+      "variant": "Number",
+      "description": "Root filesystem percentage with used/free capacity."
+    },
+    {
+      "id": "mounted-storage",
+      "name": "Mounted storage",
+      "type": "storage",
+      "width": 352,
+      "height": 480,
+      "settings": {
+        "label": "Mounted storage",
+        "style": "bars",
+        "source": "mounted-storage"
+      },
+      "group": "storage",
+      "family": "mounted-storage",
+      "variant": "Standard",
+      "description": "Every mounted local filesystem, with used and free capacity. Shared filesystems are grouped."
+    },
+    {
+      "id": "mounted-storage-table",
+      "name": "Mounted storage table",
+      "type": "storage",
+      "width": 564,
+      "height": 384,
+      "settings": {
+        "label": "Mounted storage",
+        "style": "table",
+        "source": "mounted-storage"
+      },
+      "group": "storage",
+      "family": "mounted-storage",
+      "variant": "Capacity table",
+      "description": "Every mounted local filesystem, with used and free capacity. Shared filesystems are grouped."
+    },
+    {
+      "id": "mounted-storage-wide",
+      "name": "Mounted storage wide",
+      "type": "storage",
+      "width": 564,
+      "height": 480,
+      "settings": {
+        "label": "Mounted storage",
+        "style": "bars",
+        "source": "mounted-storage"
+      },
+      "group": "storage",
+      "family": "mounted-storage",
+      "variant": "Wide bars",
+      "description": "Every mounted local filesystem, with used and free capacity. Shared filesystems are grouped."
+    }
+  ],
+  "groups": [
+    {
+      "id": "system",
+      "name": "System"
+    },
+    {
+      "id": "network",
+      "name": "Network"
+    },
+    {
+      "id": "temperature",
+      "name": "Temperatures"
+    },
+    {
+      "id": "gauge",
+      "name": "Gauges"
+    },
+    {
+      "id": "clock",
+      "name": "Clocks"
+    },
+    {
+      "id": "weather",
+      "name": "Weather"
+    },
+    {
+      "id": "text",
+      "name": "Text"
+    },
+    {
+      "id": "ai-usage",
+      "name": "AI usage"
+    },
+    {
+      "id": "storage",
+      "name": "Storage"
+    }
+  ]
+}

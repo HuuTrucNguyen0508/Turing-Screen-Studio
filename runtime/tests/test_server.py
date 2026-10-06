@@ -220,6 +220,21 @@ class ServerTests(unittest.TestCase):
         self.assert_json_error(response, 500)
         self.assertEqual(self.paths.layout.read_bytes(), original)
 
+    def test_history_reads_exact_old_layout_and_cannot_escape_archive(self):
+        changed = deepcopy(self.document)
+        changed['name'] = 'Replacement'
+        status, _, body = self.post('/api/layout', changed, {'If-Match': revision(self.document)})
+        self.assertEqual(status, 200)
+        identifier = json.loads(body)['archive']['id']
+        status, _, body = self.request('GET', '/api/history')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['archives'][0]['id'], identifier)
+        status, _, body = self.request('GET', '/api/history/' + identifier)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['document'], self.document)
+        self.assert_json_error(self.request('GET', '/api/history/../layout.json'), 404)
+        self.assert_json_error(self.request('GET', '/api/history/original-dashboard'), 404)
+
     def test_panel_geometry_requires_exact_dimensions_and_integer_bounds(self):
         mutations = (
             lambda doc: doc["canvas"].update(width=1281),

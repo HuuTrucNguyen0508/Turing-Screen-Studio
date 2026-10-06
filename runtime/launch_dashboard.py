@@ -12,7 +12,7 @@ def publish_adapter_failure(error, paths=None):
     pid = os.getpid()
     status = {'pid': pid, 'processStart': Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19],
               'connected': False, 'appliedRevision': None, 'frameRevision': None, 'frameTime': None,
-              'view': 'stats', 'error': f'Studio adapter unavailable; using original dashboard: {error}'}
+              'view': 'stats', 'error': f'Studio adapter unavailable; dashboard startup stopped: {error}'}
     atomic_write(paths.status, (json.dumps(status) + '\n').encode())
     paths.frame.unlink(missing_ok=True)
 
@@ -28,7 +28,7 @@ def install_adapter(dashboard):
             publish_adapter_failure(error)
         except Exception as status_error:
             print(f'Studio adapter failure status unavailable: {status_error}', flush=True)
-        print(f'Studio adapter unavailable; using original dashboard: {error}', flush=True)
+        print(f'Studio adapter unavailable; dashboard startup stopped: {error}', flush=True)
         return False
     return True
 
@@ -47,7 +47,9 @@ def main():
     lock_path = Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'turzx-panel.lock'
     with lock_path.open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        install_adapter(dashboard)
+        if not install_adapter(dashboard):
+            # Rendering can fall back inside the adapter; USB admission must not.
+            return 1
         return dashboard.main()
 
 

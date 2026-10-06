@@ -7,6 +7,7 @@ from pathlib import Path
 import unittest
 
 from turzx_studio.layout import (
+    GAUGE_STYLES,
     PALETTE_ROLES,
     effective_palette,
     parse_caelestia_palette,
@@ -20,6 +21,49 @@ SAMPLE_PATH = Path(__file__).resolve().parents[2] / "public" / "sample-layout.js
 
 
 class LayoutTests(unittest.TestCase):
+    def test_expanded_widgets_and_invalid_settings(self):
+        settings_by_type = {
+            "clock": {"label": "Clock", "time": "10:24", "date": "Sunday, 4 October", "format": "12h", "showDate": True},
+            "text": {"label": "Note", "text": "First line\nSecond line"},
+            "gauge": {"label": "Gauge", "value": 0.125, "min": -1.5, "max": 8.75, "unit": "%", "detail": "Sample"},
+        }
+        for kind, settings in settings_by_type.items():
+            document = deepcopy(self.doc)
+            document["widgets"] = [{**document["widgets"][0], "type": kind, "settings": settings}]
+            self.assertEqual(parse_layout(serialize_layout(document)), document)
+            self.assertNotIn("source", validate_layout(document)["widgets"][0]["settings"])
+            for field in settings:
+                invalid = deepcopy(document)
+                invalid["widgets"][0]["settings"].pop(field)
+                with self.subTest(kind=kind, missing=field), self.assertRaisesRegex(ValueError, field):
+                    validate_layout(invalid)
+        for key, value in (("value", True), ("min", float("nan")), ("max", float("inf")),
+                           ("max", -1.5), ("value", 9), ("value", -2), ("value", "0")):
+            document = deepcopy(self.doc)
+            document["widgets"] = [{**document["widgets"][0], "type": "gauge",
+                                    "settings": {**settings_by_type["gauge"], key: value}}]
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                validate_layout(document)
+        self.assertEqual(validate_layout({**self.doc, "widgets": []})["widgets"], [])
+
+    def test_gauge_styles_preserve_omission_and_reject_unknown_or_other_types(self):
+        document = deepcopy(self.doc)
+        gauge = {**document["widgets"][0], "type": "gauge", "settings": {
+            "label": "CPU", "value": 24, "min": 0, "max": 100, "unit": "%", "detail": "Sample", "source": "cpu"}}
+        document["widgets"] = [gauge]
+        self.assertNotIn("style", parse_layout(serialize_layout(document))["widgets"][0]["settings"])
+        for style in GAUGE_STYLES:
+            gauge["settings"]["style"] = style
+            self.assertEqual(parse_layout(serialize_layout(document)), document)
+        for style in (None, True, False, 0, "pie", "Ring", ""):
+            gauge["settings"]["style"] = style
+            with self.subTest(style=style), self.assertRaisesRegex(ValueError, "settings.style"):
+                validate_layout(document)
+        for widget in self.doc["widgets"]:
+            invalid = {**self.doc, "widgets": [{**widget, "settings": {**widget["settings"], "style": "ring"}}]}
+            with self.assertRaisesRegex(ValueError, "settings.style"):
+                validate_layout(invalid)
+
     def setUp(self):
         self.sample_text = SAMPLE_PATH.read_text(encoding="utf-8")
         self.doc = parse_layout(self.sample_text)
@@ -134,7 +178,7 @@ class LayoutTests(unittest.TestCase):
         self.assertNotIn("source", validate_layout(document)["widgets"][0]["settings"])
         for mode in ("saved", "live"):
             document["paletteMode"] = mode
-            for source in ("sample", "cpu", "gpu", "memory", "disk", "network-down", "network-up"):
+            for source in ("sample", "cpu", "gpu", "memory", "disk", "network-down", "network-up", "cpu-temperature", "gpu-temperature"):
                 document["widgets"][0]["settings"]["source"] = source
                 normalized = validate_layout(document)
                 self.assertEqual(list(normalized)[-1], "paletteMode")

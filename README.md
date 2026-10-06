@@ -8,9 +8,11 @@ The first target is the existing 1280 by 800 dashboard on a TURZX 8-inch screen.
 
 ## Current status
 
-The first offline editor is implemented. It includes a deterministic sample dashboard, card selection, drag movement, corner resizing, integer geometry fields, keyboard nudges, palette import, and JSON export/reopen. The connected editor uses the same PIL renderer for previews and saves directly to the existing dashboard runtime. See [panel setup and rollback](docs/panel-integration.md).
+The first offline editor is implemented. It includes a deterministic sample dashboard, card selection, drag movement, corner resizing, integer geometry fields, keyboard nudges, palette import, and JSON export/reopen. The connected editor uses the same PIL renderer for previews and saves directly to the existing dashboard runtime. The adapter was activated locally on 6 October 2026; browser saves received panel acknowledgements and the resource check passed. See [verification results](docs/verification.md) and [panel setup and rollback](docs/panel-integration.md).
 
 Start with [the first milestone](docs/first-milestone.md).
+
+Studio currently expects the custom Python dashboard at `~/Documents/dashboard`, the USB library at `~/Documents/turing-smart-screen-python`, and an existing `turzx-dashboard.service` for physical-panel use. The offline editor works without them. A complete fresh-machine installer is not included yet.
 
 ## Run locally
 
@@ -53,7 +55,31 @@ Export JSON requests a browser download. Reopen that saved file with Open layout
 
 Use Import scheme.json to select Caelestia's current `~/.local/state/caelestia/scheme.json`. The app reads only the file you choose. It starts with a bundled snapshot of the local `dynamic` scheme and stores the imported preview colors in exported layouts.
 
-See [the layout contract](docs/layout-format.md) and [the sample JSON](public/sample-layout.json). Sample content is read-only in this milestone; existing widget settings survive export and import. Editor previews reproduce the saved arrangement. The connected editor uses the panel's PIL renderer and offers live data sources and Save to panel.
+See [the layout contract](docs/layout-format.md) and [the sample JSON](public/sample-layout.json). Browse and scroll through 98 widget choices in Add widget, narrow them with search or category filters, then edit, duplicate or remove cards. Metric and weather cards are joined by clocks, text cards and six gauge designs: arc, ring, bar, segmented meter, thermometer and number. Disk usage, network upload/download and CPU/GPU temperatures use the existing live collector. Editor previews reproduce the saved arrangement. The connected editor uses the panel's PIL renderer and offers live data sources and Save to panel.
+
+Use Create layout for a designed starting point. System overview, Focus, Classic layout, AI usage and Gauge designs change the editor draft; the panel changes when you choose Save to panel. Every changed save first archives the older layout under `~/.local/share/turzx-studio/older-config/`. The original dashboard's source and configuration are preserved there in `original-dashboard/`.
+
+Use **Saved layouts** to keep dashboards ready for the panel. The initial list contains your current dashboard and three other presets. It prefers System overview, AI usage and Focus; if your current dashboard already uses one of those, Gauge designs fills the spare slot. **Ctrl+F9**, **Ctrl+F10**, **Ctrl+F11** and **Ctrl+F12** switch the physical panel directly to the first, second, third and fourth layouts. Each changed switch archives the previous configuration. Unsaved editor drafts remain intact.
+
+Add the current draft or a preset to the list, update an entry with your draft, or reorder and remove entries. Reordering changes the shortcut assignments. Updating or removing an entry archives its previous document; identical copies are rejected. The list supports 12 dashboards; Previous and Next reach the full list. Saving this list alone does not switch the panel. It lives in `~/.local/share/turzx-studio/layouts.json`, separately from the active dashboard and older configurations.
+
+On this Hyprland setup, install the desktop shortcuts and the local Studio API service with `pnpm shortcuts:install`. This keeps switching available when the editor window is closed and after login. The installer preserves existing configuration files, adds a managed block to Caelestia's `hypr-user.lua`, and installs `turzx-studio.service`. It adds the four live bindings without reloading the compositor. Stop a manually launched Studio server first if it already occupies port 5174. The panel runtime keeps running independently.
+
+## Ask an agent to design a dashboard
+
+Describe what you want to see and ask for a preview. The agent can use the widget catalog, JSON schema and layout commands to generate a complete dashboard without manual positioning. See [the agent workflow](docs/ai-layouts.md).
+
+```bash
+pnpm layout presets
+pnpm layout generate --preset system-overview --output layouts/my-dashboard.json
+pnpm layout validate layouts/my-dashboard.json --panel
+pnpm layout preview layouts/my-dashboard.json --output artifacts/my-dashboard.png
+pnpm layout history
+pnpm layout saved
+pnpm layout slot 3
+```
+
+Generation and preview work offline and never open USB. Applying a layout uses the local Studio API with the saved revision and preserves the previous layout first.
 
 ## First usable version
 
@@ -78,7 +104,7 @@ Reuse the existing lightweight PIL runtime for the first hardware integration. E
 
 ## Later milestones
 
-1. Expand widget configuration and reusable layouts.
+1. Add more widget types and user-defined presets.
 2. Add recorded-data playback.
 3. Package the editor as a desktop app if that improves the workflow.
 4. Compare rendering and transport implementations with repeatable measurements.
@@ -88,3 +114,5 @@ Reuse the existing lightweight PIL runtime for the first hardware integration. E
 See the [TURZX diary](https://github.com/HuuTrucNguyen0508/Hyprland_Diary/tree/main/TURZX-SCREEN) for orientation, USB stability, and refresh experiments.
 
 The original runtime lives at `~/Documents/dashboard`. Read it as a reference before integration; the Studio adapter preserves its source and replaces only the service entry point through a separate, reversible override.
+
+Create layout → AI usage opens a complete Claude/Codex dashboard draft. It has daily tokens, API cost estimates, cached provider limits, reset countdowns and per-model tokens/costs. Add widget → Storage offers mounted-filesystem cards (usage bars or a capacity table) alongside root filesystem gauges. The mounted cards discover local disks at `/`, `/mnt/games`, `/mnt/nvme` and other mount paths automatically; shared filesystems appear once. Editor values say Demo; the panel uses local observations after Save to panel. T3 cache values can be stale and unpriced models leave complete costs unavailable. See [usage data](docs/usage-data.md) and [design references](docs/widget-design-references.md).

@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from PIL import Image
 from launch_dashboard import install_adapter, publish_adapter_failure
@@ -138,6 +138,26 @@ class IntegrationTests(unittest.TestCase):
         with Image.open(self.paths.frame) as capture:
             self.assertEqual(capture.tobytes(), frame.tobytes())
 
+    def test_mounted_storage_alone_collects_live_rows_and_invalidates_on_refresh(self):
+        self.doc['widgets'] = [dict(id='disks', type='storage', x=64, y=160, width=564, height=480,
+                                    settings=dict(label='Disks', style='bars', source='mounted-storage'))]
+        atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
+        first_snapshot = dict(readAt='first', mountedStorage=dict(mounts=[], stale=False, errors=[]))
+        second_snapshot = dict(readAt='second', mountedStorage=dict(mounts=[], stale=False, errors=[]))
+        self.owner.usage.snapshot = Mock(side_effect=[first_snapshot, second_snapshot])
+        first = self.dashboard.logical_dirty_key(view='stats')
+        self.assertEqual(self.owner.usage_snapshot, first_snapshot)
+        self.renderer.render(SimpleNamespace())
+        self.assertTrue(self.owner.rendered_layout)
+        second = self.dashboard.logical_dirty_key(view='stats')
+        self.assertNotEqual(first, second)
+        self.assertIn('storage', self.owner.status['supportedWidgetTypes'])
+        self.doc['widgets'][0]['settings']['source'] = 'sample'
+        atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
+        self.dashboard.logical_dirty_key(view='stats')
+        self.assertIsNone(self.owner.usage_snapshot)
+        self.assertEqual(self.owner.usage.snapshot.call_count, 2)
+
     def test_speedtest_never_acknowledges_new_layout(self):
         self.assertTrue(self.send()[0])
         self.dashboard.logical_dirty_key(view='speedtest')
@@ -243,6 +263,68 @@ class IntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'owned'):
                 self.dashboard.open_lcd()
         self.assertFalse(self.owner.status['connected'])
+
+    def owned_adapter(self, fail_open=False, fail_close=False):
+        device = object()
+        transport = SimpleNamespace(send_image=lambda *a: self.reply, send_jpeg=lambda *a: self.reply,
+            _resp_ok=self.transport._resp_ok, find_usb_device=Mock(), VENDOR_ID=0x1cbe, PRODUCT_ID={0x80: None},
+            usb=SimpleNamespace(core=object(), util=SimpleNamespace(dispose_resources=Mock())))
+        def open_device():
+            acquired, _ = transport.find_usb_device()
+            if fail_open:
+                raise RuntimeError('initialization failed')
+            return SimpleNamespace(dev=acquired)
+        close = Mock(side_effect=RuntimeError('close failed') if fail_close else None)
+        dashboard = SimpleNamespace(**{**self.dashboard_originals, 'open_lcd': open_device, 'close_lcd': close})
+        owner = RuntimeIntegration(self.paths, Path(self.temp.name) / 'missing-scheme')
+        owner.install(dashboard, transport)
+        return owner, dashboard, transport, device
+
+    def test_same_claimed_device_reaches_transport_and_is_disposed_on_close(self):
+        owner, dashboard, transport, device = self.owned_adapter()
+        with patch('turzx_studio.integration.assert_usb_available'), \
+                patch('turzx_studio.integration.open_claimed_device', return_value=(device, 0x80)):
+            lcd = dashboard.open_lcd()
+            self.assertIs(lcd.dev, device)
+            self.assertIs(owner.usb_device, device)
+            transport.usb.util.dispose_resources.assert_not_called()
+            dashboard.close_lcd(lcd)
+        transport.usb.util.dispose_resources.assert_called_once_with(device)
+        self.assertIsNone(owner.usb_device)
+
+    def test_partial_initialization_failure_disposes_the_claim_and_reports_disconnected(self):
+        owner, dashboard, transport, device = self.owned_adapter(fail_open=True)
+        with patch('turzx_studio.integration.assert_usb_available'), \
+                patch('turzx_studio.integration.open_claimed_device', return_value=(device, 0x80)):
+            with self.assertRaisesRegex(RuntimeError, 'initialization failed'):
+                dashboard.open_lcd()
+        transport.usb.util.dispose_resources.assert_called_once_with(device)
+        self.assertIsNone(owner.usb_device)
+        self.assertFalse(owner.status['connected'])
+
+    def test_close_error_still_disposes_the_claim(self):
+        owner, dashboard, transport, device = self.owned_adapter(fail_close=True)
+        with patch('turzx_studio.integration.assert_usb_available'), \
+                patch('turzx_studio.integration.open_claimed_device', return_value=(device, 0x80)):
+            lcd = dashboard.open_lcd()
+            with self.assertRaisesRegex(RuntimeError, 'close failed'):
+                dashboard.close_lcd(lcd)
+        transport.usb.util.dispose_resources.assert_called_once_with(device)
+        self.assertIsNone(owner.usb_device)
+
+    def test_hardware_entrypoint_does_not_bypass_ownership_when_adapter_installation_fails(self):
+        import os
+        import sys
+        from launch_dashboard import main
+        live = Path.home() / 'Documents/dashboard'
+        dashboard = SimpleNamespace(__file__=str(live / 'dashboard.py'), main=Mock())
+        renderer = SimpleNamespace(__file__=str(live / 'renderer.py'))
+        with patch.dict(sys.modules, {'dashboard': dashboard, 'renderer': renderer}), \
+                patch.dict(os.environ, {'XDG_RUNTIME_DIR': self.temp.name}), \
+                patch.object(sys, 'argv', ['launch_dashboard.py']), patch.object(sys, 'path', list(sys.path)), \
+                patch('launch_dashboard.install_adapter', return_value=False), patch('launch_dashboard.fcntl.flock'):
+            self.assertEqual(main(), 1)
+        dashboard.main.assert_not_called()
 
     def test_new_adapter_clears_status_and_capture_from_previous_process(self):
         self.assertTrue(self.send()[0])

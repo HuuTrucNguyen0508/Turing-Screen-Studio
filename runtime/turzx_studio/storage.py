@@ -31,6 +31,10 @@ class Paths:
         return self.state_dir / "layout.json"
 
     @property
+    def older_configs(self) -> Path:
+        return self.state_dir / "older-config"
+
+    @property
     def status(self) -> Path:
         return self.runtime_dir / "status.json"
 

@@ -2,6 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent, SetStateAction } from 'react';
 import { fitCanvas, pointerDeltaToDocument, updateGeometry } from './domain/layout';
 import type { LayoutDocument, Widget } from './domain/layout';
+import { CardContent, widgetLabel } from './WidgetContent';
+import { dashboardHeading } from './domain/usage';
+export { widgetLabel } from './WidgetContent';
 
 type Props = {
   document: LayoutDocument;
@@ -21,38 +24,6 @@ type Gesture = {
   widget: Widget;
   mode: 'move' | 'resize';
 };
-
-export function widgetLabel(widget: Widget) {
-  return widget.type === 'metric' ? widget.settings.label : widget.settings.location;
-}
-
-function CardContent({ widget }: { widget: Widget }) {
-  if (widget.type === 'weather') {
-    return <div className="weather-content">
-      <span className="card-kicker">Weather / {widget.settings.location}</span>
-      <svg className="weather-icon" viewBox="0 0 120 100" fill="none" aria-hidden="true">
-        <g stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-          <circle cx="76" cy="32" r="17" />
-          <path d="M76 5V0M76 64v-5M103 32h8M42 32h7M96 12l6-6M50 58l6-6M96 52l6 6M50 6l6 6" />
-          <path d="M29 83a17 17 0 0 1-1-34 24 24 0 0 1 46 2 16 16 0 1 1 4 32H29Z" fill="var(--surface)" />
-        </g>
-      </svg>
-      <div className="weather-temperature">{widget.settings.temperature}<span>{widget.settings.unit}</span></div>
-      <p>{widget.settings.condition}</p>
-      <div className="weather-range"><span>High {widget.settings.high}°</span><span>Low {widget.settings.low}°</span></div>
-      <div className="weather-caption">Sample forecast</div>
-    </div>;
-  }
-  return <div className="metric-content">
-    <span className="card-kicker">{widget.settings.label}</span>
-    <div className="metric-value">{widget.settings.value}<span>{widget.settings.unit}</span></div>
-    <svg className="sparkline" viewBox="0 0 300 32" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0 26H300" stroke="var(--outline)" strokeWidth="1" />
-      <path d="M0 22L20 23L40 17L60 21L80 13L100 16L120 8L140 14L160 12L180 19L200 11L220 16L240 9L260 13L280 5L300 10" stroke="currentColor" strokeWidth="2" fill="none" />
-    </svg>
-    <span className="metric-detail">{widget.settings.detail}</span>
-  </div>;
-}
 
 export default function CanvasPreview({ document, selectedId, onSelect, onChange, getDocument, bitmap }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -164,7 +135,7 @@ export default function CanvasPreview({ document, selectedId, onSelect, onChange
         width: document.canvas.width, height: document.canvas.height,
         left: fit.offsetX, top: fit.offsetY, transform: `scale(${fit.scale})`,
       }}>
-        {bitmap ? <img className="rendered-frame" src={bitmap} alt="Panel renderer with sample data" draggable={false} /> : <div className="dashboard-header" aria-hidden="true"><div><span className="card-kicker">TURZX / desktop</span><strong>System overview</strong></div><div className="dashboard-time">10:24<span>Sunday, 4 October</span></div></div>}
+        {bitmap ? <img className="rendered-frame" src={bitmap} alt="Panel renderer with sample data" draggable={false} /> : <div className="dashboard-header" aria-hidden="true"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
         {document.widgets.map((widget) => <div key={widget.id} tabIndex={0} role="group"
           aria-label={`${widgetLabel(widget)} card`} aria-roledescription="movable card"
           data-widget-id={widget.id} data-selected={selectedId === widget.id}
@@ -188,7 +159,7 @@ export default function CanvasPreview({ document, selectedId, onSelect, onChange
               }} />
           </>}
         </div>)}
-        <div className="dashboard-footer" aria-hidden="true"><span>Deterministic preview</span><span>1280 / 800</span></div>
+        <div className="dashboard-footer" aria-hidden="true"><span>Deterministic preview</span><span>{document.canvas.width} / {document.canvas.height}</span></div>
       </div>
     </div>
     <div className="preview-footer"><span className="mono">{selected ? `X ${selected.x} / Y ${selected.y}` : 'Select a card to edit'}</span><span>Arrow keys 1 px · Shift 10 px · Esc cancels a drag</span></div>

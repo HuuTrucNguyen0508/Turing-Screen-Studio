@@ -1,0 +1,695 @@
+{
+  "presets": [
+    {
+      "id": "system-overview",
+      "name": "System overview",
+      "description": "CPU, GPU and memory gauges with disk, network, clock and weather.",
+      "document": {
+        "version": 1,
+        "name": "System overview",
+        "canvas": {
+          "width": 1280,
+          "height": 800
+        },
+        "palette": {
+          "name": "dynamic",
+          "background": "#0a0f0f",
+          "surface": "#131b1b",
+          "surfaceRaised": "#192121",
+          "text": "#dce8e7",
+          "muted": "#a2adad",
+          "primary": "#9bd0d1",
+          "secondary": "#b0cccc",
+          "outline": "#3f4a4a"
+        },
+        "widgets": [
+          {
+            "id": "clock",
+            "type": "clock",
+            "x": 946,
+            "y": 40,
+            "width": 270,
+            "height": 80,
+            "settings": {
+              "label": "Local time",
+              "time": "14:32",
+              "date": "Tuesday, 6 October",
+              "format": "24h",
+              "showDate": true,
+              "source": "clock"
+            }
+          },
+          {
+            "id": "cpu",
+            "type": "gauge",
+            "x": 64,
+            "y": 144,
+            "width": 270,
+            "height": 304,
+            "settings": {
+              "label": "CPU load",
+              "value": 24,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "detail": "8 cores \u00b7 42 \u00b0C",
+              "source": "cpu"
+            }
+          },
+          {
+            "id": "gpu",
+            "type": "gauge",
+            "x": 358,
+            "y": 144,
+            "width": 270,
+            "height": 304,
+            "settings": {
+              "label": "GPU load",
+              "value": 18,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "detail": "6.2 / 16 GB VRAM",
+              "source": "gpu"
+            }
+          },
+          {
+            "id": "memory",
+            "type": "gauge",
+            "x": 652,
+            "y": 144,
+            "width": 270,
+            "height": 304,
+            "settings": {
+              "label": "Memory",
+              "value": 39,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "detail": "12.4 / 32 GB",
+              "source": "memory"
+            }
+          },
+          {
+            "id": "disk",
+            "type": "metric",
+            "x": 64,
+            "y": 472,
+            "width": 270,
+            "height": 224,
+            "settings": {
+              "label": "Disk",
+              "value": "61",
+              "unit": "%",
+              "detail": "568.0 / 931 GB",
+              "source": "disk"
+            }
+          },
+          {
+            "id": "network-down",
+            "type": "metric",
+            "x": 358,
+            "y": 472,
+            "width": 270,
+            "height": 224,
+            "settings": {
+              "label": "Network down",
+              "value": "3.2",
+              "unit": "MB/s",
+              "detail": "Download \u00b7 wlan0",
+              "source": "network-down"
+            }
+          },
+          {
+            "id": "network-up",
+            "type": "metric",
+            "x": 652,
+            "y": 472,
+            "width": 270,
+            "height": 224,
+            "settings": {
+              "label": "Network up",
+              "value": "184",
+              "unit": "KB/s",
+              "detail": "Upload \u00b7 wlan0",
+              "source": "network-up"
+            }
+          },
+          {
+            "id": "weather",
+            "type": "weather",
+            "x": 946,
+            "y": 144,
+            "width": 270,
+            "height": 552,
+            "settings": {
+              "location": "Paris",
+              "temperature": "19",
+              "unit": "\u00b0C",
+              "condition": "Partly cloudy",
+              "high": "22",
+              "low": "14",
+              "source": "weather"
+            }
+          }
+        ],
+        "paletteMode": "live"
+      }
+    },
+    {
+      "id": "focus",
+      "name": "Focus",
+      "description": "A large clock and weather card, with CPU and GPU gauges.",
+      "document": {
+        "version": 1,
+        "name": "Focus",
+        "canvas": {
+          "width": 1280,
+          "height": 800
+        },
+        "palette": {
+          "name": "dynamic",
+          "background": "#0a0f0f",
+          "surface": "#131b1b",
+          "surfaceRaised": "#192121",
+          "text": "#dce8e7",
+          "muted": "#a2adad",
+          "primary": "#9bd0d1",
+          "secondary": "#b0cccc",
+          "outline": "#3f4a4a"
+        },
+        "widgets": [
+          {
+            "id": "clock",
+            "type": "clock",
+            "x": 64,
+            "y": 144,
+            "width": 564,
+            "height": 224,
+            "settings": {
+              "label": "Local time",
+              "time": "14:32",
+              "date": "Tuesday, 6 October",
+              "format": "24h",
+              "showDate": true,
+              "source": "clock"
+            }
+          },
+          {
+            "id": "weather",
+            "type": "weather",
+            "x": 652,
+            "y": 144,
+            "width": 564,
+            "height": 552,
+            "settings": {
+              "location": "Paris",
+              "temperature": "19",
+              "unit": "\u00b0C",
+              "condition": "Partly cloudy",
+              "high": "22",
+              "low": "14",
+              "source": "weather"
+            }
+          },
+          {
+            "id": "cpu",
+            "type": "gauge",
+            "x": 64,
+            "y": 392,
+            "width": 270,
+            "height": 304,
+            "settings": {
+              "label": "CPU load",
+              "value": 24,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "detail": "Current utilization",
+              "source": "cpu"
+            }
+          },
+          {
+            "id": "gpu",
+            "type": "gauge",
+            "x": 358,
+            "y": 392,
+            "width": 270,
+            "height": 304,
+            "settings": {
+              "label": "GPU load",
+              "value": 18,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "detail": "Current utilization",
+              "source": "gpu"
+            }
+          }
+        ],
+        "paletteMode": "live"
+      }
+    },
+    {
+      "id": "classic",
+      "name": "Classic layout",
+      "description": "The first Studio arrangement with CPU, GPU, memory and weather.",
+      "document": {
+        "version": 1,
+        "name": "Classic layout",
+        "canvas": {
+          "width": 1280,
+          "height": 800
+        },
+        "palette": {
+          "name": "dynamic",
+          "background": "#0a0f0f",
+          "surface": "#131b1b",
+          "surfaceRaised": "#192121",
+          "text": "#dce8e7",
+          "muted": "#a2adad",
+          "primary": "#9bd0d1",
+          "secondary": "#b0cccc",
+          "outline": "#3f4a4a"
+        },
+        "widgets": [
+          {
+            "id": "cpu",
+            "type": "metric",
+            "x": 64,
+            "y": 160,
+            "width": 352,
+            "height": 224,
+            "settings": {
+              "label": "CPU load",
+              "value": "24",
+              "unit": "%",
+              "detail": "8 cores \u00b7 42 \u00b0C",
+              "source": "cpu"
+            }
+          },
+          {
+            "id": "gpu",
+            "type": "metric",
+            "x": 440,
+            "y": 160,
+            "width": 352,
+            "height": 224,
+            "settings": {
+              "label": "GPU load",
+              "value": "18",
+              "unit": "%",
+              "detail": "6.2 / 16 GB VRAM",
+              "source": "gpu"
+            }
+          },
+          {
+            "id": "memory",
+            "type": "metric",
+            "x": 64,
+            "y": 408,
+            "width": 728,
+            "height": 240,
+            "settings": {
+              "label": "Memory",
+              "value": "12.4",
+              "unit": "GB",
+              "detail": "32 GB installed \u00b7 39% used",
+              "source": "memory"
+            }
+          },
+          {
+            "id": "weather",
+            "type": "weather",
+            "x": 816,
+            "y": 160,
+            "width": 400,
+            "height": 488,
+            "settings": {
+              "location": "Paris",
+              "temperature": "19",
+              "unit": "\u00b0C",
+              "condition": "Partly cloudy",
+              "high": "22",
+              "low": "14",
+              "source": "weather"
+            }
+          }
+        ],
+        "paletteMode": "live"
+      }
+    },
+    {
+      "id": "ai-usage",
+      "name": "AI usage",
+      "description": "Claude and Codex daily tokens, model costs, provider limits and reset countdowns.",
+      "document": {
+        "version": 1,
+        "name": "AI usage",
+        "canvas": {
+          "width": 1280,
+          "height": 800
+        },
+        "palette": {
+          "name": "dynamic",
+          "background": "#0a0f0f",
+          "surface": "#131b1b",
+          "surfaceRaised": "#192121",
+          "text": "#dce8e7",
+          "muted": "#a2adad",
+          "primary": "#9bd0d1",
+          "secondary": "#b0cccc",
+          "outline": "#3f4a4a"
+        },
+        "widgets": [
+          {
+            "id": "codex-weekly-bar",
+            "type": "gauge",
+            "x": 64,
+            "y": 144,
+            "width": 564,
+            "height": 180,
+            "settings": {
+              "label": "Codex weekly limit",
+              "value": 41,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "detail": "Demo \u00b7 cached provider allowance",
+              "source": "codex-weekly",
+              "style": "bar"
+            }
+          },
+          {
+            "id": "codex-tokens",
+            "type": "metric",
+            "x": 64,
+            "y": 348,
+            "width": 270,
+            "height": 200,
+            "settings": {
+              "label": "Codex tokens",
+              "value": "2.4",
+              "unit": "M tokens",
+              "detail": "Demo \u00b7 UTC today",
+              "source": "codex-tokens"
+            }
+          },
+          {
+            "id": "codex-cost",
+            "type": "metric",
+            "x": 358,
+            "y": 348,
+            "width": 270,
+            "height": 200,
+            "settings": {
+              "label": "Codex API cost",
+              "value": "12.50",
+              "unit": "USD",
+              "detail": "Demo API estimate \u00b7 not a subscription bill",
+              "source": "codex-cost"
+            }
+          },
+          {
+            "id": "codex-reset",
+            "type": "metric",
+            "x": 64,
+            "y": 572,
+            "width": 270,
+            "height": 152,
+            "settings": {
+              "label": "Codex reset",
+              "value": "2h 05m",
+              "unit": "",
+              "detail": "Demo reset countdown",
+              "source": "codex-reset"
+            }
+          },
+          {
+            "id": "codex-models",
+            "type": "metric",
+            "x": 358,
+            "y": 572,
+            "width": 270,
+            "height": 152,
+            "settings": {
+              "label": "Codex models",
+              "value": "2",
+              "unit": "models",
+              "detail": "*Demo API estimates\ngpt-6.1-sol\t2.1M\t11.50\ngpt-6-luna\t300K\t1.00",
+              "source": "codex-models"
+            }
+          },
+          {
+            "id": "claude-session-bar",
+            "type": "gauge",
+            "x": 652,
+            "y": 144,
+            "width": 270,
+            "height": 180,
+            "settings": {
+              "label": "Claude 5-hour limit",
+              "value": 68,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "detail": "Demo allowance",
+              "source": "claude-session",
+              "style": "bar"
+            }
+          },
+          {
+            "id": "claude-tokens",
+            "type": "metric",
+            "x": 652,
+            "y": 348,
+            "width": 270,
+            "height": 200,
+            "settings": {
+              "label": "Claude tokens",
+              "value": "840",
+              "unit": "K tokens",
+              "detail": "Demo \u00b7 UTC today",
+              "source": "claude-tokens"
+            }
+          },
+          {
+            "id": "claude-cost",
+            "type": "metric",
+            "x": 946,
+            "y": 348,
+            "width": 270,
+            "height": 200,
+            "settings": {
+              "label": "Claude API cost",
+              "value": "8.40",
+              "unit": "USD",
+              "detail": "Demo API estimate \u00b7 not a subscription bill",
+              "source": "claude-cost"
+            }
+          },
+          {
+            "id": "claude-reset",
+            "type": "metric",
+            "x": 652,
+            "y": 572,
+            "width": 270,
+            "height": 152,
+            "settings": {
+              "label": "Claude reset",
+              "value": "1h 12m",
+              "unit": "",
+              "detail": "Demo reset countdown",
+              "source": "claude-reset"
+            }
+          },
+          {
+            "id": "claude-models",
+            "type": "metric",
+            "x": 946,
+            "y": 572,
+            "width": 270,
+            "height": 152,
+            "settings": {
+              "label": "Claude models",
+              "value": "2",
+              "unit": "models",
+              "detail": "*Demo API estimates\nclaude-opus\t740K\t7.20\nclaude-sonnet\t100K\t1.20",
+              "source": "claude-models"
+            }
+          },
+          {
+            "id": "clock",
+            "type": "clock",
+            "x": 992,
+            "y": 32,
+            "width": 224,
+            "height": 112,
+            "settings": {
+              "label": "Local time",
+              "time": "14:32",
+              "date": "Tuesday, 6 October",
+              "format": "24h",
+              "showDate": true,
+              "source": "clock"
+            }
+          },
+          {
+            "id": "claude-weekly-bar",
+            "type": "gauge",
+            "x": 946,
+            "y": 144,
+            "width": 270,
+            "height": 180,
+            "settings": {
+              "label": "Claude weekly limit",
+              "value": 52,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "detail": "Demo allowance",
+              "source": "claude-weekly",
+              "style": "bar"
+            }
+          }
+        ],
+        "paletteMode": "live"
+      }
+    },
+    {
+      "id": "gauge-designs",
+      "name": "Gauge designs",
+      "description": "Compare six different instruments for the same CPU reading.",
+      "document": {
+        "version": 1,
+        "name": "Six CPU instruments",
+        "canvas": {
+          "width": 1280,
+          "height": 800
+        },
+        "palette": {
+          "name": "dynamic",
+          "background": "#110d11",
+          "surface": "#1d181e",
+          "surfaceRaised": "#241e24",
+          "text": "#efe2ec",
+          "muted": "#b3a8b2",
+          "primary": "#dfbbe2",
+          "secondary": "#d6c0d6",
+          "outline": "#4e454e"
+        },
+        "widgets": [
+          {
+            "id": "cpu-arc",
+            "type": "gauge",
+            "x": 64,
+            "y": 144,
+            "width": 360,
+            "height": 280,
+            "settings": {
+              "label": "CPU load",
+              "value": 24.0,
+              "unit": "%",
+              "detail": "8 cores \u00b7 42 \u00b0C",
+              "source": "cpu",
+              "min": 0,
+              "max": 100,
+              "style": "arc"
+            }
+          },
+          {
+            "id": "cpu-ring",
+            "type": "gauge",
+            "x": 448,
+            "y": 144,
+            "width": 360,
+            "height": 280,
+            "settings": {
+              "label": "CPU load",
+              "value": 24.0,
+              "unit": "%",
+              "detail": "8 cores \u00b7 42 \u00b0C",
+              "source": "cpu",
+              "min": 0,
+              "max": 100,
+              "style": "ring"
+            }
+          },
+          {
+            "id": "cpu-bar",
+            "type": "gauge",
+            "x": 832,
+            "y": 144,
+            "width": 360,
+            "height": 280,
+            "settings": {
+              "label": "CPU load",
+              "value": 24.0,
+              "unit": "%",
+              "detail": "8 cores \u00b7 42 \u00b0C",
+              "source": "cpu",
+              "min": 0,
+              "max": 100,
+              "style": "bar"
+            }
+          },
+          {
+            "id": "cpu-segments",
+            "type": "gauge",
+            "x": 64,
+            "y": 448,
+            "width": 360,
+            "height": 280,
+            "settings": {
+              "label": "CPU load",
+              "value": 24.0,
+              "unit": "%",
+              "detail": "8 cores \u00b7 42 \u00b0C",
+              "source": "cpu",
+              "min": 0,
+              "max": 100,
+              "style": "segments"
+            }
+          },
+          {
+            "id": "cpu-thermometer",
+            "type": "gauge",
+            "x": 448,
+            "y": 448,
+            "width": 360,
+            "height": 280,
+            "settings": {
+              "label": "CPU load",
+              "value": 24.0,
+              "unit": "%",
+              "detail": "8 cores \u00b7 42 \u00b0C",
+              "source": "cpu",
+              "min": 0,
+              "max": 100,
+              "style": "thermometer"
+            }
+          },
+          {
+            "id": "cpu-number",
+            "type": "gauge",
+            "x": 832,
+            "y": 448,
+            "width": 360,
+            "height": 280,
+            "settings": {
+              "label": "CPU load",
+              "value": 24.0,
+              "unit": "%",
+              "detail": "8 cores \u00b7 42 \u00b0C",
+              "source": "cpu",
+              "min": 0,
+              "max": 100,
+              "style": "number"
+            }
+          }
+        ],
+        "paletteMode": "saved"
+      }
+    }
+  ]
+}

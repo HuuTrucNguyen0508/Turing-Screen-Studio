@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "name": "Six CPU instruments",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "dynamic",
+    "background": "#110d11",
+    "surface": "#1d181e",
+    "surfaceRaised": "#241e24",
+    "text": "#efe2ec",
+    "muted": "#b3a8b2",
+    "primary": "#dfbbe2",
+    "secondary": "#d6c0d6",
+    "outline": "#4e454e"
+  },
+  "widgets": [
+    {
+      "id": "cpu-arc",
+      "type": "gauge",
+      "x": 64,
+      "y": 144,
+      "width": 360,
+      "height": 280,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores · 42 °C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "arc"
+      }
+    },
+    {
+      "id": "cpu-ring",
+      "type": "gauge",
+      "x": 448,
+      "y": 144,
+      "width": 360,
+      "height": 280,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores · 42 °C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "ring"
+      }
+    },
+    {
+      "id": "cpu-bar",
+      "type": "gauge",
+      "x": 832,
+      "y": 144,
+      "width": 360,
+      "height": 280,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores · 42 °C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "bar"
+      }
+    },
+    {
+      "id": "cpu-segments",
+      "type": "gauge",
+      "x": 64,
+      "y": 448,
+      "width": 360,
+      "height": 280,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores · 42 °C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "segments"
+      }
+    },
+    {
+      "id": "cpu-thermometer",
+      "type": "gauge",
+      "x": 448,
+      "y": 448,
+      "width": 360,
+      "height": 280,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores · 42 °C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "thermometer"
+      }
+    },
+    {
+      "id": "cpu-number",
+      "type": "gauge",
+      "x": 832,
+      "y": 448,
+      "width": 360,
+      "height": 280,
+      "settings": {
+        "label": "CPU load",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores · 42 °C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "number"
+      }
+    }
+  ],
+  "paletteMode": "saved"
+}

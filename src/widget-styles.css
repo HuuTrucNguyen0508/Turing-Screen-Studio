@@ -1,0 +1,51 @@
+/* Gauge display styles: ring, bar, segments, thermometer and number.
+   The original arc keeps its rules in styles.css and is untouched here.
+   Geometry lives in SVG attributes in document pixels; these rules only set
+   paint and type, so the browser preview and the PIL render share one spec
+   (artifacts/distinct-widget-design-20261006.md). Colors are Caelestia
+   variables only. Import after styles.css. */
+
+.gauge-content .gauge-figure { position: absolute; inset: 0; overflow: hidden; }
+
+/* PIL draws without antialiasing. Rectangles and ticks stay pixel-aligned. */
+.gauge-figure rect { shape-rendering: crispEdges; }
+
+.gauge-figure .gauge-track { fill: var(--outline); }
+.gauge-figure .gauge-fill { fill: var(--primary); }
+.gauge-figure .gauge-ring-track { fill: none; stroke: var(--outline); }
+.gauge-figure .gauge-ring-fill { fill: none; stroke: var(--primary); stroke-linecap: butt; }
+.gauge-figure .gauge-marker { fill: var(--text); }
+/* Ticks are 1 px rects, not lines, so PIL and SVG fill the same pixels. */
+.gauge-figure .gauge-tick { fill: var(--muted); }
+.gauge-figure .gauge-tick.minor { fill: var(--outline); }
+
+/* Text is positioned by its alphabetic baseline, matching PIL anchors ls/ms/rs. */
+.gauge-figure text { white-space: pre; dominant-baseline: alphabetic; }
+.gauge-figure .gauge-reading { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; fill: var(--primary); }
+.gauge-figure .gauge-reading .gauge-reading-unit { font-family: 'Roboto', 'DejaVu Sans', sans-serif; fill: var(--muted); }
+.gauge-figure .gauge-reading.unavailable { fill: var(--muted); }
+.gauge-figure .gauge-scale { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 12px; fill: var(--muted); }
+.gauge-figure .gauge-note { font-family: 'Roboto', 'DejaVu Sans', sans-serif; font-size: 14px; fill: var(--muted); }
+
+/* Number: the reading itself is the figure. Text color, primary unit and rule. */
+.gauge-style-number .gauge-reading { fill: var(--text); }
+.gauge-style-number .gauge-reading .gauge-reading-unit { fill: var(--primary); }
+.gauge-style-number .gauge-reading.unavailable { fill: var(--muted); }
+.gauge-style-number .gauge-reading.unavailable .gauge-reading-unit { fill: var(--muted); }
+
+/* Inspector: Display style chooser. Six radio cards in a 3 x 2 grid, each
+   with a 40 x 28 glyph of the style's silhouette. */
+.gauge-style-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.gauge-style-picker legend { font-size: 10px; color: var(--muted); margin-bottom: 8px; padding: 0; }
+.gauge-style-option { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 4px 7px; border: 1px solid var(--outline); border-radius: 7px; background: var(--background); color: var(--muted); font-size: 10px; cursor: pointer; min-width: 0; }
+.gauge-style-option input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.gauge-style-option svg { width: 40px; height: 28px; overflow: visible; }
+.gauge-style-option .glyph-track { fill: none; stroke: var(--outline); }
+.gauge-style-option .glyph-track-fill { fill: var(--outline); }
+.gauge-style-option .glyph-fill { fill: none; stroke: currentColor; }
+.gauge-style-option .glyph-fill-solid { fill: currentColor; }
+.gauge-style-option .glyph-text { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 15px; fill: currentColor; }
+.gauge-style-option span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.gauge-style-option:hover { border-color: var(--muted); color: var(--text); }
+.gauge-style-option:has(input:checked) { border-color: var(--primary); color: var(--primary); background: var(--surfaceRaised); }
+.gauge-style-option:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }

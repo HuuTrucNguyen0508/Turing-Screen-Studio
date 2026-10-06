@@ -133,6 +133,35 @@ test('conflicts stay protected until the saved layout is actually opened', async
   expect(attempts[2]).toBe('second');
 });
 
+test('an outdated runtime explains the blocked save and preserves the draft and revision', async ({ page }) => {
+  const saved = createSampleLayout();
+  const attempts: string[] = [];
+  const runtimeError = 'The panel runtime needs an update before saving these widgets. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.';
+  await page.route('**/api/layout', async (route) => {
+    if (route.request().method() === 'POST') {
+      attempts.push(route.request().headers()['if-match']);
+      expect(route.request().postDataJSON().widgets.some((widget: { type: string }) => widget.type === 'clock')).toBe(true);
+      await route.fulfill({ status: 409, json: { error: runtimeError } });
+    } else await route.fulfill({ json: { document: saved, revision: 'saved' } });
+  });
+  await page.route('**/api/status', (route) => route.fulfill({ json: { runtimeRunning: true, connected: true, requestedRevision: 'saved', appliedRevision: 'saved' } }));
+  await page.route('**/api/palette', (route) => route.fulfill({ json: { palette: null } }));
+  await page.route('**/api/preview', (route) => route.fulfill({ status: 422, json: { error: 'Test uses HTML preview' } }));
+  await page.goto('/');
+  const save = page.getByRole('button', { name: 'Save to panel' });
+  await expect(save).toBeEnabled();
+  await page.getByRole('button', { name: 'Add widget', exact: true }).click();
+  await page.getByRole('button', { name: 'Add Clock', exact: true }).click();
+  await save.click();
+  await expect(page.getByRole('alert')).toContainText(runtimeError);
+  await expect(page.getByRole('alert')).not.toContainText('changed elsewhere');
+  await expect(page.getByTestId('document-status')).toHaveText('Unsaved changes');
+  await expect(page.getByLabel('Time', { exact: true })).toHaveValue('14:32');
+  await save.click();
+  await expect.poll(() => attempts.length).toBe(2);
+  expect(attempts).toEqual(['saved', 'saved']);
+});
+
 test('missing acknowledgements and pre-save status responses cannot report acceptance', async ({ page }) => {
   let revision = 'first';
   let pollCount = 0;
@@ -166,4 +195,55 @@ test('missing acknowledgements and pre-save status responses cannot report accep
   await staleResponse;
   await expect(page.getByText('Waiting for panel', { exact: true })).toBeVisible();
   await expect(page.getByText('Panel accepted frame', { exact: true })).toHaveCount(0);
+});
+
+test('creating a preset changes only the draft and keeps the explicit panel save', async ({ page }) => {
+  const preset = createSampleLayout(); preset.name = 'New preset'; preset.widgets = [];
+  let saves = 0;
+  await page.route('**/api/layout', (route) => {
+    if (route.request().method() === 'POST') saves++;
+    return route.fulfill({ json: { document: createSampleLayout(), revision: 'saved' } });
+  });
+  await page.route('**/api/status', (route) => route.fulfill({ json: { runtimeRunning: true, connected: true, requestedRevision: 'saved', appliedRevision: 'saved' } }));
+  await page.route('**/api/palette', (route) => route.fulfill({ json: { palette: null } }));
+  await page.route('**/api/preview', (route) => route.fulfill({ status: 422, json: { error: 'Test uses HTML preview' } }));
+  await page.route('**/layout-presets.json', (route) => route.fulfill({ json: { presets: [{ id: 'new', name: 'New preset', description: 'Empty.', document: preset }] } }));
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Save to panel' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Create layout', exact: true }).click();
+  await page.getByRole('button', { name: 'Create New preset', exact: true }).click();
+  await expect(page.locator('[data-widget-id]')).toHaveCount(0);
+  await expect(page.getByTestId('document-status')).toHaveText('Unsaved changes');
+  expect(saves).toBe(0);
+  await expect(page.getByRole('button', { name: 'Save to panel' })).toBeEnabled();
+});
+
+
+test('browsing and adding library variants keeps panel writes explicit', async ({ page }) => {
+  const saved = createSampleLayout();
+  let saves = 0;
+  await page.route('**/api/layout', (route) => {
+    if (route.request().method() === 'POST') saves++;
+    return route.fulfill({ json: { document: saved, revision: 'saved' } });
+  });
+  await page.route('**/api/status', (route) => route.fulfill({ json: { runtimeRunning: true, connected: true, requestedRevision: 'saved', appliedRevision: 'saved' } }));
+  await page.route('**/api/palette', (route) => route.fulfill({ json: { palette: null } }));
+  await page.route('**/api/preview', (route) => route.fulfill({ status: 422, json: { error: 'Test uses HTML preview' } }));
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Save to panel' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Add widget', exact: true }).click();
+  const library = page.getByRole('dialog', { name: 'Add widget', exact: true });
+  await library.getByRole('button', { name: /^Gauges/ }).click();
+  await library.getByLabel('Search widgets', { exact: true }).fill('Download');
+  await expect(library.getByRole('button', { name: /^Add / })).toHaveCount(5);
+  await library.getByRole('button', { name: 'Add Download gauge', exact: true }).click();
+  await expect(page.getByLabel('Maximum', { exact: true })).toHaveValue('1024');
+  await expect(page.getByLabel('Panel data source')).toHaveValue('network-down');
+  await page.getByLabel('Display style').selectOption('segments');
+  await expect(page.getByLabel('Maximum', { exact: true })).toHaveValue('1024');
+  await expect(page.getByLabel('Panel data source')).toHaveValue('network-down');
+  await expect(page.getByTestId('document-status')).toHaveText('Unsaved changes');
+  expect(saves).toBe(0);
+  expect(saved.widgets.some(({ id }) => id === 'network-down-gauge')).toBe(false);
+  await expect(page.getByRole('button', { name: 'Save to panel' })).toBeEnabled();
 });

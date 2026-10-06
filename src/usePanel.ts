@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLayout, serializeLayout } from './domain/layout';
 import type { LayoutDocument, Palette } from './domain/layout';
+import type { LayoutSelection } from './SavedLayouts';
 
 export type PanelStatus = { runtimeRunning?: boolean; connected?: boolean; usbPresent?: boolean; appliedRevision?: string | null; requestedRevision?: string | null; frameRevision?: string | null; frameTime?: number; view?: string; error?: string };
 
@@ -13,6 +14,8 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
   const [previewError, setPreviewError] = useState('');
   const [saving, setSaving] = useState(false);
   const [openingSaved, setOpeningSaved] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const operation = useRef(false);
   const previewUrl = useRef<string | null>(null);
   const statusEpoch = useRef(0);
   const initial = useRef({ onOpen, isDirty, onInitialConflict });
@@ -70,13 +73,14 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
   useEffect(() => () => { if (previewUrl.current) URL.revokeObjectURL(previewUrl.current); }, []);
 
   async function save(snapshot: LayoutDocument) {
-    if (saving || openingSaved || !revision) return null;
+    if (operation.current || !revision) return null;
+    operation.current = true;
     setSaving(true);
     try {
       const response = await fetch('/api/layout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': revision }, body: serializeLayout(snapshot) });
       const data = await response.json();
       if (!response.ok) {
-        if (response.status === 409) {
+        if (response.status === 409 && typeof data.revision === 'string') {
           throw new Error('The saved layout changed elsewhere. Your draft is intact. Open the saved layout to compare before saving again.');
         }
         throw new Error(data.error ?? 'Could not save the layout.');
@@ -85,17 +89,40 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
       setRevision(data.revision);
       setStatus((current) => ({ ...current, requestedRevision: data.revision }));
       return data.revision as string;
-    } finally { setSaving(false); }
+    } finally { operation.current = false; setSaving(false); }
   }
 
   async function openSaved() {
+    if (operation.current) throw new Error('Wait for the current panel operation to finish.');
+    operation.current = true;
     setOpeningSaved(true);
     try {
       const response = await fetch('/api/layout');
       if (!response.ok) throw new Error('Could not open the saved layout.');
       const data = await response.json();
       return { document: parseLayout(JSON.stringify(data.document)), revision: data.revision as string };
-    } finally { setOpeningSaved(false); }
+    } finally { operation.current = false; setOpeningSaved(false); }
+  }
+
+  async function switchLayout(selection: LayoutSelection) {
+    if (operation.current) return null;
+    if (!revision) throw new Error('Open the saved panel layout before switching dashboards.');
+    operation.current = true; setSwitching(true);
+    try {
+      const response = await fetch('/api/layouts/switch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': revision },
+        body: JSON.stringify(selection),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 409 && typeof data.revision === 'string') throw new Error('The panel layout changed elsewhere. Open the saved layout before switching again. Your draft is intact.');
+        throw new Error(data.error ?? 'Could not switch the panel layout.');
+      }
+      if (typeof data.revision !== 'string' || typeof data.activeId !== 'string') throw new Error('Studio returned an invalid layout switch. Open the saved layout to check the panel.');
+      const saved = parseLayout(JSON.stringify(data.document));
+      adoptSaved(data.revision);
+      return { document: saved, revision: data.revision as string, activeId: data.activeId as string };
+    } finally { operation.current = false; setSwitching(false); }
   }
 
   function adoptSaved(savedRevision: string) {
@@ -104,5 +131,5 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
     setStatus((current) => ({ ...current, requestedRevision: savedRevision }));
   }
 
-  return { available, revision, status, palette, preview, previewError, saving, openingSaved, save, openSaved, adoptSaved };
+  return { available, revision, status, palette, preview, previewError, saving, openingSaved, switching, save, openSaved, switchLayout, adoptSaved };
 }

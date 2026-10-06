@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "name": "A quiet workday",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "dynamic",
+    "background": "#0a0f0f",
+    "surface": "#131b1b",
+    "surfaceRaised": "#192121",
+    "text": "#dce8e7",
+    "muted": "#a2adad",
+    "primary": "#9bd0d1",
+    "secondary": "#b0cccc",
+    "outline": "#3f4a4a"
+  },
+  "widgets": [
+    {
+      "id": "clock-1",
+      "type": "clock",
+      "x": 64,
+      "y": 144,
+      "width": 564,
+      "height": 224,
+      "settings": {
+        "label": "Local time",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      }
+    },
+    {
+      "id": "weather-2",
+      "type": "weather",
+      "x": 652,
+      "y": 144,
+      "width": 564,
+      "height": 552,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "°C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14",
+        "source": "weather"
+      }
+    },
+    {
+      "id": "text-3",
+      "type": "text",
+      "x": 64,
+      "y": 392,
+      "width": 564,
+      "height": 304,
+      "settings": {
+        "label": "Today",
+        "text": "Finish one useful thing.\nThen take a break."
+      }
+    }
+  ],
+  "paletteMode": "live"
+}

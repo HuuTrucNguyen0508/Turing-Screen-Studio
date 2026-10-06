@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import re
+from .usage_display import USAGE_SOURCES
 
 MAX_CANVAS_SIZE = 16384
 MAX_SAFE_INTEGER = 2**53 - 1
@@ -13,10 +14,12 @@ PALETTE_ROLES = (
     "background", "surface", "surfaceRaised", "text", "muted", "primary",
     "secondary", "outline",
 )
+GAUGE_STYLES = ("arc", "ring", "bar", "segments", "thermometer", "number")
 METRIC_SETTINGS = ("label", "value", "unit", "detail")
 WEATHER_SETTINGS = ("location", "temperature", "unit", "condition", "high", "low")
 METRIC_SOURCES = (
     "sample", "cpu", "gpu", "memory", "disk", "network-down", "network-up",
+    "cpu-temperature", "gpu-temperature", *USAGE_SOURCES,
 )
 _HEX = re.compile(r"#[0-9a-fA-F]{6}\Z")
 
@@ -84,8 +87,8 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
     _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path)
     widget_id = _string(value["id"], f"{path}.id", nonempty=True)
     kind = value["type"]
-    if kind not in ("metric", "weather"):
-        _fail(f"{path}.type", 'unsupported widget type; expected "metric" or "weather"')
+    if kind not in ("metric", "weather", "clock", "text", "gauge", "storage"):
+        _fail(f"{path}.type", 'unsupported widget type; expected metric, weather, clock, text, gauge, storage')
     geometry = {
         key: _integer(value[key], f"{path}.{key}", 0 if key in ("x", "y") else 1)
         for key in ("x", "y", "width", "height")
@@ -96,12 +99,49 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
         _fail(f"{path}.height", "y + height must fit inside canvas.height")
     settings_path = f"{path}.settings"
     settings = _object(value["settings"], settings_path)
-    fields = METRIC_SETTINGS if kind == "metric" else WEATHER_SETTINGS
-    _keys(settings, fields, settings_path, ("source",))
-    result = {key: _string(settings[key], f"{settings_path}.{key}") for key in fields}
+    fields = {"metric": METRIC_SETTINGS, "weather": WEATHER_SETTINGS,
+              "clock": ("label", "time", "date", "format", "showDate"),
+              "text": ("label", "text"), "storage": ("label", "style"),
+              "gauge": ("label", "value", "min", "max", "unit", "detail")}[kind]
+    _keys(settings, fields, settings_path, () if kind == "text" else
+          ("source", "style") if kind == "gauge" else ("source",))
+    result = {}
+    for key in fields:
+        raw = settings[key]
+        field_path = f"{settings_path}.{key}"
+        if kind == "gauge" and key in ("value", "min", "max"):
+            try:
+                valid = type(raw) in (int, float) and math.isfinite(raw)
+            except OverflowError:
+                valid = False
+            if not valid:
+                _fail(field_path, "expected a finite number")
+            result[key] = int(raw) if isinstance(raw, float) and raw.is_integer() and abs(raw) <= MAX_SAFE_INTEGER else raw
+        elif kind == "clock" and key == "showDate":
+            if type(raw) is not bool:
+                _fail(field_path, "expected a boolean")
+            result[key] = raw
+        else:
+            result[key] = _string(raw, field_path)
+    if kind == "clock" and result["format"] not in ("24h", "12h"):
+        _fail(f"{settings_path}.format", "expected 24h, 12h")
+    if kind == "storage" and result["style"] not in ("bars", "table"):
+        _fail(f"{settings_path}.style", "expected bars, table")
+    if kind == "gauge":
+        if result["max"] <= result["min"]:
+            _fail(f"{settings_path}.max", "must be greater than min")
+        if not result["min"] <= result["value"] <= result["max"]:
+            _fail(f"{settings_path}.value", "must be between min and max")
+    if kind == "gauge" and "style" in settings:
+        style = _string(settings["style"], f"{settings_path}.style")
+        if style not in GAUGE_STYLES:
+            _fail(f"{settings_path}.style", f"expected {', '.join(GAUGE_STYLES)}")
+        result["style"] = style
     if "source" in settings:
         source = _string(settings["source"], f"{settings_path}.source")
-        sources = METRIC_SOURCES if kind == "metric" else ("sample", "weather")
+        sources = (("sample", "mounted-storage") if kind == "storage" else
+                   METRIC_SOURCES if kind in ("metric", "gauge") else
+                   ("sample", "clock") if kind == "clock" else ("sample", "weather"))
         if source not in sources:
             _fail(f"{settings_path}.source", f"expected one of {', '.join(sources)}")
         result["source"] = source

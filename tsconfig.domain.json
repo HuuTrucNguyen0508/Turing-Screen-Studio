@@ -4,5 +4,6 @@
     "lib": ["ES2022"],
     "types": []
   },
-  "include": ["src/domain/layout.ts"]
+  "include": ["src/domain/*.ts"],
+  "exclude": ["src/domain/*.test.ts"]
 }

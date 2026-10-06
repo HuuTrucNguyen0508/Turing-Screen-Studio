@@ -1,0 +1,11 @@
+.storage-content { width: 100%; height: 100%; overflow: hidden; }
+.storage-content svg { display: block; overflow: hidden; }
+.storage-content text { fill: var(--text); font-family: inherit; }
+.storage-content .storage-label { font-size: 14px; font-weight: 600; letter-spacing: .5px; }
+.storage-content .storage-muted { fill: var(--muted); font-size: 12px; }
+.storage-content .storage-path { font-size: 14px; font-weight: 500; }
+.storage-content .storage-number { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.storage-content .storage-percent { fill: var(--primary); font-size: 14px; font-variant-numeric: tabular-nums; }
+.storage-content .storage-track { fill: var(--outline); }
+.storage-content .storage-fill { fill: var(--primary); }
+.storage-content .storage-divider { stroke: var(--outline); }

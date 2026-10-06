@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 import subprocess
+from turzx_studio.archives import snapshot_original_dashboard
+from turzx_studio.storage import Paths
 
 
 def systemctl(*args):
@@ -31,6 +33,9 @@ def main():
     # Prove the adapter can import before changing the unit. No USB is opened.
     subprocess.run([str(python), '-c', 'import turzx_studio.integration'],
                    cwd=root / 'runtime', check=True)
+    original = snapshot_original_dashboard(Paths(), live, config,
+        Path.home() / 'Documents/turing-smart-screen-python/library/lcd/lcd_comm_turing_usb.py',
+        Path.home() / '.config/turzx/config.json')
     backup = Path.home() / '.local/share/turzx-studio/backups' / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     backup.mkdir(parents=True, mode=0o700)
     shutil.copy2(config / service, backup / service)
@@ -59,7 +64,7 @@ def main():
         systemctl('daemon-reload')
         systemctl('restart', service)
         raise
-    print(f'Studio renderer installed. Previous configuration: {backup}')
+    print(f'Studio renderer installed. Original dashboard: {original}. Previous configuration: {backup}')
 
 
 if __name__ == '__main__':

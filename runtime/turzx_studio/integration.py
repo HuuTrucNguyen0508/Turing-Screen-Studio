@@ -2,15 +2,21 @@
 from __future__ import annotations
 
 import hashlib
+import errno
+import fcntl
 import json
 import os
 from pathlib import Path
+import struct
 import time
 
-from .layout import effective_palette
+from .layout import GAUGE_STYLES, effective_palette
 from .renderer import LayoutRenderer
 from .watch import LayoutWatcher
 from .storage import Paths, PaletteWatcher, atomic_write
+from .usage import UsageCollector
+from .usage_display import USAGE_SOURCES, UsageStats
+from .usb_ownership import open_claimed_device
 
 MAX_RESPONSE_BYTES = 64
 
@@ -33,19 +39,23 @@ def usb_paths() -> list[str]:
 
 
 def assert_usb_available() -> None:
-    devices = set(usb_paths())
-    for proc in Path('/proc').glob('[0-9]*'):
-        if int(proc.name) == os.getpid():
-            continue
+    # Linux GETDRIVER reports claims, unlike a /proc descriptor scan.
+    # usbfs requires O_RDWR even for this query; it sends no USB command.
+    request = (1 << 30) | (struct.calcsize('I256s') << 16) | (ord('U') << 8) | 8
+    for path in usb_paths():
+        fd = os.open(path, os.O_RDWR | os.O_CLOEXEC)
         try:
-            for fd in (proc / 'fd').iterdir():
-                try:
-                    if os.readlink(fd) in devices:
-                        raise RuntimeError(f'TURZX USB is owned by process {proc.name}')
-                except OSError:
+            data = bytearray(struct.pack('I256s', 0, b''))
+            try:
+                fcntl.ioctl(fd, request, data, True)
+            except OSError as error:
+                if error.errno == errno.ENODATA:
                     continue
-        except OSError:
-            continue
+                raise
+            driver = data[4:].split(b'\0', 1)[0].decode('ascii', 'replace')
+            raise RuntimeError(f'TURZX USB interface 0 is claimed by {driver or "an unknown driver"}')
+        finally:
+            os.close(fd)
 
 
 class RuntimeIntegration:
@@ -66,8 +76,14 @@ class RuntimeIntegration:
         self.response = None
         self.last_capture = 0.0
         self.status = {}
+        self.usage = UsageCollector()
+        self.usage_snapshot = None
+        self.usb_device = None
         self.invalidate_frame(pid=os.getpid(), processStart=process_start(os.getpid()),
                               connected=False, view='stats', error=None,
+                              supportedWidgetTypes=['metric', 'weather', 'clock', 'text', 'gauge', 'storage'],
+                              supportedGaugeStyles=list(GAUGE_STYLES),
+                              supportedUsageSources=list(USAGE_SOURCES),
                               responseHex=None, responseBytes=None, responseTruncated=False)
 
     def invalidate_frame(self, **changes):
@@ -93,7 +109,29 @@ class RuntimeIntegration:
         legacy_write = dashboard.try_lcd_write
         legacy_open = dashboard.open_lcd
         legacy_scheme = dashboard.SchemeWatcher
+        legacy_close = getattr(dashboard, 'close_lcd', None)
+        owns_usb = hasattr(transport, 'find_usb_device')
         owner = self
+
+        def find_owned_device():
+            device, product = open_claimed_device(transport.usb.core, transport.usb.util,
+                                                  transport.VENDOR_ID, transport.PRODUCT_ID)
+            owner.usb_device = device
+            return device, product
+
+        def dispose_device(device):
+            if device is not None:
+                try:
+                    transport.usb.util.dispose_resources(device)
+                finally:
+                    if owner.usb_device is device:
+                        owner.usb_device = None
+
+        def close_lcd(lcd):
+            try:
+                return legacy_close(lcd)
+            finally:
+                dispose_device(getattr(lcd, 'dev', None))
 
         class SafeScheme(legacy_scheme):
             def __init__(self, *args, **kwargs):
@@ -133,7 +171,8 @@ class RuntimeIntegration:
                 if owner.document is not None:
                     try:
                         rendered_revision = owner.frame_revision
-                        frame = self.layout.render(owner.document, stats=stats, palette=owner.palette)
+                        display_stats = UsageStats(stats, owner.usage_snapshot) if owner.usage_snapshot is not None else stats
+                        frame = self.layout.render(owner.document, stats=display_stats, palette=owner.palette)
                         owner.rendered_layout = True
                         owner.rendered_revision = rendered_revision
                         owner.render_error = None
@@ -158,7 +197,12 @@ class RuntimeIntegration:
             owner.publish(view=kwargs.get('view', 'stats'),
                           error=owner.render_error or owner.transport_error or owner.layouts.error or owner.scheme.error)
             palette_key = hashlib.sha256(json.dumps(owner.palette, sort_keys=True).encode()).hexdigest()
-            return (legacy_dirty(*args, **kwargs), owner.frame_revision, palette_key)
+            key = (legacy_dirty(*args, **kwargs), owner.frame_revision, palette_key)
+            if owner.document and any(widget['settings'].get('source') in USAGE_SOURCES or (widget['type'] == 'storage' and widget['settings'].get('source') == 'mounted-storage') for widget in owner.document['widgets']):
+                owner.usage_snapshot = owner.usage.snapshot()
+                return (*key, owner.usage_snapshot.get('readAt'))
+            owner.usage_snapshot = None
+            return key
 
         def open_lcd(*args, **kwargs):
             try:
@@ -168,6 +212,11 @@ class RuntimeIntegration:
                 owner.publish(connected=True, error=None)
                 return lcd
             except Exception as error:
+                if owns_usb:
+                    try:
+                        dispose_device(owner.usb_device)
+                    except Exception as cleanup_error:
+                        error = RuntimeError(f'{error}; USB cleanup failed: {cleanup_error}')
                 owner.transport_error = str(error)
                 owner.invalidate_frame(connected=False, error=owner.transport_error)
                 raise
@@ -248,6 +297,11 @@ class RuntimeIntegration:
                     (dashboard, 'try_lcd_write', write),
                     (dashboard, 'open_lcd', open_lcd),
                     (dashboard, 'SchemeWatcher', SafeScheme)]
+        if owns_usb:
+            if not callable(legacy_close):
+                raise RuntimeError('Dashboard USB cleanup function is unavailable')
+            bindings[:0] = [(transport, 'find_usb_device', find_owned_device),
+                            (dashboard, 'close_lcd', close_lcd)]
         originals = []
         try:
             for module, name, replacement in bindings:

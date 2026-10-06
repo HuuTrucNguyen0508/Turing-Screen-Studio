@@ -1,0 +1,12 @@
+{
+  "name": "A quiet workday",
+  "paletteMode": "live",
+  "widgets": [
+    { "template": "clock", "x": 64, "y": 144, "width": 564, "height": 224 },
+    { "template": "weather", "x": 652, "y": 144, "width": 564, "height": 552 },
+    {
+      "template": "text", "x": 64, "y": 392, "width": 564, "height": 304,
+      "settings": { "label": "Today", "text": "Finish one useful thing.\nThen take a break." }
+    }
+  ]
+}

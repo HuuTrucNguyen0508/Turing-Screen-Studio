@@ -1,0 +1,9 @@
+.usage-content { display: block; overflow: hidden; text-rendering: geometricPrecision; }
+.usage-label, .usage-unit, .usage-detail { fill: var(--muted); font-family: 'DejaVu Sans', 'Segoe UI', sans-serif; }
+.usage-label { font-size: 15px; }
+.usage-value { fill: var(--primary); font-family: 'DejaVu Sans Mono', monospace; }
+.usage-unit { font-size: 17px; }
+.usage-detail { font-size: 14px; }
+.usage-model-name { fill: var(--text); font: 11px 'DejaVu Sans Mono', monospace; }
+.usage-model-number { fill: var(--primary); font: 11px 'DejaVu Sans Mono', monospace; }
+.usage-model-heading { fill: var(--muted); font: 10px 'DejaVu Sans', sans-serif; }
