@@ -32,9 +32,10 @@ Keep hardware integration separate from editor work. Read the live runtime and [
 
 ## Verify
 
-Run the checks relevant to your change. Domain tests compare JavaScript and Python layout behavior, so `pnpm test` also needs `python3` on your PATH with Pillow installed from `requirements.txt`. The editor itself and its build do not need Python:
+Run the checks relevant to your change. Domain tests compare JavaScript and Python layout behavior, so `pnpm test` also needs `python3` on your PATH with Pillow installed from `requirements.txt`. The editor itself and its build do not need Python. After the Python setup above, activate that environment for the full Linux test suite:
 
 ```bash
+source .venv/bin/activate
 pnpm test
 pnpm build
 pnpm exec playwright install chromium

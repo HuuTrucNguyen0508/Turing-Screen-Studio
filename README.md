@@ -105,7 +105,10 @@ Save to panel writes a guarded layout; Panel accepted frame requires an acknowle
 
 ## Checks and contributing
 
+The complete test suite runs on Linux and needs the Python setup above. Activate that environment so the cross-language domain tests find Pillow:
+
 ```bash
+source .venv/bin/activate
 pnpm test
 pnpm build
 pnpm exec playwright install chromium
