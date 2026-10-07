@@ -26,6 +26,8 @@ Choose what happens to the cards when applying a new size:
 - Keep positions changes only the canvas. It preserves every card's position and dimensions if all cards still fit. Otherwise, it leaves the draft unchanged and asks you to fit or move the cards first.
 - Clear and resize removes the cards and starts an empty canvas at the chosen size.
 
+For small screens, turn off Show header and footer to free the canvas from the fixed 1280 × 800 dashboard headings. The result preview shows this choice before you apply it.
+
 Each applied change is one Undo step. Canvas resizing preserves widget settings and explicit text font sizes when keeping or fitting cards. Check readability after shrinking, because smaller cards can clip text or overlap after pixel rounding.
 
 All saved card edges use integer document coordinates. Browser resizing, zoom, pan and Fit change only the preview view. They do not resize the document or change an exported layout.

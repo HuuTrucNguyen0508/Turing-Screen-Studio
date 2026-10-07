@@ -6,6 +6,8 @@ Added a canvas-size dialog with resolution presets, custom dimensions, uniform c
 
 The full browser run passed 91 cases and caught a locator ambiguity in the new connected-size check. After restricting that locator to the visible message, all four canvas-size cases passed, covering integer export, single-step Undo, empty canvas, mobile layout, cancellation and panel/library write protection. The mobile dialog screenshot was inspected. The collaborative browser opened, but its snapshot timed out; visual evidence comes from the existing project browser tests.
 
+Review also checked 3,000 resize cases and all catalog widgets on canvases down to 1 × 1. The Python suite passed in an empty home directory with two expected font-related skips. The panel-size notice now appears near Save, and the size dialog can explicitly hide the fixed header and footer. Build and all four canvas-size browser checks passed after these changes. A pre-existing shortcut-test race was fixed by waiting for switch completion before sending the next key; the four-slot shortcut case passed five consecutive runs.
+
 The first public release supports offline design at other canvas sizes. USB output remains limited to the tested 8-inch 1280 × 800 adapter. No live layout, library, service or USB state was changed during release preparation.
 
 ## Updated shortcut slots, 7 October 2026

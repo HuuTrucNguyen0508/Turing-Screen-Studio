@@ -9,3 +9,5 @@
 .canvas-size-result { display: grid; justify-items: center; gap: 12px; padding: 16px; background: var(--surface); border: 1px solid var(--outline); border-radius: 10px; overflow: hidden; }
 .canvas-size-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
 @media (max-width: 480px) { .catalog-dialog.canvas-size-dialog { padding: 16px; } .canvas-dimensions { gap: 8px; } .canvas-size-actions button { flex: 1; } }
+
+.canvas-chrome-toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 16px; }

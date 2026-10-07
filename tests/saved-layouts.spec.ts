@@ -95,6 +95,7 @@ test('Ctrl+F9 through Ctrl+F12 select the four physical panel slots', async ({ p
     await page.keyboard.press(`Control+F${slot + 8}`);
     await expect.poll(() => state.switches.length).toBe(slot);
     await expect.poll(() => state.getPanel().name).toBe(state.entries[slot - 1].name);
+    await expect(page.locator('.app-footer [role="status"]')).toContainText(`Switched panel to ${state.entries[slot - 1].name}.`);
     await expect(page.getByLabel('Layout name')).toHaveValue('Current dashboard');
     expect(state.switches[slot - 1].body).toEqual({ slot });
     expect(state.switches[slot - 1].match).toBe(`panel-${slot}`);

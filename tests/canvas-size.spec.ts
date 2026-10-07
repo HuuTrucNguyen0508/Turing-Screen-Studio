@@ -15,10 +15,14 @@ test('portrait resizing exports integer cards and one Undo restores the complete
   const dialog = page.getByRole('dialog', { name: 'Canvas size', exact: true });
   await dialog.getByRole('combobox').selectOption('320x480');
   await expect(dialog.getByRole('radio', { name: /^Keep positions/ })).toBeDisabled();
+  await dialog.getByRole('checkbox', { name: 'Show header and footer', exact: true }).uncheck();
   await dialog.getByRole('button', { name: 'Resize canvas', exact: true }).click();
   await expect(page.getByText('Portrait canvas', { exact: true })).toBeVisible();
   const next = await exported(page);
   expect(next.canvas).toEqual({ width: 320, height: 480 });
+  expect(next.chrome).toBe('none');
+  await expect(page.getByTestId('document-canvas').locator('.dashboard-header')).toHaveCount(0);
+  await expect(page.getByTestId('document-canvas').locator('.dashboard-footer')).toHaveCount(0);
   for (const card of next.widgets) {
     expect([card.x, card.y, card.width, card.height].every(Number.isInteger)).toBe(true);
     expect(card.x + card.width).toBeLessThanOrEqual(320);

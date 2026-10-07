@@ -13,12 +13,14 @@ export default function CanvasSize({ document, available, onClose, onResize }: {
   const [width, setWidth] = useState(String(document.canvas.width));
   const [height, setHeight] = useState(String(document.canvas.height));
   const [mode, setMode] = useState<CanvasResizeMode>('fit');
+  const [showChrome, setShowChrome] = useState(document.chrome !== 'none');
   useEffect(() => { dialog.current?.showModal(); }, []);
   let next: LayoutDocument | null = null;
   let error = '';
   try {
     if (!/^\d+$/.test(width) || !/^\d+$/.test(height)) throw new Error('Enter whole pixel dimensions.');
-    next = resizeCanvas(document, Number(width), Number(height), mode);
+    const source = showChrome === (document.chrome !== 'none') ? document : { ...document, chrome: showChrome ? 'standard' as const : 'none' as const };
+    next = resizeCanvas(source, Number(width), Number(height), mode);
   } catch (failure) { error = failure instanceof Error ? failure.message : 'Check the canvas size.'; }
   const outside = document.widgets.filter(card => card.x + card.width > Number(width) || card.y + card.height > Number(height)).length;
   const preset = sizes.some(size => `${size[0]}x${size[1]}` === `${width}x${height}`) ? `${width}x${height}` : '';
@@ -35,13 +37,14 @@ export default function CanvasSize({ document, available, onClose, onResize }: {
     </div>
     <fieldset className="canvas-resize-modes"><legend>Cards</legend>
       <label><input type="radio" name="resize-mode" checked={mode === 'fit'} onChange={() => setMode('fit')} />Fit cards, preserving their proportions</label>
-      <label><input type="radio" name="resize-mode" checked={mode === 'keep'} disabled={outside > 0} onChange={() => setMode('keep')} />Keep positions{outside > 0 && <span className="panel-note">{outside} cards would be outside the canvas.</span>}</label>
+      <label><input type="radio" name="resize-mode" checked={mode === 'keep'} disabled={outside > 0} onChange={() => setMode('keep')} />Keep positions{outside > 0 && <span className="panel-note">{outside} {outside === 1 ? 'card would' : 'cards would'} be outside the canvas.</span>}</label>
       <label><input type="radio" name="resize-mode" checked={mode === 'empty'} onChange={() => setMode('empty')} />Start with an empty canvas</label>
     </fieldset>
+    <label className="canvas-chrome-toggle"><input type="checkbox" checked={showChrome} onChange={event => setShowChrome(event.target.checked)} />Show header and footer</label>
     {next && <div className="canvas-size-result"><StaticLayout document={next} maxHeight={200} /><span className="mono">{width} × {height} px · {next.widgets.length} cards</span></div>}
     {error && <p id="canvas-size-error" role="alert" className="field-error">{error}</p>}
-    <p className="panel-note">Text sizes stay the same. Small cards may need editing. Undo restores the previous size and cards.</p>
-    {document.chrome !== 'none' && (Number(width) < 1280 || Number(height) < 800) && <p className="panel-note">The header and footer are sized for 1280 × 800 and may cover cards.</p>}
+    <p className="panel-note">Text sizes stay the same. Small cards may clip text or overlap after rounding. Undo restores the previous size and cards.</p>
+    {showChrome && (Number(width) < 1280 || Number(height) < 800) && <p className="panel-note">The header and footer are sized for 1280 × 800 and may cover cards.</p>}
     {available && (Number(width) !== 1280 || Number(height) !== 800) && <p className="panel-note">Panel saves need 1280 × 800. Export JSON to keep this draft.</p>}
     <div className="canvas-size-actions"><button onClick={onClose}>Keep current size</button><button className="primary-button" disabled={!next} onClick={() => { if (next) { onResize(next); onClose(); } }}>{mode === 'empty' ? 'Clear and resize' : 'Resize canvas'}</button></div>
   </dialog>;
