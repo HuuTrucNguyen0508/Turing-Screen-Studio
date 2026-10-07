@@ -2,6 +2,8 @@
 
 Design smart-screen dashboards in your browser. Arrange widgets with exact pixel geometry, try a different canvas size, preview with sample data, and export a layout as JSON.
 
+This project was vibecoded with AI coding assistants. Tests and reviews are recorded in the [verification notes](docs/verification.md).
+
 The offline editor runs on Windows, macOS and Linux with Node.js and pnpm. It needs no screen, Python, sensors, credentials or Caelestia installation. After installing dependencies and building, it can run without internet access on a local preview server.
 
 USB support is experimental and specific to one existing Linux installation. This repository does not yet include a standalone hardware transport or a general screen installer. Other canvas sizes support design, export and preview; their USB output is untested. See [screen sizes](docs/screen-sizes.md).
