@@ -95,6 +95,12 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(list_archives(self.paths), [])
         status['supportedWidgetTypes'].append('storage')
         self.paths.status.write_text(json.dumps(status))
+        with self.assertRaisesRegex(server.APIError, 'runtime needs an update before saving storage views'):
+            self.app.save(proposed, revision(self.document))
+        self.assertEqual(self.paths.layout.read_bytes(), before)
+        self.assertEqual(list_archives(self.paths), [])
+        status['supportedStorageViews'] = ['drives', 'partitions']
+        self.paths.status.write_text(json.dumps(status))
         self.assertIsNotNone(self.app.save(proposed, revision(self.document))['archive'])
 
     def test_old_running_runtime_cannot_receive_usage_sources_or_create_an_archive(self):

@@ -1,10 +1,129 @@
 {
   "mounts": [
-    {"mount":"/","aliases":["/home"],"device":"/dev/sda2","filesystem":"btrfs","totalGiB":928,"usedGiB":642,"freeGiB":284,"usedPercent":69,"stale":false,"errors":[]},
-    {"mount":"/boot","aliases":[],"device":"/dev/sda1","filesystem":"vfat","totalGiB":4,"usedGiB":1.2,"freeGiB":2.8,"usedPercent":30,"stale":false,"errors":[]},
-    {"mount":"/mnt/games","aliases":[],"device":"/dev/nvme0n1p3","filesystem":"fuseblk","totalGiB":800,"usedGiB":517,"freeGiB":283,"usedPercent":65,"stale":false,"errors":[]},
-    {"mount":"/mnt/hdd","aliases":[],"device":"/dev/sdb2","filesystem":"fuseblk","totalGiB":931,"usedGiB":482,"freeGiB":449,"usedPercent":52,"stale":false,"errors":[]},
-    {"mount":"/mnt/nvme","aliases":[],"device":"/dev/nvme0n1p2","filesystem":"fuseblk","totalGiB":1062,"usedGiB":209,"freeGiB":853,"usedPercent":20,"stale":false,"errors":[]}
+    {
+      "mount": "/",
+      "aliases": [
+        "/home"
+      ],
+      "device": "/dev/sda2",
+      "filesystem": "btrfs",
+      "totalGiB": 928,
+      "usedGiB": 642,
+      "freeGiB": 284,
+      "usedPercent": 69,
+      "stale": false,
+      "errors": [],
+      "driveKind": "SSD"
+    },
+    {
+      "mount": "/boot",
+      "aliases": [],
+      "device": "/dev/sda1",
+      "filesystem": "vfat",
+      "totalGiB": 4,
+      "usedGiB": 1.2,
+      "freeGiB": 2.8,
+      "usedPercent": 30,
+      "stale": false,
+      "errors": [],
+      "driveKind": "SSD"
+    },
+    {
+      "mount": "/mnt/games",
+      "aliases": [],
+      "device": "/dev/nvme0n1p3",
+      "filesystem": "fuseblk",
+      "totalGiB": 800,
+      "usedGiB": 517,
+      "freeGiB": 283,
+      "usedPercent": 65,
+      "stale": false,
+      "errors": [],
+      "driveKind": "NVMe"
+    },
+    {
+      "mount": "/mnt/hdd",
+      "aliases": [],
+      "device": "/dev/sdb2",
+      "filesystem": "fuseblk",
+      "totalGiB": 931,
+      "usedGiB": 482,
+      "freeGiB": 449,
+      "usedPercent": 52,
+      "stale": false,
+      "errors": [],
+      "driveKind": "HDD"
+    },
+    {
+      "mount": "/mnt/nvme",
+      "aliases": [],
+      "device": "/dev/nvme0n1p2",
+      "filesystem": "fuseblk",
+      "totalGiB": 1062,
+      "usedGiB": 209,
+      "freeGiB": 853,
+      "usedPercent": 20,
+      "stale": false,
+      "errors": [],
+      "driveKind": "NVMe"
+    }
   ],
-  "stale":false,"errors":[]
+  "stale": false,
+  "errors": [],
+  "drives": [
+    {
+      "mount": "SSD",
+      "label": "SSD",
+      "aliases": [],
+      "device": "/dev/sda",
+      "filesystem": "drive",
+      "totalGiB": 931.5,
+      "usedGiB": 643.2,
+      "freeGiB": 286.8,
+      "usedPercent": 69.05,
+      "stale": false,
+      "errors": [],
+      "partial": false,
+      "partitionMounts": [
+        "/",
+        "/home",
+        "/boot"
+      ]
+    },
+    {
+      "mount": "NVMe",
+      "label": "NVMe",
+      "aliases": [],
+      "device": "/dev/nvme0n1",
+      "filesystem": "drive",
+      "totalGiB": 1863,
+      "usedGiB": 726,
+      "freeGiB": 1136,
+      "usedPercent": 38.97,
+      "stale": false,
+      "errors": [],
+      "partial": true,
+      "partitionMounts": [
+        "/mnt/nvme",
+        "/mnt/games"
+      ]
+    },
+    {
+      "mount": "HDD",
+      "label": "HDD",
+      "aliases": [],
+      "device": "/dev/sdb",
+      "filesystem": "drive",
+      "totalGiB": 931.5,
+      "usedGiB": 482,
+      "freeGiB": 449,
+      "usedPercent": 51.74,
+      "stale": false,
+      "errors": [],
+      "partial": true,
+      "partitionMounts": [
+        "/mnt/hdd"
+      ]
+    }
+  ]
 }

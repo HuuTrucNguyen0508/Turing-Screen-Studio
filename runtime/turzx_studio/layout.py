@@ -7,6 +7,7 @@ import json
 import math
 import re
 from .usage_display import USAGE_SOURCES
+from .design import validate_widget_design
 
 MAX_CANVAS_SIZE = 16384
 MAX_SAFE_INTEGER = 2**53 - 1
@@ -84,7 +85,7 @@ def _palette(value: object, path: str) -> dict:
 
 def _widget(value: object, path: str, canvas: dict) -> dict:
     value = _object(value, path)
-    _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path)
+    _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path, ("design",))
     widget_id = _string(value["id"], f"{path}.id", nonempty=True)
     kind = value["type"]
     if kind not in ("metric", "weather", "clock", "text", "gauge", "storage"):
@@ -104,7 +105,9 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
               "text": ("label", "text"), "storage": ("label", "style"),
               "gauge": ("label", "value", "min", "max", "unit", "detail")}[kind]
     _keys(settings, fields, settings_path, () if kind == "text" else
-          ("source", "style") if kind == "gauge" else ("source",))
+          ("source", "style") if kind == "gauge" else
+          ("source", "trend") if kind == "metric" else
+          ("source", "grouping", "mounts") if kind == "storage" else ("source",))
     result = {}
     for key in fields:
         raw = settings[key]
@@ -127,6 +130,18 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
         _fail(f"{settings_path}.format", "expected 24h, 12h")
     if kind == "storage" and result["style"] not in ("bars", "table"):
         _fail(f"{settings_path}.style", "expected bars, table")
+    if kind == "storage" and "grouping" in settings:
+        if settings["grouping"] not in ("drives", "partitions"):
+            _fail(f"{settings_path}.grouping", "expected drives, partitions")
+        result["grouping"] = settings["grouping"]
+    if kind == "storage" and "mounts" in settings:
+        mounts = settings["mounts"]
+        if (type(mounts) is not list or not 1 <= len(mounts) <= 32 or
+                any(not isinstance(mount, str) or not mount.startswith('/') or len(mount) > 256 or re.search(r'[\x00-\x1f\x7f]', mount) for mount in mounts) or len(set(mounts)) != len(mounts)):
+            _fail(f"{settings_path}.mounts", "expected 1 to 32 unique absolute mount paths")
+        if settings.get('grouping') == 'drives':
+            _fail(f"{settings_path}.mounts", "mount filters require the partitions view")
+        result["mounts"] = list(mounts)
     if kind == "gauge":
         if result["max"] <= result["min"]:
             _fail(f"{settings_path}.max", "must be greater than min")
@@ -145,7 +160,14 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
         if source not in sources:
             _fail(f"{settings_path}.source", f"expected one of {', '.join(sources)}")
         result["source"] = source
-    return {"id": widget_id, "type": kind, **geometry, "settings": result}
+    if kind == "metric" and "trend" in settings:
+        if type(settings["trend"]) is not bool:
+            _fail(f"{settings_path}.trend", "expected a boolean")
+        result["trend"] = settings["trend"]
+    widget = {"id": widget_id, "type": kind, **geometry, "settings": result}
+    if "design" in value:
+        widget["design"] = validate_widget_design(value["design"], kind, f"{path}.design")
+    return widget
 
 
 def validate_layout(input: object, panel: bool = False) -> dict:

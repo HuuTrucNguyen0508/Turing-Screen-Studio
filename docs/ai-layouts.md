@@ -43,7 +43,7 @@ These connected commands use the loopback Studio API. A switch reads the latest 
 
 ## Browse the widget library
 
-Studio’s **Add widget** library supports scrolling, search and category filters. The local catalog contains 98 ready-made choices: standard and wide metric cards, source-specific arc, ring, bar, segmented, thermometer and number designs, standard/compact/large/12-hour clocks, regular/slim weather, and standard/compact/large notes. It is the same catalog used by the editor and the agent commands.
+Studio’s **Add widget** library supports scrolling, search and category filters. The local catalog contains 107 ready-made choices: standard and wide metric cards, source-specific arc, ring, bar, segmented, thermometer and number designs, standard/compact/large/12-hour clocks, regular/slim weather, and standard/compact/large notes. It is the same catalog used by the editor and the agent commands.
 
 Gauge settings can include `style`: `arc`, `ring`, `bar`, `segments`, `thermometer` or `number`. Omitting it preserves the original arc. A style changes the drawing; sources and ranges keep their meaning. Wide and compact variants describe geometry. They are not separate drawing styles.
 
@@ -112,13 +112,13 @@ pnpm layout current
 pnpm layout restore ARCHIVE_ID --if-match CURRENT_REVISION
 ```
 
-Restore also archives the current layout, so it can be undone by restoring that newer archive. You can alternatively open an archived `layout.json` in the editor, inspect it and choose Save to panel.
+Restore also archives the current layout, so it can be undone by restoring that newer archive. The editor’s History dialog also opens an archive as a draft or downloads its JSON. Inspect the draft and choose Save to panel to apply it through the guarded save flow. Opening an archive leaves the panel unchanged.
 
 The original dashboard snapshot includes the Python source, requirements, startup script, USB driver, user settings when present, and the original service and non-Studio overrides. It reuses the Python environment at `~/Documents/dashboard/.venv/`. `pnpm panel:rollback` restores the original service entry point. It keeps the source snapshot, Studio layouts and history.
 
 ## Mounted storage widget
 
-Use templates `mounted-storage`, `mounted-storage-wide` or `mounted-storage-table` to include all mounted local storage rather than only `/`. Bar variants fit five rows at height 480; the wide table fits five at height 384. Increase height for additional filesystems. A compact card reports the number of hidden rows. The inspector can change `style` between `bars` and `table`.
+Templates `mounted-storage`, `mounted-storage-wide` and `mounted-storage-table` show physical drives with used/total capacity. `grouping: "drives"` combines mounted partitions against each drive's hardware capacity. `grouping: "partitions"` keeps filesystem rows separate; optional `mounts` selects absolute paths in order. For example, `["/", "/mnt/nvme", "/mnt/games"]` shows the system SSD, NVMe partition and Games partition. Save that card as a custom widget to reuse the selection. Bar variants fit five rows at height 480; the wide table fits five at height 384. Increase height for more rows. The inspector can switch views and display styles.
 
 For example, a generation spec widget can be:
 
@@ -127,3 +127,6 @@ For example, a generation spec widget can be:
 ```
 
 This discovers local mount paths automatically. Do not hardcode the user's device list or put measurements in the saved document. Preview is deterministic and never probes disks. Applying still requires the user's request and archives the old configuration first.
+
+
+To center a compact clock, use template `clock-centered`, or set widget-level `design.elements.time.align` and `design.elements.date.align` to `center`. These change internal placement without moving the card. Offset, font size, visibility and palette-role color overrides are described in [the layout format](layout-format.md). Custom templates use separate `/api/widgets` revision checks and never apply a dashboard.

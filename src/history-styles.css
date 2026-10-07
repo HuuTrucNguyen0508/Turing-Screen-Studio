@@ -1,0 +1,32 @@
+.catalog-dialog.history-dialog { width: min(940px, calc(100% - 32px)); }
+.history-lede { color: var(--muted); max-width: 70ch; margin-top: 12px; font-size: 13px; line-height: 1.65; }
+.history-toolbar { display: flex; align-items: center; gap: 12px; margin: 20px 0 12px; }
+.history-toolbar > span { color: var(--muted); font-size: 12px; }
+.history-toolbar button { margin-left: auto; font-size: 12px; }
+.history-list { padding: 0; margin: 0; list-style: none; }
+.history-row { display: flex; align-items: flex-start; gap: 24px; padding: 22px 0; border-top: 1px solid var(--outline); }
+.history-thumbnail { flex: 0 0 240px; width: 240px; height: 150px; display: grid; place-items: center; background: var(--surfaceRaised); border-radius: 7px; overflow: hidden; }
+.history-thumbnail > span { color: var(--muted); font-size: 12px; }
+.history-entry-info { flex: 1; min-width: 0; }
+.history-entry-info h3, .history-original h3 { font-size: 17px; font-weight: 500; overflow-wrap: anywhere; }
+.history-entry-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 8px; }
+.history-badges { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--primary); font-size: 11px; margin-top: 6px; }
+.history-badges:empty { display: none; }
+.history-entry-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.history-entry-actions button, .history-copies button { font-size: 11px; padding: 8px 10px; }
+.history-read-error { color: #fa746f; font-size: 13px; margin-top: 12px; line-height: 1.6; }
+.history-copies { margin-top: 16px; font-size: 12px; }
+.history-copies summary { cursor: pointer; color: var(--muted); width: fit-content; }
+.history-copies summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+.history-copies ul { list-style: none; padding: 0; }
+.history-copies li { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--outline); color: var(--muted); }
+.history-copies code { overflow-wrap: anywhere; color: var(--text); font-size: 11px; }
+.history-copies li > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.history-original { border-top: 1px solid var(--outline); margin-top: 12px; padding-top: 20px; }
+.history-original p { color: var(--muted); font-size: 12px; line-height: 1.7; max-width: 80ch; margin-top: 10px; }
+.history-original time { color: var(--muted); font-size: 11px; display: block; margin-top: 8px; }
+@media (max-width: 700px) {
+  .history-row { flex-wrap: wrap; gap: 14px; }
+  .history-entry-info { flex-basis: 100%; }
+  .history-toolbar { flex-wrap: wrap; }
+}

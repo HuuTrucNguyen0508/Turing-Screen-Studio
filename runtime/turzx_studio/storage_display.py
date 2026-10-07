@@ -32,14 +32,38 @@ def storage_short(value: str, characters: int) -> str:
     return value if len(value) <= characters else value[:max(0, characters - 1)] + '…'
 
 
+def storage_rows(settings: dict, data: dict) -> list:
+    raw = data.get('drives' if settings.get('grouping') == 'drives' else 'mounts', [])
+    rows = [deepcopy(row) for row in raw if isinstance(row, dict) and isinstance(row.get('mount'), str)] if isinstance(raw, list) else []
+    if 'mounts' not in settings:
+        return rows
+    selected, seen = [], set()
+    for path in settings['mounts']:
+        row = next((row for row in rows if path == row['mount'] or path in row.get('aliases', [])), None)
+        if row is None:
+            selected.append(dict(mount=path, aliases=[], device='', filesystem='', totalGiB=None,
+                                 usedGiB=None, freeGiB=None, usedPercent=None, stale=True,
+                                 errors=['storage_selected_mount_unavailable']))
+        elif id(row) not in seen:
+            seen.add(id(row))
+            selected.append(row)
+    return selected
+
+
+def storage_row_name(row: dict, filtered: bool = False) -> str:
+    if not filtered:
+        return ' · '.join([row['mount'], *row.get('aliases', [])])
+    name = row.get('driveKind', 'System') if row['mount'] == '/' else row['mount'].rsplit('/', 1)[-1]
+    return 'NVMe partition' if name.lower() == 'nvme' else 'Games partition' if name.lower() == 'games' else name
+
+
 def storage_content(widget: dict, snapshot: object = None, *, preview: bool = False) -> dict:
     settings = dict(widget['settings'])
     data = SAMPLE_STORAGE if preview or settings.get('source', 'sample') == 'sample' else (
         snapshot.get('mountedStorage') if isinstance(snapshot, dict) else None)
     data = data if isinstance(data, dict) else {}
-    raw = data.get('mounts', [])
-    mounts = [deepcopy(row) for row in raw if isinstance(row, dict) and isinstance(row.get('mount'), str)] if isinstance(raw, list) else []
+    mounts = storage_rows(settings, data)
     errors = data.get('errors', [])
-    settings.update(mounts=mounts, stale=data.get('stale', True), errors=list(errors) if isinstance(errors, list) else ['invalid_storage_errors'],
+    settings.update(filtered='mounts' in settings, mounts=mounts, stale=data.get('stale', True), errors=list(errors) if isinstance(errors, list) else ['invalid_storage_errors'],
                     sample=preview or settings.get('source', 'sample') == 'sample')
     return settings

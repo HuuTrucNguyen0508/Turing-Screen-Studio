@@ -13,6 +13,30 @@ import {
 } from './layout';
 import type { LayoutDocument } from './layout';
 
+describe('optional presentation serialization', () => {
+  it('omits absent design and orders nested clock overrides canonically without dropping explicit defaults', () => {
+    const original = createSampleLayout();
+    expect(validateLayout(original).widgets.every((widget) => !Object.hasOwn(widget, 'design'))).toBe(true);
+    const clock = { id: 'clock', type: 'clock', x: 0, y: 0, width: 270, height: 80,
+      settings: { label: 'Clock', time: '14:32', date: 'Tuesday', format: '24h', showDate: true },
+      design: { elements: { date: { color: 'muted', dy: 0 }, time: { color: 'text', size: 40, dy: 0, dx: 0, align: 'start', hidden: false }, label: { hidden: true } }, padding: 29 } };
+    const doc = validateLayout({ ...original, widgets: [clock] });
+    expect(Object.keys(doc.widgets[0])).toEqual(['id', 'type', 'x', 'y', 'width', 'height', 'settings', 'design']);
+    expect(Object.keys(doc.widgets[0].design!)).toEqual(['padding', 'elements']);
+    expect(Object.keys(doc.widgets[0].design!.elements!)).toEqual(['label', 'time', 'date']);
+    expect(Object.keys(doc.widgets[0].design!.elements!.time!)).toEqual(['hidden', 'align', 'dx', 'dy', 'size', 'color']);
+    expect(serializeLayout(parseLayout(serializeLayout(doc)))).toBe(serializeLayout(doc));
+    expect(doc.widgets[0].design!.elements!.time!.hidden).toBe(false);
+    expect(doc.widgets[0].design!.elements!.time).not.toBe(clock.design.elements.time);
+  });
+
+  it('reports design failures through the widget path rather than silently accepting unsupported types', () => {
+    const doc = createSampleLayout();
+    const designedMetric = { ...doc, widgets: [{ ...doc.widgets[0], design: { padding: 29 } }] };
+    expect(() => validateLayout(designedMetric)).toThrow('$.widgets[0].design: metric cards have no editable elements');
+  });
+});
+
 interface RawLayout {
   [key: string]: unknown;
   version: unknown;

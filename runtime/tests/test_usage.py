@@ -220,6 +220,39 @@ class UsageTests(unittest.TestCase):
         limits = self.provider()["limits"]
         self.assertEqual([limit["id"] for limit in limits], ["secondary"])
 
+    def test_newest_quota_timestamp_wins_across_chunks_cold_cached_and_unchanged(self):
+        tool = {"timestamp": usage._iso(NOW), "type": "response_item",
+                "payload": {"type": "function_call_output", "output": "x" * (384 * 1024)}}
+        path = self.quota([self.event(54), tool, self.event(99, NOW - 3600)])
+        for elapsed in (0, 1, 61):
+            with self.subTest(elapsed=elapsed):
+                self.now = NOW + elapsed
+                if elapsed:
+                    with patch.object(Path, "open", autospec=True, wraps=Path.open) as opened:
+                        value = self.provider()
+                        self.assertFalse(any(call.args[0] == path for call in opened.call_args_list))
+                else:
+                    value = self.provider()
+                self.assertEqual(value["limits"][0]["usedPercent"], 54)
+                self.assertEqual(value["limits"][0]["observedAt"], usage._iso(NOW))
+                self.assertFalse(value["limits"][0]["stale"])
+                self.assertEqual(value["freshness"]["limits"]["errors"], [])
+
+    def test_newest_quota_timestamp_wins_across_chunks_incremental(self):
+        path = self.quota()
+        self.provider()
+        self.now += 61
+        tool = {"timestamp": usage._iso(self.now), "type": "response_item",
+                "payload": {"type": "function_call_output", "output": "x" * (384 * 1024)}}
+        with path.open("a") as handle:
+            for event in (self.event(54, self.now), tool, self.event(99, NOW - 3600)):
+                handle.write(json.dumps(event) + "\n")
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertEqual(value["limits"][0]["observedAt"], usage._iso(self.now))
+        self.assertFalse(value["limits"][0]["stale"])
+        self.assertEqual(value["freshness"]["limits"]["errors"], [])
+
     def test_elapsed_reset_never_invents_available_quota_even_inside_cache(self):
         self.quota([self.event(100, reset=NOW + 30)])
         before = self.provider()["limits"][0]
@@ -276,6 +309,197 @@ class UsageTests(unittest.TestCase):
         self.now += 61
         with patch.object(usage, "MAX_QUOTA_FILES", 0):
             self.assertEqual(self.provider()["limits"], [])
+
+    def test_fresh_quota_before_huge_tool_output_is_found_without_false_staleness(self):
+        path = self.quota()
+        self.assertEqual(self.provider()["limits"][0]["usedPercent"], 42)
+        self.now += 61
+        tool = {"timestamp": usage._iso(self.now), "type": "response_item",
+                "payload": {"type": "function_call_output", "output": "x" * (384 * 1024)}}
+        with path.open("a") as handle:
+            handle.write(json.dumps(self.event(54, self.now)) + "\n" + json.dumps(tool) + "\n")
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertFalse(value["limits"][0]["stale"])
+        self.assertEqual(value["freshness"]["limits"]["errors"], [])
+
+    def test_cold_scan_skips_huge_irrelevant_envelopes_with_live_ordinal_field(self):
+        events = [self.event(54)]
+        for outer, inner in (("response_item", "function_call_output"),
+                             ("event_msg", "user_message"), ("turn_context", "context")):
+            events.append({"timestamp": usage._iso(NOW), "ordinal": len(events), "type": outer,
+                           "payload": {"type": inner, "rate_limits": "not telemetry",
+                                       "text": "private" * (24 * 1024)}})
+        self.quota(events)
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertFalse(value["limits"][0]["stale"])
+        self.assertEqual(value["freshness"]["limits"]["errors"], [])
+        self.assertNotIn("private", json.dumps(value))
+
+    def test_huge_quota_and_malformed_quota_remain_stale_until_new_telemetry(self):
+        oversized = self.event(54)
+        oversized["payload"]["info"] = "x" * (usage.MAX_LINE_BYTES + 1)
+        malformed = json.dumps(self.event(54))[:-2] + "\n"
+        for bad, error in ((json.dumps(oversized) + "\n", "codex_quota_line_bound_reached"),
+                           (malformed, "codex_quota_invalid_event"),
+                           (json.dumps(self.event(101)) + "\n", "codex_quota_invalid_event")):
+            with self.subTest(error=error, size=len(bad)):
+                self.now = NOW
+                self.collector = usage.UsageCollector(self.home, lambda: self.now,
+                                                       mountinfo_path=self.mountinfo)
+                path = self.quota()
+                self.provider()
+                with path.open("a") as handle:
+                    handle.write(bad)
+                self.now += 61
+                value = self.provider()
+                self.assertEqual(value["limits"][0]["usedPercent"], 42)
+                self.assertTrue(value["limits"][0]["stale"])
+                self.assertIn(error, value["freshness"]["limits"]["errors"])
+                self.now += 61
+                self.assertIn(error, self.provider()["freshness"]["limits"]["errors"])
+                with path.open("a") as handle:
+                    handle.write('{"type":"response_item","payload":{}}\n')
+                self.now += 61
+                self.assertIn(error, self.provider()["freshness"]["limits"]["errors"])
+                with path.open("a") as handle:
+                    handle.write(json.dumps(self.event(41, NOW - 61)) + "\n")
+                self.now += 61
+                value = self.provider()
+                self.assertEqual(value["limits"][0]["usedPercent"], 42)
+                self.assertIn(error, value["freshness"]["limits"]["errors"])
+                with path.open("a") as handle:
+                    handle.write(json.dumps(self.event(55, self.now)) + "\n")
+                self.now += 61
+                value = self.provider()
+                self.assertEqual(value["limits"][0]["usedPercent"], 55)
+                self.assertFalse(value["limits"][0]["stale"])
+                self.assertEqual(value["freshness"]["limits"]["errors"], [])
+
+    def test_partial_real_quota_is_incomplete_then_becomes_fresh_on_completion(self):
+        path = self.quota()
+        self.provider()
+        self.now += 61
+        event = json.dumps(self.event(54, self.now))
+        with path.open("a") as handle:
+            handle.write(event[:-8])
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 42)
+        self.assertIn("codex_quota_incomplete_event", value["freshness"]["limits"]["errors"])
+        self.assertTrue(value["limits"][0]["stale"])
+        with path.open("a") as handle:
+            handle.write(event[-8:] + "\n")
+        self.now += 61
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertFalse(value["limits"][0]["stale"])
+
+    def test_partial_huge_tool_row_then_completion_and_rotation_preserve_quota(self):
+        path = self.quota()
+        self.provider()
+        self.now += 61
+        tool = json.dumps({"timestamp": usage._iso(self.now), "ordinal": 2, "type": "response_item",
+                           "payload": {"type": "function_call_output", "output": "x" * (384 * 1024)}})
+        with path.open("a") as handle:
+            handle.write(json.dumps(self.event(54, self.now)) + "\n" + tool[:-10])
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertFalse(value["limits"][0]["stale"])
+        self.now += 61
+        with path.open("a") as handle:
+            handle.write(tool[-10:] + "\n" + json.dumps(self.event(55, self.now)) + "\n")
+        self.assertEqual(self.provider()["limits"][0]["usedPercent"], 55)
+        self.now += 61
+        replacement = path.with_suffix(".replacement")
+        replacement.write_text(json.dumps(self.event(56, self.now)) + "\n" + tool + "\n")
+        replacement.replace(path)
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 56)
+        self.assertFalse(value["limits"][0]["stale"])
+
+    def test_backward_chunks_reconstruct_quota_at_every_boundary(self):
+        for padding in (0, 1, 127, 128, 129, 255):
+            with self.subTest(padding=padding):
+                self.quota([self.event(54), {"timestamp": usage._iso(NOW), "type": "response_item",
+                                           "payload": {"type": "function_call_output", "output": "x" * padding}}])
+                collector = usage.UsageCollector(self.home, lambda: self.now, mountinfo_path=self.mountinfo)
+                with patch.object(usage, "QUOTA_CHUNK_BYTES", 128):
+                    value = collector.snapshot()["providers"]["codex"]
+                self.assertEqual(value["limits"][0]["usedPercent"], 54)
+                self.assertFalse(value["limits"][0]["stale"])
+
+    def test_supported_quota_in_bounded_tail_does_not_require_entire_history(self):
+        tool = {"timestamp": usage._iso(NOW), "type": "response_item",
+                "payload": {"type": "function_call_output", "output": "x" * (usage.MAX_TAIL_BYTES + 100)}}
+        self.quota([tool, self.event(54)])
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertFalse(value["limits"][0]["stale"])
+        self.assertEqual(value["freshness"]["limits"]["errors"], [])
+
+    def test_total_budget_before_other_candidates_keeps_supported_quota_stale(self):
+        tool = {"timestamp": usage._iso(NOW), "type": "response_item",
+                "payload": {"type": "function_call_output", "output": "x" * (usage.MAX_TAIL_BYTES + 100)}}
+        for i in range(3):
+            self.quota([tool, self.event(54)], name=f"{i}.jsonl")
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertTrue(value["limits"][0]["stale"])
+        self.assertEqual(value["freshness"]["limits"]["errors"], ["codex_quota_byte_bound_reached"])
+
+    def test_supported_quota_does_not_hide_invalid_record_in_earlier_chunk(self):
+        tool = {"timestamp": usage._iso(NOW), "type": "response_item",
+                "payload": {"type": "function_call_output", "output": "x" * (384 * 1024)}}
+        self.quota([self.event(101), tool, self.event(54)])
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertTrue(value["limits"][0]["stale"])
+        self.assertEqual(value["freshness"]["limits"]["errors"], ["codex_quota_invalid_event"])
+
+    def test_per_file_and_total_read_budgets_include_guard_reads(self):
+        paths = []
+        for i in range(3):
+            path = self.quota(name=f"{i}.jsonl")
+            with path.open("a") as handle:
+                handle.write("x" * (usage.MAX_TAIL_BYTES + 100) + "\n")
+            paths.append(path)
+        original_open = Path.open
+        reads = {path: 0 for path in paths}
+
+        class TrackedFile:
+            def __init__(self, handle, path):
+                self.handle, self.path = handle, path
+
+            def __getattr__(self, name):
+                return getattr(self.handle, name)
+
+            def read(self, count):
+                self.assert_bounded(count)
+                data = self.handle.read(count)
+                reads[self.path] += len(data)
+                return data
+
+            @staticmethod
+            def assert_bounded(count):
+                if not 0 <= count <= usage.QUOTA_CHUNK_BYTES:
+                    raise AssertionError("unbounded read")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.handle.close()
+
+        def tracked_open(path, *args, **kwargs):
+            handle = original_open(path, *args, **kwargs)
+            return TrackedFile(handle, path) if path in reads else handle
+
+        with patch.object(Path, "open", tracked_open):
+            errors = self.collector._codex_limits(self.now)
+        self.assertIn("codex_quota_byte_bound_reached", errors)
+        self.assertLessEqual(sum(reads.values()), usage.MAX_SCAN_BYTES)
+        self.assertTrue(all(count <= usage.MAX_TAIL_BYTES for count in reads.values()))
 
     def test_rewritten_larger_quota_file_invalidates_incremental_position(self):
         path = self.quota()

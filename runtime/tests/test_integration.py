@@ -58,6 +58,30 @@ class IntegrationTests(unittest.TestCase):
         frame = self.renderer.render(None)
         return self.dashboard.try_lcd_write(None, frame, 50, 50)
 
+    def test_dirty_skip_publishes_existing_stats_without_render_or_transport(self):
+        self.owner.live.clock = lambda: 1000
+        render = Mock()
+        self.renderer.layout.render = render
+        stats = SimpleNamespace(cpu_percent=31, gpu_percent=None)
+        self.dashboard.logical_dirty_key(None, None, stats, view='stats')
+        snapshot = json.loads(self.paths.live.read_text())
+        self.assertEqual(snapshot['stats']['cpu_percent'], 31)
+        self.assertEqual(snapshot['history']['cpu'], [31])
+        self.assertEqual(snapshot['processStart'], self.owner.live_identity)
+        render.assert_not_called()
+        self.assertIsNone(self.owner.status['appliedRevision'])
+
+    def test_live_publish_failure_does_not_break_original_dirty_key(self):
+        original = atomic_write
+        def write(path, data):
+            if path == self.paths.live:
+                raise OSError('No space')
+            original(path, data)
+        with patch('turzx_studio.integration.atomic_write', side_effect=write):
+            result = self.dashboard.logical_dirty_key(None, None, SimpleNamespace(cpu_percent=31), view='stats')
+        self.assertEqual(result[0], 'same')
+        self.assertFalse(self.paths.live.exists())
+
     def test_only_positive_transport_reply_acknowledges_layout(self):
         for method in ('send_image', 'send_jpeg'):
             for reply in (b'\x00\xc8', b'\x00' * 8 + b'\xc8'):

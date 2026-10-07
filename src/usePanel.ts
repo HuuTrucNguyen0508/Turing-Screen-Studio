@@ -12,6 +12,14 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
   const [palette, setPalette] = useState<Palette | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState('');
+  const [previewPending, setPreviewPending] = useState(false);
+  const [previewTime, setPreviewTime] = useState<number | null>(null);
+  const [connectionError, setConnectionError] = useState('');
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+  const [previewMode, setPreviewMode] = useState<'sample' | 'live'>('sample');
+  const [liveTick, setLiveTick] = useState(0);
+  const previewRequest = useRef(false);
+  const [stalePreview, setStalePreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [openingSaved, setOpeningSaved] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -20,19 +28,43 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
   const statusEpoch = useRef(0);
   const initial = useRef({ onOpen, isDirty, onInitialConflict });
   const text = serializeLayout(document);
+  const previewKey = text + JSON.stringify(palette) + previewMode + (previewMode === 'live' ? liveTick : '');
+  const renderedKey = useRef('');
+  const renderedMode = useRef<'sample' | 'live'>('sample');
+  const geometryKey = JSON.stringify(document.widgets.map(({ id, x, y, width, height }) => ({ id, x, y, width, height })));
+  const renderedGeometry = useRef('');
 
   useEffect(() => {
     let canceled = false;
-    void fetch('/api/layout').then(async (response) => {
-      if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return;
-      const data = await response.json();
-      const saved = parseLayout(JSON.stringify(data.document));
-      if (canceled) return;
-      setAvailable(true);
-      if (initial.current.isDirty()) initial.current.onInitialConflict(saved, data.revision);
-      else initial.current.onOpen(saved, data.revision);
-    }).catch(() => {});
-    return () => { canceled = true; };
+    let timer: number | undefined;
+    let controller: AbortController | null = null;
+    let attempts = 0;
+    async function connect() {
+      controller = new AbortController();
+      const timeout = window.setTimeout(() => controller?.abort(), 8000);
+      try {
+        const response = await fetch('/api/layout', { signal: controller.signal });
+        if (response.status >= 500) throw new Error('Studio API is unavailable. Retrying automatically.');
+        if (response.status === 404 || !response.headers.get('content-type')?.includes('application/json')) { if (!canceled) setConnectionError(''); return; }
+        if (!response.ok) throw new Error('Studio API is unavailable. Retrying automatically.');
+        let data: { document: unknown; revision: string }; let saved: LayoutDocument;
+        try {
+          data = await response.json(); saved = parseLayout(JSON.stringify(data.document));
+          if (typeof data.revision !== 'string') throw new Error('Studio returned an invalid revision.');
+        } catch (failure) { if (!canceled) setConnectionError(`The panel dashboard could not be read. ${failure instanceof Error ? failure.message : 'Check the saved configuration.'}`); return; }
+        if (canceled) return;
+        setAvailable(true); setRevision(data.revision); setConnectionError('');
+        if (initial.current.isDirty()) initial.current.onInitialConflict(saved, data.revision);
+        else initial.current.onOpen(saved, data.revision);
+      } catch {
+        if (!canceled) {
+          setConnectionError('Studio API is unavailable. You can keep editing offline. Retrying automatically.');
+          timer = window.setTimeout(() => void connect(), Math.min(15000, 3000 * 2 ** attempts++));
+        }
+      } finally { window.clearTimeout(timeout); }
+    }
+    void connect();
+    return () => { canceled = true; window.clearTimeout(timer); controller?.abort(); };
   }, []);
 
   useEffect(() => {
@@ -43,7 +75,7 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
       const epoch = statusEpoch.current;
       const sequence = ++pollSequence;
       try {
-        const [stateResponse, paletteResponse] = await Promise.all([fetch('/api/status'), fetch('/api/palette')]);
+        const [stateResponse, paletteResponse] = await Promise.all([fetch('/api/status', { signal: AbortSignal.timeout(8000) }), fetch('/api/palette', { signal: AbortSignal.timeout(8000) })]);
         if (!stateResponse.ok) throw new Error('Studio server is unavailable.');
         const state = await stateResponse.json();
         const colors = paletteResponse.ok ? await paletteResponse.json() : null;
@@ -57,31 +89,53 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
   }, [available]);
 
   useEffect(() => {
+    if (!available || previewMode !== 'live') return;
+    const timer = window.setInterval(() => {
+      if (!window.document.hidden && !previewRequest.current) setLiveTick((tick) => tick + 1);
+    }, 2000);
+    const visible = () => { if (!window.document.hidden) setLiveTick((tick) => tick + 1); };
+    window.document.addEventListener('visibilitychange', visible);
+    return () => { window.clearInterval(timer); window.document.removeEventListener('visibilitychange', visible); };
+  }, [available, previewMode]);
+
+  useEffect(() => {
     if (!available) return;
     const controller = new AbortController();
+    previewRequest.current = true;
+    setPreviewPending(true); setPreviewError(''); setStalePreview(false);
+    const staleTimer = window.setTimeout(() => setStalePreview(true), 1500);
+    const timeout = window.setTimeout(() => {
+      controller.abort(); previewRequest.current = false; renderedKey.current = ''; setPreviewPending(false);
+      setPreviewError('Panel preview timed out. Showing the local sample preview.');
+    }, 8000);
     const timer = window.setTimeout(() => {
-      void fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: text, signal: controller.signal })
+      void fetch(previewMode === 'live' ? '/api/preview?mode=live' : '/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: text, signal: controller.signal })
         .then(async (response) => {
-          if (!response.ok) throw new Error('Panel preview could not be rendered.');
+          if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            throw new Error(typeof data?.error === 'string' ? data.error.slice(0, 256) : 'Panel preview could not be rendered.');
+          }
+          if (!response.headers.get('content-type')?.includes('image/png')) throw new Error('Panel preview returned an invalid image.');
           const blob = await response.blob();
-          if (!controller.signal.aborted) { const url = URL.createObjectURL(blob); if (previewUrl.current) URL.revokeObjectURL(previewUrl.current); previewUrl.current = url; setPreview(url); setPreviewError(''); }
-        }).catch((error) => { if (!controller.signal.aborted) setPreviewError(error.message); });
+          if (!controller.signal.aborted) { previewRequest.current = false; window.clearTimeout(timeout); const url = URL.createObjectURL(blob); if (previewUrl.current) URL.revokeObjectURL(previewUrl.current); previewUrl.current = url; renderedKey.current = previewKey; renderedMode.current = previewMode; renderedGeometry.current = geometryKey; setPreview(url); setPreviewTime(Date.now()); setPreviewPending(false); setPreviewError(''); }
+        }).catch((error) => { if (!controller.signal.aborted) { previewRequest.current = false; window.clearTimeout(timeout); renderedKey.current = ''; setPreviewError(`${error.message} Showing the local sample preview.`); setPreviewPending(false); } });
     }, 100);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [available, text, palette]);
+    return () => { previewRequest.current = false; window.clearTimeout(timer); window.clearTimeout(timeout); window.clearTimeout(staleTimer); controller.abort(); };
+  }, [available, text, palette, previewAttempt, previewMode, liveTick]);
 
   useEffect(() => () => { if (previewUrl.current) URL.revokeObjectURL(previewUrl.current); }, []);
 
-  async function save(snapshot: LayoutDocument) {
-    if (operation.current || !revision) return null;
+  async function save(snapshot: LayoutDocument, expectedRevision: string | null = revision) {
+    if (operation.current || !expectedRevision) return null;
     operation.current = true;
     setSaving(true);
     try {
-      const response = await fetch('/api/layout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': revision }, body: serializeLayout(snapshot) });
+      const response = await fetch('/api/layout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': expectedRevision }, body: serializeLayout(snapshot) });
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 409 && typeof data.revision === 'string') {
-          throw new Error('The saved layout changed elsewhere. Your draft is intact. Open the saved layout to compare before saving again.');
+          setStatus((current) => ({ ...current, requestedRevision: data.revision }));
+          throw new Error('The saved layout changed elsewhere. Your draft is intact. Review panel changes before replacing it.');
         }
         throw new Error(data.error ?? 'Could not save the layout.');
       }
@@ -125,11 +179,11 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
     } finally { operation.current = false; setSwitching(false); }
   }
 
-  function adoptSaved(savedRevision: string) {
+  function adoptSaved(savedRevision: string | null) {
     statusEpoch.current += 1;
     setRevision(savedRevision);
     setStatus((current) => ({ ...current, requestedRevision: savedRevision }));
   }
 
-  return { available, revision, status, palette, preview, previewError, saving, openingSaved, switching, save, openSaved, switchLayout, adoptSaved };
+  return { available, revision, status, palette, previewMode, setPreviewMode, preview: renderedKey.current === previewKey || previewPending && !stalePreview && renderedMode.current === previewMode && renderedGeometry.current === geometryKey ? preview : null, previewError, previewPending, previewTime, connectionError, retryPreview: () => setPreviewAttempt((attempt) => attempt + 1), saving, openingSaved, switching, save, openSaved, switchLayout, adoptSaved };
 }

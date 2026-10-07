@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "widgets": [
+    {
+      "id": "ssd-nvme-games-partitions",
+      "name": "SSD, NVMe and Games partitions",
+      "widget": {
+        "type": "storage",
+        "width": 374,
+        "height": 479,
+        "settings": {
+          "label": "SSD / NVMe / Games",
+          "style": "bars",
+          "source": "mounted-storage",
+          "grouping": "partitions",
+          "mounts": [
+            "/",
+            "/mnt/nvme",
+            "/mnt/games"
+          ]
+        }
+      }
+    }
+  ]
+}

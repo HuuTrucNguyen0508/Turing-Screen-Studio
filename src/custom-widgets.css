@@ -1,0 +1,5 @@
+.custom-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.custom-list article { display: flex; align-items: center; gap: 20px; padding: 20px 0; border-bottom: 1px solid var(--outline); }
+.custom-specimen { position: relative; flex-shrink: 0; }
+.custom-edit-dialog input { width: 100%; padding: 10px; border: 1px solid var(--outline); border-radius: 6px; background: var(--background); color: var(--text); }
+@media (max-width: 560px) { .custom-list article { flex-direction: column; align-items: flex-start; } }

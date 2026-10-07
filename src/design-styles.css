@@ -1,0 +1,79 @@
+/* Inspector: Design section */
+.design-section > summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; border-radius: 6px; }
+.design-section > summary::-webkit-details-marker { display: none; }
+.design-section > summary::before { content: ''; width: 5px; height: 5px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); margin: 0 3px 0 1px; transition: transform .12s; }
+.design-section[open] > summary::before { transform: rotate(45deg); }
+.design-section > summary h4 { margin: 0; }
+.design-section > summary .mono { margin-left: auto; }
+.design-section > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+.design-section[open] > summary { margin-bottom: 16px; }
+.design-note { margin-top: 12px; }
+
+.design-field { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: 10px; }
+.design-field.inline { grid-template-columns: minmax(0, 1fr) 84px; align-items: center; column-gap: 10px; }
+.design-field.inline .field-error { grid-column: 1 / -1; margin-top: 0; }
+.design-field-label { color: var(--muted); font-size: 10px; }
+.design-input { display: flex; align-items: center; border: 1px solid var(--outline); border-radius: 6px; background: var(--background); padding-right: 7px; min-width: 0; }
+.design-input:focus-within { border-color: var(--primary); }
+.design-input.invalid { border-color: #fa746f; }
+.design-input input { width: 100%; min-width: 0; padding: 7px 6px 7px 8px; color: var(--text); background: transparent; border: 0; border-radius: 6px; font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
+.design-input input:focus-visible { outline: none; }
+.design-input span { font-size: 9px; color: var(--muted); }
+.design-field .field-error { margin-top: 0; }
+
+.design-elements { display: grid; margin-top: 18px; border-top: 1px solid var(--outline); }
+.design-element { border-bottom: 1px solid var(--outline); }
+.design-element-row { width: 100%; display: grid; grid-template-columns: 9px minmax(0, 1fr) 8px 34px; align-items: center; gap: 8px; padding: 9px 2px; border: 0; border-radius: 0; background: transparent; font-size: 12px; text-align: left; }
+.design-element-row:hover { background: transparent; color: var(--primary); }
+.design-element-row:focus-visible { outline-offset: 0; }
+.design-element-row .mono { text-align: right; font-variant-numeric: tabular-nums; }
+.design-chevron { width: 5px; height: 5px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform .12s; }
+.design-element.open .design-chevron { transform: rotate(45deg); }
+.design-element-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.design-element-name.hidden { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--outline); }
+.design-element.inspected .design-element-name::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-left: 6px; vertical-align: middle; border-radius: 50%; background: var(--primary); }
+.design-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1px var(--outline); }
+
+.design-element-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; padding: 4px 0 14px 17px; }
+.design-control, .design-colors, .design-hide, .design-warning, .design-element-body > .design-link { grid-column: 1 / -1; }
+.design-control { display: grid; gap: 6px; }
+.design-segmented { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--outline); border-radius: 6px; overflow: hidden; }
+.design-segmented button { display: grid; place-items: center; padding: 7px 0; border: 0; border-radius: 0; background: var(--background); color: var(--muted); }
+.design-segmented button + button { border-left: 1px solid var(--outline); }
+.design-segmented button:hover { background: var(--surfaceRaised); color: var(--text); }
+.design-segmented button[aria-pressed='true'] { background: var(--surfaceRaised); color: var(--primary); }
+.design-segmented button:focus-visible { outline-offset: -2px; }
+.design-segmented svg line { stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.design-segmented svg .glyph-anchor { stroke-width: 1; stroke-dasharray: 1.5 1.5; }
+
+.design-colors { border: 0; padding: 0; margin: 0; min-width: 0; }
+.design-colors legend { padding: 0; margin-bottom: 7px; }
+.design-colors legend span { color: var(--text); margin-left: 4px; }
+.design-swatches { display: flex; gap: 8px; }
+.design-swatch { position: relative; display: block; cursor: pointer; }
+.design-swatch span { display: block; width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1px var(--outline); }
+.design-swatch input:checked + span { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--text); }
+.design-swatch input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 4px; }
+
+.design-hide { margin: 0; flex-wrap: wrap; }
+.design-hide .mono { margin-left: auto; }
+.design-warning { font-size: 10px; line-height: 1.5; color: #fa746f; }
+.design-link { justify-self: start; padding: 2px 0; border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-decoration-color: var(--outline); text-underline-offset: 3px; }
+.design-link:hover:not(:disabled) { background: transparent; color: var(--primary); text-decoration-color: currentColor; }
+.design-link:disabled { text-decoration: none; }
+.design-reset { margin-top: 14px; }
+
+/* Canvas: baseline marker, drawn in widget-local document pixels over the card's border box */
+.design-marker { position: absolute; left: -1px; top: -1px; overflow: visible; pointer-events: none; z-index: 2; }
+.design-marker line { vector-effect: non-scaling-stroke; stroke-width: 1px; }
+.design-marker-padding { stroke: var(--outline); stroke-dasharray: 6 5; }
+.design-marker-anchor line { stroke: var(--primary); }
+.design-marker-anchor .design-marker-tick { stroke-width: 2px; }
+.design-marker-anchor circle { fill: var(--primary); stroke: var(--background); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.design-marker-anchor.hidden line { stroke-dasharray: 3 3; }
+.design-marker-anchor.hidden circle { fill: var(--background); stroke: var(--primary); }
+.design-marker-caption { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 14px; fill: var(--primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .design-section > summary::before, .design-chevron { transition: none; }
+}

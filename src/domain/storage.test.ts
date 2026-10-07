@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createSampleLayout, parseLayout, serializeLayout, validateLayout } from './layout';
 import { addWidget, updateWidgetSettings, widgetSources } from './widgets';
 import { dashboardHeading } from './usage';
-import { storageGeometry, storageSample, storageShort, storageSize } from './storage';
+import { storageGeometry, storageRows, storageRowName, storageSample, storageShort, storageSize } from './storage';
 
 function python(input: unknown, script: string) {
   return JSON.parse(execFileSync('python3', ['-c', script], { input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, PYTHONPATH: 'runtime' } }));
@@ -36,5 +36,35 @@ describe('mounted filesystem widget', () => {
     expect(python({ sizes, dimensions }, `import json,sys\nfrom turzx_studio.storage_display import SAMPLE_STORAGE,storage_geometry,storage_size,storage_short\nd=json.load(sys.stdin)\nprint(json.dumps(dict(sample=SAMPLE_STORAGE,geometry=[storage_geometry(*args) for args in d['dimensions']],sizes=[storage_size(n) for n in d['sizes']],clipped=storage_short('/mnt/very-long-directory',9))))`)).toEqual(expected);
     expect(storageGeometry(352,480,'bars').capacity).toBe(5);
     expect(storageGeometry(564,384,'table').capacity).toBe(5);
+  });
+  it('groups physical drives and filters partition paths in order with Python parity', () => {
+    const settings = [
+      { label: 'Drives', style: 'bars', grouping: 'drives' },
+      { label: 'Partitions', style: 'bars', grouping: 'partitions', mounts: ['/', '/mnt/nvme', '/mnt/games'] },
+      { label: 'Aliases', style: 'bars', grouping: 'partitions', mounts: ['/home', '/', '/missing'] },
+    ] as const;
+    for (const input of settings) {
+      const document = addWidget({ ...createSampleLayout(), widgets: [] }, 'mounted-storage');
+      const next = updateWidgetSettings(document, 'mounted-storage', input.grouping === 'drives' ? { ...input } : { ...input, grouping: 'partitions' });
+      const checked = next.widgets[0];
+      if (checked.type !== 'storage') throw new Error('Missing storage');
+      const rows = storageRows(checked.settings);
+      expect(python(checked.settings, `import json,sys\nfrom turzx_studio.storage_display import SAMPLE_STORAGE,storage_rows,storage_row_name\ns=json.load(sys.stdin);r=storage_rows(s,SAMPLE_STORAGE)\nprint(json.dumps(dict(rows=r,names=[storage_row_name(i,'mounts' in s) for i in r])))`)).toEqual({ rows, names: rows.map((row) => storageRowName(row, Boolean(checked.settings.mounts))) });
+      expect(python(next, `import json,sys\nfrom turzx_studio.layout import validate_layout\nprint(json.dumps(validate_layout(json.load(sys.stdin))))`)).toEqual(next);
+      expect(parseLayout(serializeLayout(next))).toEqual(next);
+    }
+    expect(storageRows({ label: 'Drives', style: 'bars', grouping: 'drives' }).map((row) => row.mount)).toEqual(['SSD', 'NVMe', 'HDD']);
+    expect(storageRows({ label: 'Missing', style: 'bars', mounts: ['/missing'] })[0].usedGiB).toBeNull();
+  });
+  it('rejects malformed filters and clears them when switching back to drives', () => {
+    const doc = addWidget({ ...createSampleLayout(), widgets: [] }, 'mounted-storage');
+    for (const patch of [{ grouping: 'bad' }, { grouping: 'drives', mounts: ['/'] }, { grouping: 'partitions', mounts: ['relative'] }, { grouping: 'partitions', mounts: ['/', '/'] }, { grouping: 'partitions', mounts: ['/\nsecret'] }, { grouping: 'partitions', mounts: Array.from({ length: 33 }, (_, i) => `/${i}`) }]) {
+      expect(() => updateWidgetSettings(doc, 'mounted-storage', patch)).toThrow();
+      const bad = { ...doc, widgets: [{ ...doc.widgets[0], settings: { ...doc.widgets[0].settings, ...patch } }] };
+      expect(python(bad, `import json,sys\nfrom turzx_studio.layout import validate_layout\ntry: validate_layout(json.load(sys.stdin)); print('true')\nexcept ValueError: print('false')`)).toBe(false);
+    }
+    const filtered = updateWidgetSettings(doc, 'mounted-storage', { grouping: 'partitions', mounts: ['/', '/mnt/nvme'] });
+    const cleared = updateWidgetSettings(filtered, 'mounted-storage', { grouping: 'drives', mounts: undefined });
+    expect(cleared.widgets[0].settings).not.toHaveProperty('mounts');
   });
 });

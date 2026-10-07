@@ -27,10 +27,14 @@ class MountedStorageTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name) / "mountinfo"
         self.probe = Mock(return_value=SIZES)
+        self.sysfs = Path(self.temp.name) / "sys" / "class" / "block"
+        self.sysfs.mkdir(parents=True)
+        self.resolver = Mock(side_effect=lambda device: device)
 
-    def collect(self, rows):
+    def collect(self, rows, **kwargs):
         self.path.write_text("".join(rows))
-        return storage.collect_mounted_storage(NOW, self.path, self.probe)
+        options = {"sysfs_path": self.sysfs, "device_resolver": self.resolver, **kwargs}
+        return storage.collect_mounted_storage(NOW, self.path, self.probe, **options)
 
     def test_all_ntfs_drives_boot_and_btrfs_aliases_sorted_without_double_counting(self):
         result = self.collect([
@@ -360,6 +364,289 @@ class MountedStorageTests(unittest.TestCase):
                 self.assertIsNone(result["mounts"][0]["usedPercent"])
                 self.assertTrue(result["stale"])
                 json.dumps(result, allow_nan=False)
+
+
+class PhysicalDriveTests(unittest.TestCase):
+    setUp = MountedStorageTests.setUp
+    collect = MountedStorageTests.collect
+
+    def drive(self, name, capacity=1000, rotational="0", partitions=(), removable="0", virtual=False):
+        target = self.sysfs.parent.parent / "devices" / ("virtual" if virtual else "pci") / name
+        target.mkdir(parents=True)
+        (self.sysfs / name).symlink_to(target, target_is_directory=True)
+        (target / "size").write_text(str(capacity * 1024**3 // 512))
+        (target / "removable").write_text(removable)
+        (target / "queue").mkdir()
+        (target / "queue" / "rotational").write_text(rotational)
+        for number, child in enumerate(partitions, 1):
+            directory = target / child
+            directory.mkdir()
+            (directory / "partition").write_text(str(number))
+            (directory / "size").write_text("100")
+            (self.sysfs / child).symlink_to(directory, target_is_directory=True)
+        return target
+
+    def btrfs(self, fsid, devices, missing=0):
+        root = self.sysfs.parent.parent / "fs" / "btrfs" / fsid
+        (root / "devices").mkdir(parents=True)
+        (root / "devinfo").mkdir()
+        for index, device in enumerate(devices, 1):
+            (root / "devices" / device).symlink_to((self.sysfs / device).resolve())
+            (root / "devinfo" / str(index)).mkdir()
+        for index in range(len(devices) + 1, len(devices) + missing + 1):
+            (root / "devinfo" / str(index)).mkdir()
+
+    def test_physical_capacity_classes_shared_btrfs_and_unmounted_partitions(self):
+        self.drive("sda", partitions=("sda1", "sda2"))
+        self.drive("sdb", rotational="1", partitions=("sdb1", "sdb2"))
+        self.drive("nvme0n1", capacity=2000,
+                   partitions=("nvme0n1p1", "nvme0n1p2", "nvme0n1p3", "nvme0n1p4"))
+        self.btrfs("single", ["sda2"])
+        result = self.collect([
+            record(1, device="/dev/sda2"),
+            record(2, "/home", "/dev/sda2", root="/@home", parent=1),
+            record(3, "/boot", "/dev/sda1", "vfat", parent=1),
+            record(4, "/mnt/hdd", "/dev/sdb1", "ext4", parent=1),
+            record(5, "/mnt/nvme", "/dev/nvme0n1p3", "fuseblk", parent=1),
+            record(6, "/mnt/games", "/dev/nvme0n1p4", "fuseblk", parent=1),
+        ])
+        ssd, nvme, hdd = result["drives"]
+        self.assertEqual([row["device"] for row in result["drives"]],
+                         ["/dev/sda", "/dev/nvme0n1", "/dev/sdb"])
+        self.assertEqual([row["label"] for row in result["drives"]], ["SSD", "NVMe", "HDD"])
+        self.assertEqual((ssd["totalGiB"], ssd["usedGiB"], ssd["freeGiB"], ssd["usedPercent"]),
+                         (1000, 80, 110, 8))
+        self.assertEqual(ssd["partitionMounts"], ["/", "/boot", "/home"])
+        self.assertFalse(ssd["partial"])
+        self.assertEqual((nvme["totalGiB"], nvme["usedGiB"], nvme["freeGiB"], nvme["usedPercent"]),
+                         (2000, 80, 110, 4))
+        self.assertTrue(nvme["partial"])
+        self.assertTrue(hdd["partial"])
+        self.assertEqual(hdd["freeGiB"], 55)
+        self.assertFalse(result["stale"])
+        self.assertEqual(self.probe.call_count, 5)
+        for row in result["drives"]:
+            self.assertEqual(row["filesystem"], "drive")
+            self.assertEqual(row["mount"], row["label"])
+            self.assertEqual(row["aliases"], [])
+            self.assertEqual(row["observedAt"], "2026-10-06T21:00:00.000Z")
+            self.assertFalse(row["stale"])
+            self.assertEqual(row["errors"], [])
+        self.assertEqual(result["mounts"][0]["aliases"], ["/home"])
+        self.assertEqual(result["mounts"][0]["driveDevice"], "/dev/sda")
+        self.assertEqual(result["mounts"][0]["driveKind"], "SSD")
+        json.dumps(result, allow_nan=False)
+
+    def test_parent_comes_from_sysfs_topology_not_device_name_suffix(self):
+        self.drive("sdb", rotational="1", partitions=("sda99",))
+        result = self.collect([record(1, device="/dev/sda99", filesystem="ext4")])
+        self.assertEqual(result["drives"][0]["device"], "/dev/sdb")
+        self.assertFalse(result["drives"][0]["partial"])
+
+    def test_whole_drive_filesystem_and_zero_used_are_known(self):
+        target = self.drive("sda", capacity=200)
+        (target / "queue" / "logical_block_size").write_text("4096")
+        self.probe.return_value = Disk(100 * 1024**3, 0, 99 * 1024**3)
+        result = self.collect([record(1, device="/dev/sda", filesystem="ext4")])
+        drive = result["drives"][0]
+        self.assertEqual((drive["totalGiB"], drive["usedGiB"], drive["usedPercent"]), (200, 0, 0))
+        self.assertEqual(drive["freeGiB"], 99)
+        self.assertFalse(drive["partial"])
+
+    def test_dev_disk_symlinks_keep_mount_contract_and_deduplicate_drive_usage(self):
+        self.drive("sda", partitions=("sda2",))
+        readlink = storage.os.readlink
+
+        def resolve(path):
+            if str(path) == "/dev/disk/by-uuid/example":
+                return "../../sda2"
+            if str(path) == "/dev/sda2":
+                raise OSError(22, "not a symlink")
+            return readlink(path)
+
+        with patch.object(storage.os, "readlink", side_effect=resolve):
+            result = self.collect([record(1, "/one", "/dev/disk/by-uuid/example", "ext4"),
+                                   record(2, "/two", "/dev/sda2", "ext4")],
+                                  device_resolver=storage._resolve_device)
+        self.assertEqual([row["device"] for row in result["mounts"]],
+                         ["/dev/disk/by-uuid/example", "/dev/sda2"])
+        self.assertEqual(result["drives"][0]["usedGiB"], 40)
+        self.assertEqual(result["drives"][0]["freeGiB"], 55)
+        self.assertEqual(result["drives"][0]["partitionMounts"], ["/one", "/two"])
+
+    def test_unknown_usage_stays_null_with_known_hardware_capacity(self):
+        self.drive("sda", partitions=("sda1",))
+        self.probe.side_effect = OSError("secret probe details")
+        result = self.collect([record(1, device="/dev/sda1", filesystem="ext4")])
+        drive = result["drives"][0]
+        self.assertEqual(drive["totalGiB"], 1000)
+        for key in ("usedGiB", "freeGiB", "usedPercent"):
+            self.assertIsNone(drive[key])
+        self.assertTrue(drive["partial"])
+        self.assertTrue(drive["stale"])
+        self.assertEqual(drive["errors"], ["mounted_storage_stat_unavailable"])
+        self.assertNotIn("secret", json.dumps(result))
+
+    def test_failed_partition_retains_explicit_partial_known_subtotals(self):
+        self.drive("sda", partitions=("sda1", "sda2"))
+        self.drive("sdb", partitions=("sdb1",))
+        self.probe.side_effect = lambda path: SIZES if path != "/bad" else Disk(0, 0, 0)
+        result = self.collect([record(1, "/good", "/dev/sda1", "ext4"),
+                               record(2, "/bad", "/dev/sda2", "ext4"),
+                               record(3, "/other", "/dev/sdb1", "ext4")])
+        broken, good = result["drives"]
+        self.assertEqual((broken["usedGiB"], broken["freeGiB"], broken["usedPercent"]), (40, 55, 4))
+        self.assertTrue(broken["partial"])
+        self.assertTrue(broken["stale"])
+        self.assertFalse(good["partial"])
+        self.assertFalse(good["stale"])
+
+    def test_mount_disappearance_is_not_counted_as_parent_filesystem_usage(self):
+        self.drive("sda", partitions=("sda1", "sda2"))
+        self.probe.side_effect = lambda path: (self.path.write_text(record(
+            1, device="/dev/sda1", filesystem="ext4")), SIZES)[1]
+        result = self.collect([record(1, device="/dev/sda1", filesystem="ext4"),
+                               record(2, "/mnt/data", "/dev/sda2", "ext4", parent=1)])
+        drive = result["drives"][0]
+        self.assertEqual(drive["usedGiB"], 40)
+        self.assertTrue(drive["partial"])
+        self.assertIn("mounted_storage_mount_disappeared", drive["errors"])
+
+    def test_bad_capacity_does_not_erase_available_filesystem_usage(self):
+        target = self.drive("sda")
+        for capacity in ("0", "invalid", "-1", str(2**64)):
+            with self.subTest(capacity=capacity):
+                (target / "size").write_text(capacity)
+                drive = self.collect([record(1, device="/dev/sda", filesystem="ext4")])["drives"][0]
+                self.assertIsNone(drive["totalGiB"])
+                self.assertIsNone(drive["usedPercent"])
+                self.assertEqual(drive["usedGiB"], 40)
+                self.assertTrue(drive["partial"])
+                self.assertEqual(drive["errors"], ["mounted_storage_drive_capacity_unavailable"])
+
+    def test_virtual_removable_mapper_and_zfs_keep_mounts_without_drive_metadata(self):
+        self.drive("loop0")
+        self.drive("zram0")
+        self.drive("dm-0")
+        self.drive("md0")
+        self.drive("sdc", removable="1")
+        self.drive("sdd", virtual=True)
+        rows = [record(index, f"/mnt/{name}", f"/dev/{name}", "ext4")
+                for index, name in enumerate(("loop0", "zram0", "dm-0", "md0", "sdc", "sdd"), 1)]
+        rows.append(record(7, "/mnt/zfs", "pool/data", "zfs"))
+        result = self.collect(rows)
+        self.assertEqual(len(result["mounts"]), 7)
+        self.assertEqual(result["drives"], [])
+        for row in result["mounts"]:
+            self.assertNotIn("driveKind", row)
+            self.assertNotIn("driveDevice", row)
+            self.assertEqual(row["usedGiB"], 40)
+
+    def test_btrfs_multidevice_and_missing_device_are_unsupported(self):
+        self.drive("sda", partitions=("sda1", "sda2"))
+        self.drive("sdb", partitions=("sdb1",))
+        self.btrfs("multi", ["sda2", "sdb1"])
+        result = self.collect([record(1, device="/dev/sda2"),
+                               record(2, "/other", "/dev/sdb1"),
+                               record(3, "/boot", "/dev/sda1", "vfat", parent=1)])
+        self.assertEqual(len(result["drives"]), 1)
+        drive = result["drives"][0]
+        self.assertEqual(drive["usedGiB"], 40)
+        self.assertEqual(drive["partitionMounts"], ["/boot"])
+        self.assertTrue(drive["partial"])
+        self.assertNotIn("driveDevice", result["mounts"][0])
+        self.assertIn("mounted_storage_btrfs_topology_unsupported", result["errors"])
+        # A missing member is visible through devinfo even without a block link.
+        self.drive("sdc", partitions=("sdc1",))
+        self.btrfs("missing", ["sdc1"], missing=1)
+        result = self.collect([record(1, device="/dev/sdc1")])
+        self.assertEqual(result["drives"], [])
+
+    def test_missing_btrfs_topology_does_not_guess_a_single_drive(self):
+        self.drive("sda", partitions=("sda1",))
+        result = self.collect([record(1, device="/dev/sda1")])
+        self.assertEqual(result["drives"], [])
+        self.assertEqual(result["mounts"][0]["usedGiB"], 40)
+        self.assertIn("mounted_storage_btrfs_topology_unsupported", result["errors"])
+
+    def test_sysfs_enumeration_read_and_byte_budgets_are_explicit(self):
+        target = self.drive("sda", partitions=("sda1",))
+        cases = [("MAX_BLOCK_ENTRIES", 1, "mounted_storage_sysfs_entry_bound_reached"),
+                 ("MAX_SYSFS_READS", 1, "mounted_storage_sysfs_read_bound_reached")]
+        for constant, bound, error in cases:
+            with self.subTest(constant=constant), patch.object(storage, constant, bound):
+                result = self.collect([record(1, device="/dev/sda1", filesystem="ext4")])
+                self.assertEqual(result["drives"], [])
+                self.assertIn(error, result["errors"])
+                self.assertEqual(result["mounts"][0]["usedGiB"], 40)
+        (target / "sda1" / "partition").write_text("1" * (storage.MAX_SYSFS_BYTES + 1))
+        result = self.collect([record(1, device="/dev/sda1", filesystem="ext4")])
+        self.assertEqual(result["drives"], [])
+        self.assertIn("mounted_storage_sysfs_byte_bound_reached", result["errors"])
+
+    def test_sysfs_reads_are_limited_even_for_zero_size_metadata(self):
+        self.drive("sda", partitions=("sda1",))
+        opened = []
+        original = Path.open
+
+        class Guard(io.BytesIO):
+            def read(self, size=-1):
+                opened.append(size)
+                return super().read(size)
+
+        def guarded(path, *args, **kwargs):
+            if path.name == "partition":
+                return Guard(b"1" * (storage.MAX_SYSFS_BYTES + 1))
+            return original(path, *args, **kwargs)
+
+        with patch.object(Path, "open", guarded):
+            result = self.collect([record(1, device="/dev/sda1", filesystem="ext4")])
+        self.assertEqual(opened, [storage.MAX_SYSFS_BYTES + 1])
+        self.assertIn("mounted_storage_sysfs_byte_bound_reached", result["errors"])
+
+    def test_sysfs_and_device_resolver_errors_are_sanitized(self):
+        self.drive("sda")
+        self.resolver.side_effect = OSError("private device path and secret")
+        result = self.collect([record(1, device="/dev/sda", filesystem="ext4")])
+        self.assertEqual(result["drives"], [])
+        self.assertIn("mounted_storage_device_resolution_unavailable", result["errors"])
+        self.assertNotIn("secret", json.dumps(result))
+        with patch.object(storage.os, "scandir", side_effect=PermissionError("secret")):
+            result = self.collect([record(1, device="/dev/sda", filesystem="ext4")])
+        self.assertIn("mounted_storage_sysfs_unavailable", result["errors"])
+        self.assertNotIn("secret", json.dumps(result))
+
+    def test_unknown_classification_is_unsupported_without_invented_metadata(self):
+        self.drive("sda", rotational="unknown")
+        result = self.collect([record(1, device="/dev/sda", filesystem="ext4")])
+        self.assertEqual(result["drives"], [])
+        self.assertNotIn("driveKind", result["mounts"][0])
+        self.assertIn("mounted_storage_drive_kind_unknown", result["errors"])
+
+    def test_mountinfo_errors_make_known_drive_coverage_partial(self):
+        self.drive("sda")
+        result = self.collect(["broken\n", record(1, device="/dev/sda", filesystem="ext4")])
+        self.assertTrue(result["drives"][0]["partial"])
+        self.assertFalse(result["drives"][0]["stale"])
+
+    def test_btrfs_registry_and_symlink_traversals_are_bounded(self):
+        self.drive("sda", partitions=("sda1",))
+        self.btrfs("single", ["sda1"])
+        with patch.object(storage, "MAX_BTRFS_FILESYSTEMS", 0):
+            result = self.collect([record(1, device="/dev/sda1")])
+        self.assertEqual(result["drives"], [])
+        self.assertIn("mounted_storage_sysfs_entry_bound_reached", result["errors"])
+        (self.sysfs / "sda1").unlink()
+        (self.sysfs / "sda1").symlink_to(self.sysfs / "sda1")
+        result = self.collect([record(1, device="/dev/sda1", filesystem="ext4")])
+        self.assertEqual(result["drives"], [])
+        self.assertIn("mounted_storage_sysfs_symlink_bound_reached", result["errors"])
+        self.resolver.reset_mock()
+        readlink = storage.os.readlink
+        with patch.object(storage.os, "readlink", side_effect=lambda path: (
+                "/dev/disk/by-uuid/loop" if str(path).startswith("/dev/") else readlink(path))):
+            with self.assertRaises(ValueError):
+                storage._resolve_device("/dev/disk/by-uuid/loop")
 
 
 if __name__ == "__main__":

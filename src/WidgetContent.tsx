@@ -1,5 +1,7 @@
+import { resolveElements } from './domain/design';
 import { formatClockTime, formatGaugeNumber, gaugeFraction, gaugeGeometry, instrumentGeometry } from './domain/widgets';
-import type { GaugeWidget, LayoutDocument, Widget } from './domain/layout';
+import type { GaugeWidget, LayoutDocument, MetricWidget, Widget } from './domain/layout';
+import { demoTrendHistory, trendCaption, trendChart, trendUnit } from './domain/trend';
 import './widget-styles.css';
 import StorageContent from './StorageContent';
 import UsageContent from './UsageContent';
@@ -58,7 +60,54 @@ function Instrument({ widget }: { widget: GaugeWidget }) {
   </div>;
 }
 
+const designFonts = {
+  mono: "'JetBrains Mono', 'DejaVu Sans Mono', monospace",
+  sans: "'Roboto', 'DejaVu Sans', sans-serif",
+};
+
+function TrendMetric({ widget }: { widget: MetricWidget }) {
+  const { source = 'sample', label, value, unit, detail } = widget.settings;
+  const chart = trendChart(source, demoTrendHistory(source), widget.width, widget.height);
+  const size = Math.max(12, Math.min(36, Math.floor((widget.width - 58) / Math.max(1, value.length * .64 + unit.length * .3))));
+  const shortened = (text: string, characterWidth: number) => {
+    const capacity = Math.max(1, Math.floor((widget.width - 58) / characterWidth));
+    return text.length > capacity ? `${text.slice(0, capacity - 1)}…` : text;
+  };
+  const range = `${formatGaugeNumber(chart.min)}-${formatGaugeNumber(chart.max)} ${trendUnit(source)}`.trim();
+  return <div data-trend="true" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+    <svg width={widget.width} height={widget.height} role="img" aria-label={`${label}, ${trendCaption(true)}, ${range}`} style={{ position: 'absolute', inset: 0, fontFamily: designFonts.sans }}>
+      <text x="29" y="42" fill="var(--muted)" fontSize="15">{shortened(label, 8)}</text>
+      <text x="29" y="92" fill="var(--primary)" fontFamily={designFonts.mono} fontSize={size}>{value}<tspan dx="6" fill="var(--muted)" fontFamily={designFonts.sans} fontSize="16">{unit}</tspan></text>
+      {chart.showChart && <>
+        <text x={chart.right} y={chart.top - 10} textAnchor="end" fill="var(--muted)" fontSize="11">{range}</text>
+        <path d={`M${chart.left} ${chart.bottom}H${chart.right}`} stroke="var(--outline)" fill="none" />
+        {chart.segments.map((points, index) => points.length > 1
+          ? <polyline key={index} points={points.map(({ x, y }) => `${x},${y}`).join(' ')} stroke="var(--primary)" strokeWidth="2" fill="none" />
+          : <circle key={index} cx={points[0].x} cy={points[0].y} r="1" fill="var(--primary)" />)}
+        {chart.state && <text x={chart.left} y={Math.floor((chart.top + chart.bottom) / 2)} fill="var(--muted)" fontSize="13">{chart.state}</text>}
+      </>}
+      {widget.height >= 216 && <text x="29" y={widget.height - 48} fill="var(--muted)" fontSize="12">{shortened(detail, 6.7)}</text>}
+      <text x="29" y={chart.captionY} fill="var(--muted)" fontSize="12">{shortened(trendCaption(true), 6.7)}</text>
+    </svg>
+  </div>;
+}
+
+function DesignedCard({ widget }: { widget: Widget }) {
+  return <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', borderRadius: 'inherit' }}>
+    <svg width={widget.width} height={widget.height} aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, overflow: 'hidden' }}>
+      {resolveElements(widget).filter((element) => !element.hidden).map((element) => <text
+        key={element.id} data-element={element.id} x={element.x} y={element.y}
+        textAnchor={element.align === 'center' ? 'middle' : element.align}
+        fill={`var(--${element.color})`} fontFamily={designFonts[element.family]} fontSize={element.size}>
+        <tspan>{element.text}</tspan>{element.suffix && <tspan fontFamily={designFonts.sans}
+          dx={element.gap} fontSize={element.suffixSize} fill="var(--muted)">{element.suffix}</tspan>}
+      </text>)}
+    </svg>
+  </div>;
+}
+
 export function CardContent({ widget }: { widget: Widget }) {
+  if (widget.type === 'clock' && widget.design) return <DesignedCard widget={widget} />;
   if (widget.type === 'storage') return <StorageContent widget={widget} />;
   if (widget.type === 'clock') {
     const compact = widget.height < 184;
@@ -106,6 +155,7 @@ export function CardContent({ widget }: { widget: Widget }) {
     <div className="weather-range"><span>High {widget.settings.high}°</span><span>Low {widget.settings.low}°</span></div>
     <div className="weather-caption">Sample forecast</div>
   </div>;
+  if (widget.settings.trend) return <TrendMetric widget={widget} />;
   if (isUsageSource(widget.settings.source)) return <UsageContent widget={widget} />;
   return <div className="metric-content">
     <span className="card-kicker">{widget.settings.label}</span>

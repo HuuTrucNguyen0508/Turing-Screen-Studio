@@ -11,7 +11,8 @@ import mimetypes
 from pathlib import Path
 import re
 import threading
-from urllib.parse import unquote, urlsplit
+import time
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from turzx_studio.layout import parse_layout, revision, serialize_layout, validate_layout
 from turzx_studio.renderer import LayoutRenderer
@@ -20,8 +21,10 @@ from turzx_studio.archives import archive_layout, layout_write_lock, list_archiv
 from turzx_studio.layout_library import (
     LayoutLibrary, LibraryTooLarge, active_id, library_revision, select_entry, validate_library,
 )
+from turzx_studio.widget_templates import WidgetTemplates, validate_templates, templates_revision
 from turzx_studio.usage import UsageCollector
-from turzx_studio.usage_display import USAGE_SOURCES
+from turzx_studio.usage_display import USAGE_SOURCES, UsageStats
+from turzx_studio.live import MAX_AGE, source_diagnostics, snapshot_stats, validate_snapshot
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BODY_BYTES = 1024 * 1024
@@ -119,6 +122,7 @@ class StudioApplication:
                  font_dir: str | Path | None = None, scheme: str | Path | None = None,
                  sample: str | Path | None = None) -> None:
         self.paths = paths if paths is not None else Paths()
+        self.widget_templates = WidgetTemplates(self.paths)
         self.dist = (Path(dist).expanduser() if dist is not None else ROOT / "dist").resolve()
         self.palette = PaletteWatcher(scheme if scheme is not None else
                                       Path.home() / ".local/state/caelestia/scheme.json")
@@ -189,6 +193,16 @@ class StudioApplication:
             if (not isinstance(supported, list) or
                     any(widget['type'] not in supported for widget in document['widgets'])):
                 raise APIError(409, 'The panel runtime needs an update before saving these widgets. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
+            design_types = runtime.get('supportedDesignTypes', [])
+            if any('design' in widget and (not isinstance(design_types, list) or widget['type'] not in design_types) for widget in document['widgets']):
+                raise APIError(409, 'The panel runtime needs an update before saving widget designs. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
+            if any('trend' in widget['settings'] for widget in document['widgets']) and runtime.get('supportedTrendWidgets') is not True:
+                raise APIError(409, 'The panel runtime needs an update before saving trends. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
+            storage_views = runtime.get('supportedStorageViews', [])
+            if any(widget['type'] == 'storage' and ('grouping' in widget['settings'] or 'mounts' in widget['settings']) and
+                   (not isinstance(storage_views, list) or widget['settings'].get('grouping', 'partitions') not in storage_views)
+                   for widget in document['widgets']):
+                raise APIError(409, 'The panel runtime needs an update before saving storage views. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
             styles = runtime.get('supportedGaugeStyles', [])
             usage_sources = runtime.get('supportedUsageSources', [])
             requested_sources = [widget['settings'].get('source') for widget in document['widgets']
@@ -209,6 +223,35 @@ class StudioApplication:
         except OSError as error:
             raise APIError(500, f"Cannot archive the previous layout or save the replacement: {error}") from error
         return {"document": document, "revision": revision(document), "archive": archive}
+
+    def widgets(self) -> dict:
+        with self.layout_lock, layout_write_lock(self.paths):
+            try:
+                document = self.widget_templates.read()
+            except (OSError, ValueError, RecursionError) as error:
+                raise APIError(422, f'Cannot read custom widgets: {error}. Preserve widgets.json before repairing it.') from error
+            return {**document, 'revision': templates_revision(document)}
+
+    def save_widgets(self, raw: object, if_match: str | None) -> dict:
+        if if_match is None:
+            raise APIError(428, 'Saving custom widgets requires their revision in If-Match')
+        try:
+            document = validate_templates(raw)
+        except (ValueError, RecursionError) as error:
+            raise APIError(422, str(error)) from error
+        with self.layout_lock, layout_write_lock(self.paths):
+            try:
+                stored = self.widget_templates.read()
+            except (OSError, ValueError) as error:
+                raise APIError(422, f'Cannot read custom widgets: {error}') from error
+            previous = {**stored, 'revision': templates_revision(stored)}
+            if if_match not in (previous['revision'], f'"{previous["revision"]}"'):
+                raise APIError(409, 'Custom widgets changed elsewhere. Refresh before saving; your draft is intact.', revision=previous['revision'])
+            try:
+                self.widget_templates.write(document)
+            except OSError as error:
+                raise APIError(500, f'Cannot preserve custom widgets or save their replacement: {error}') from error
+            return {**document, 'revision': templates_revision(document)}
 
     def _read_library(self, current: dict, *, initialize: bool = False) -> dict:
         try:
@@ -299,18 +342,49 @@ class StudioApplication:
             result["layoutError"] = str(error)
         return result
 
-    def preview(self, raw: object) -> bytes:
+    def live(self) -> dict:
+        try:
+            snapshot = validate_snapshot(strict_json(read_bounded(self.paths.live)))
+            runtime = strict_json(read_bounded(self.paths.status))
+            if not isinstance(runtime, dict) or not runtime_is_running(runtime) or any(snapshot[key] != runtime.get(key) for key in ('pid', 'processStart')):
+                raise ValueError('Live readings belong to a stopped runtime.')
+            age = time.time() - snapshot['observedAt']
+            stale = age < -1 or age > MAX_AGE
+            result = {**snapshot, 'available': not stale, 'stale': stale,
+                      'sources': source_diagnostics(snapshot, stale=stale)}
+            if stale:
+                result['error'] = 'Live readings are stale. Showing sample values until the runtime publishes fresh readings.'
+            return result
+        except (OSError, ValueError, APIError):
+            return {'available': False, 'stale': True, 'sources': [],
+                    'error': 'Live readings are unavailable. The runtime needs the current Studio adapter.'}
+
+    def preview(self, raw: object, *, live: bool = False) -> bytes:
         try:
             document = validate_layout(raw, panel=False)
             if document["canvas"]["width"] * document["canvas"]["height"] > MAX_PREVIEW_PIXELS:
                 raise ValueError("Preview is limited to 16 million pixels")
             with self.palette_lock:
                 colors = self.palette.poll() if document.get("paletteMode") == "live" else None
+            usage = self.usage.snapshot() if live and any(widget['settings'].get('source') in USAGE_SOURCES or widget['type'] == 'storage' for widget in document['widgets']) else None
             with self.render_lock:
-                image = self.renderer.render(document, stats=None, palette=colors)
+                stats = None
+                if live:
+                    readings = self.live()
+                    if not readings['available']:
+                        raise APIError(503, readings['error'])
+                    stats = snapshot_stats(readings)
+                    if usage is not None:
+                        stats = UsageStats(stats, usage)
+                image = self.renderer.render(document, stats=stats, palette=colors)
                 try:
                     output = BytesIO()
                     image.save(output, format="PNG")
+                    if live:
+                        current = self.live()
+                        age = time.time() - readings['observedAt']
+                        if not current['available'] or any(current.get(key) != readings[key] for key in ('pid', 'processStart')) or age < -1 or age > MAX_AGE:
+                            raise APIError(503, 'Live readings expired during preview. Showing sample values until fresh readings are available.')
                     return output.getvalue()
                 finally:
                     image.close()
@@ -412,10 +486,15 @@ class StudioHandler(BaseHTTPRequestHandler):
                 elif path == "/api/layouts":
                     result = app.layouts()
                     self._json(200, result, etag=result['revision'])
+                elif path == "/api/widgets":
+                    result = app.widgets()
+                    self._json(200, result, etag=result["revision"])
                 elif path == "/api/status":
                     self._json(200, app.status())
                 elif path == "/api/usage":
                     self._json(200, app.usage.snapshot())
+                elif path == "/api/live":
+                    self._json(200, app.live())
                 elif path == "/api/history":
                     self._json(200, {"archives": list_archives(app.paths)})
                 elif path.startswith('/api/history/'):
@@ -438,19 +517,23 @@ class StudioHandler(BaseHTTPRequestHandler):
                 else:
                     self._static(path)
             elif self.command == "POST":
-                if path not in ("/api/layout", "/api/layouts", "/api/layouts/switch", "/api/preview"):
+                if path not in ("/api/layout", "/api/layouts", "/api/layouts/switch", "/api/widgets", "/api/preview"):
                     raise APIError(404, "API endpoint not found")
                 raw = self._body()
-                if path in ("/api/layout", "/api/layouts", "/api/layouts/switch"):
+                if path in ("/api/layout", "/api/layouts", "/api/layouts/switch", "/api/widgets"):
                     matches = self.headers.get_all("If-Match", [])
                     if len(matches) > 1:
                         raise APIError(400, "Send only one If-Match header")
                     action = {'/api/layout': app.save, '/api/layouts': app.save_layouts,
-                              '/api/layouts/switch': app.switch_layout}[path]
+                              '/api/layouts/switch': app.switch_layout, '/api/widgets': app.save_widgets}[path]
                     result = action(raw, matches[0] if matches else None)
                     self._json(200, result, etag=result["revision"])
                 else:
-                    self._reply(200, app.preview(raw), "image/png")
+                    query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+                    mode = query.get('mode', ['sample'])
+                    if len(mode) != 1 or mode[0] not in ('sample', 'live') or set(query) - {'mode'}:
+                        raise APIError(400, 'Preview mode must be sample or live.')
+                    self._reply(200, app.preview(raw, live=mode[0] == 'live'), "image/png")
             else:
                 raise APIError(405, "Method not supported")
         except APIError as error:

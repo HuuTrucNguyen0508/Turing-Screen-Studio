@@ -42,6 +42,10 @@ class Paths:
     def frame(self) -> Path:
         return self.runtime_dir / "frame.png"
 
+    @property
+    def live(self) -> Path:
+        return self.runtime_dir / "live.json"
+
 
 def atomic_write(path: str | Path, data: bytes) -> None:
     """Replace a file with flushed bytes, keeping both temp and final files private.

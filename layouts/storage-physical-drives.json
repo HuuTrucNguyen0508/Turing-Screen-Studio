@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "name": "System overview",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "dynamic",
+    "background": "#0a0f0f",
+    "surface": "#131b1b",
+    "surfaceRaised": "#192121",
+    "text": "#dce8e7",
+    "muted": "#a2adad",
+    "primary": "#9bd0d1",
+    "secondary": "#b0cccc",
+    "outline": "#3f4a4a"
+  },
+  "widgets": [
+    {
+      "id": "clock",
+      "type": "clock",
+      "x": 52,
+      "y": 40,
+      "width": 278,
+      "height": 81,
+      "settings": {
+        "label": "Local time",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      }
+    },
+    {
+      "id": "cpu",
+      "type": "gauge",
+      "x": 938,
+      "y": 93,
+      "width": 278,
+      "height": 282,
+      "settings": {
+        "label": "CPU load",
+        "value": 24,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "8 cores · 42 °C",
+        "source": "cpu"
+      }
+    },
+    {
+      "id": "gpu",
+      "type": "gauge",
+      "x": 633,
+      "y": 93,
+      "width": 278,
+      "height": 282,
+      "settings": {
+        "label": "GPU load",
+        "value": 18,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu"
+      }
+    },
+    {
+      "id": "memory",
+      "type": "gauge",
+      "x": 633,
+      "y": 399,
+      "width": 278,
+      "height": 282,
+      "settings": {
+        "label": "Memory",
+        "value": 39,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "12.4 / 32 GB",
+        "source": "memory"
+      }
+    },
+    {
+      "id": "weather",
+      "type": "weather",
+      "x": 938,
+      "y": 399,
+      "width": 278,
+      "height": 282,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "°C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14",
+        "source": "weather"
+      }
+    },
+    {
+      "id": "mounted-storage",
+      "type": "storage",
+      "x": 193,
+      "y": 161,
+      "width": 374,
+      "height": 479,
+      "settings": {
+        "label": "Mounted storage",
+        "style": "bars",
+        "source": "mounted-storage",
+        "grouping": "drives"
+      }
+    }
+  ],
+  "paletteMode": "live"
+}

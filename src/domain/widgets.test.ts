@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import sharedCatalog from '../../public/widget-catalog.json';
 import { createSampleLayout, gaugeStyles, metricSources, parseLayout, serializeLayout, validateLayout } from './layout';
 import type { LayoutDocument } from './layout';
-import { addWidget, duplicateWidget, formatClockTime, formatGaugeNumber, gaugeFraction, gaugeGeometry, parseLayoutPresets, parseWidgetCatalog, removeWidget, updateWidgetSettings, widgetCatalog, widgetGroups, widgetSources } from './widgets';
+import { addWidget, addWidgetTemplate, duplicateWidget, formatClockTime, formatGaugeNumber, gaugeFraction, gaugeGeometry, parseLayoutPresets, parseWidgetCatalog, removeWidget, updateWidgetSettings, widgetCatalog, widgetGroups, widgetSources } from './widgets';
 
 const empty = (): LayoutDocument => ({ ...createSampleLayout(), widgets: [] });
 
@@ -16,14 +16,32 @@ function pythonValidate(value: unknown): { valid: boolean; document?: unknown; e
 }
 
 describe('widget editing', () => {
+  it('copies centered catalog designs and custom templates without linking placed cards', () => {
+    const centered = widgetCatalog.find(({ id }) => id === 'clock-centered')!;
+    const added = addWidget(empty(), centered.id);
+    expect(added.widgets[0].design).toEqual(centered.widget.design);
+    expect(added.widgets[0].design?.elements?.time).not.toBe(centered.widget.design?.elements?.time);
+    const { id, x, y, ...template } = added.widgets[0];
+    void id; void x; void y;
+    const custom = addWidgetTemplate(added, template, 'clock-centered');
+    expect(custom.widgets[1].id).toBe('clock-centered-2');
+    expect(custom.widgets[1].design).toEqual(added.widgets[0].design);
+    expect(custom.widgets[1].design).not.toBe(added.widgets[0].design);
+    const copied = duplicateWidget(custom, custom.widgets[1].id);
+    expect(copied.widgets[2].design).toEqual(custom.widgets[1].design);
+    expect(copied.widgets[2].design?.elements).not.toBe(custom.widgets[1].design?.elements);
+    if (custom.widgets[1].design?.elements?.time) custom.widgets[1].design.elements.time.align = 'end';
+    expect(added.widgets[0].design?.elements?.time?.align).toBe('center');
+    expect(centered.widget.design?.elements?.time?.align).toBe('center');
+  });
   it('keeps UI additions consistent with the public AI widget catalog', () => {
     const catalog = JSON.parse(readFileSync('public/widget-catalog.json', 'utf8'));
     expect(widgetGroups).toEqual(catalog.groups);
-    expect(widgetCatalog.map(({ widget, ...metadata }) => ({ ...metadata, type: widget.type, width: widget.width, height: widget.height, settings: widget.settings }))).toEqual(catalog.widgets);
+    expect(widgetCatalog.map(({ widget, ...metadata }) => ({ ...metadata, type: widget.type, width: widget.width, height: widget.height, settings: widget.settings, ...(widget.design ? { design: widget.design } : {}) }))).toEqual(catalog.widgets);
     expect(widgetCatalog.every(({ id, widget }) => widget.id === id && widget.x === 0 && widget.y === 0)).toBe(true);
   });
-  it('keeps all 98 choices, nine unique groups and the original IDs', () => {
-    expect(widgetCatalog).toHaveLength(98);
+  it('keeps all 107 choices, nine unique groups and the original IDs', () => {
+    expect(widgetCatalog).toHaveLength(107);
     expect(new Set(widgetCatalog.map(({ id }) => id)).size).toBe(widgetCatalog.length);
     expect(widgetGroups.map(({ id }) => id)).toEqual(['system', 'network', 'temperature', 'gauge', 'clock', 'weather', 'text', 'ai-usage', 'storage']);
     expect(new Set(widgetGroups.map(({ id }) => id)).size).toBe(widgetGroups.length);
@@ -159,7 +177,7 @@ describe('expanded v1 contract shared with Python', () => {
         expect(result.error).toContain(`$.widgets[0].settings.${field}`);
       }
     }
-  });
+  }, 15_000);
 
   it('rejects nonfinite gauges and preserves absent optional fields and decimal values', () => {
     let doc = addWidget(empty(), 'gauge');

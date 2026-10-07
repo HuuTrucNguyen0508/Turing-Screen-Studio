@@ -38,7 +38,7 @@
         "label": "CPU load",
         "value": "24",
         "unit": "%",
-        "detail": "8 cores \u00b7 42 \u00b0C",
+        "detail": "8 cores · 42 °C",
         "source": "cpu"
       },
       "group": "system",
@@ -74,7 +74,7 @@
         "label": "Memory",
         "value": "12.4",
         "unit": "GB",
-        "detail": "32 GB installed \u00b7 39% used",
+        "detail": "32 GB installed · 39% used",
         "source": "memory"
       },
       "group": "system",
@@ -110,7 +110,7 @@
         "label": "Download",
         "value": "128",
         "unit": "KB/s",
-        "detail": "Download \u00b7 wlan0",
+        "detail": "Download · wlan0",
         "source": "network-down"
       },
       "group": "network",
@@ -128,7 +128,7 @@
         "label": "Upload",
         "value": "32",
         "unit": "KB/s",
-        "detail": "Upload \u00b7 wlan0",
+        "detail": "Upload · wlan0",
         "source": "network-up"
       },
       "group": "network",
@@ -145,7 +145,7 @@
       "settings": {
         "label": "CPU temperature",
         "value": "48",
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "CPU package",
         "source": "cpu-temperature"
       },
@@ -163,7 +163,7 @@
       "settings": {
         "label": "GPU temperature",
         "value": "41",
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "GPU sensor",
         "source": "gpu-temperature"
       },
@@ -181,7 +181,7 @@
       "settings": {
         "location": "Paris",
         "temperature": "19",
-        "unit": "\u00b0C",
+        "unit": "°C",
         "condition": "Partly cloudy",
         "high": "22",
         "low": "14",
@@ -257,7 +257,7 @@
         "label": "CPU load",
         "value": "24",
         "unit": "%",
-        "detail": "8 cores \u00b7 42 \u00b0C",
+        "detail": "8 cores · 42 °C",
         "source": "cpu"
       },
       "group": "system",
@@ -293,7 +293,7 @@
         "label": "Memory",
         "value": "12.4",
         "unit": "GB",
-        "detail": "32 GB installed \u00b7 39% used",
+        "detail": "32 GB installed · 39% used",
         "source": "memory"
       },
       "group": "system",
@@ -329,7 +329,7 @@
         "label": "Download",
         "value": "128",
         "unit": "KB/s",
-        "detail": "Download \u00b7 wlan0",
+        "detail": "Download · wlan0",
         "source": "network-down"
       },
       "group": "network",
@@ -347,7 +347,7 @@
         "label": "Upload",
         "value": "32",
         "unit": "KB/s",
-        "detail": "Upload \u00b7 wlan0",
+        "detail": "Upload · wlan0",
         "source": "network-up"
       },
       "group": "network",
@@ -364,7 +364,7 @@
       "settings": {
         "label": "CPU temperature",
         "value": "48",
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "CPU package",
         "source": "cpu-temperature"
       },
@@ -382,7 +382,7 @@
       "settings": {
         "label": "GPU temperature",
         "value": "41",
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "GPU sensor",
         "source": "gpu-temperature"
       },
@@ -401,7 +401,7 @@
         "label": "CPU load",
         "value": 24.0,
         "unit": "%",
-        "detail": "8 cores \u00b7 42 \u00b0C",
+        "detail": "8 cores · 42 °C",
         "source": "cpu",
         "min": 0,
         "max": 100
@@ -409,7 +409,7 @@
       "group": "gauge",
       "family": "cpu",
       "variant": "Arc",
-      "description": "Percentage shown on a 0\u2013100 arc."
+      "description": "Percentage shown on a 0–100 arc."
     },
     {
       "id": "gpu-gauge",
@@ -429,7 +429,7 @@
       "group": "gauge",
       "family": "gpu",
       "variant": "Arc",
-      "description": "Percentage shown on a 0\u2013100 arc."
+      "description": "Percentage shown on a 0–100 arc."
     },
     {
       "id": "memory-gauge",
@@ -449,7 +449,7 @@
       "group": "gauge",
       "family": "memory",
       "variant": "Arc",
-      "description": "Percentage shown on a 0\u2013100 arc."
+      "description": "Percentage shown on a 0–100 arc."
     },
     {
       "id": "disk-gauge",
@@ -469,7 +469,7 @@
       "group": "gauge",
       "family": "disk",
       "variant": "Arc",
-      "description": "Percentage shown on a 0\u2013100 arc."
+      "description": "Percentage shown on a 0–100 arc."
     },
     {
       "id": "network-down-gauge",
@@ -481,7 +481,7 @@
         "label": "Download",
         "value": 128.0,
         "unit": "KB/s",
-        "detail": "Download \u00b7 wlan0",
+        "detail": "Download · wlan0",
         "source": "network-down",
         "min": 0,
         "max": 1024
@@ -489,7 +489,7 @@
       "group": "gauge",
       "family": "network-down",
       "variant": "Arc",
-      "description": "Transfer rate on a fixed 0\u20131024 KB/s scale."
+      "description": "Transfer rate on a fixed 0–1024 KB/s scale."
     },
     {
       "id": "network-up-gauge",
@@ -501,7 +501,7 @@
         "label": "Upload",
         "value": 32.0,
         "unit": "KB/s",
-        "detail": "Upload \u00b7 wlan0",
+        "detail": "Upload · wlan0",
         "source": "network-up",
         "min": 0,
         "max": 1024
@@ -509,7 +509,7 @@
       "group": "gauge",
       "family": "network-up",
       "variant": "Arc",
-      "description": "Transfer rate on a fixed 0\u20131024 KB/s scale."
+      "description": "Transfer rate on a fixed 0–1024 KB/s scale."
     },
     {
       "id": "cpu-temperature-gauge",
@@ -520,7 +520,7 @@
       "settings": {
         "label": "CPU temperature",
         "value": 48.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "CPU package",
         "source": "cpu-temperature",
         "min": 0,
@@ -529,7 +529,7 @@
       "group": "gauge",
       "family": "cpu-temperature",
       "variant": "Arc",
-      "description": "Temperature on a 0\u2013100 \u00b0C scale."
+      "description": "Temperature on a 0–100 °C scale."
     },
     {
       "id": "gpu-temperature-gauge",
@@ -540,7 +540,7 @@
       "settings": {
         "label": "GPU temperature",
         "value": 41.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "GPU sensor",
         "source": "gpu-temperature",
         "min": 0,
@@ -549,7 +549,7 @@
       "group": "gauge",
       "family": "gpu-temperature",
       "variant": "Arc",
-      "description": "Temperature on a 0\u2013100 \u00b0C scale."
+      "description": "Temperature on a 0–100 °C scale."
     },
     {
       "id": "clock-compact",
@@ -609,6 +609,35 @@
       "description": "Time with AM/PM and a date."
     },
     {
+      "id": "clock-centered",
+      "name": "Clock · Centered",
+      "type": "clock",
+      "width": 270,
+      "height": 80,
+      "settings": {
+        "label": "Local time",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "design": {
+        "elements": {
+          "time": {
+            "align": "center"
+          },
+          "date": {
+            "align": "center"
+          }
+        }
+      },
+      "group": "clock",
+      "family": "clock",
+      "variant": "Centered",
+      "description": "Compact clock with centered time and date."
+    },
+    {
       "id": "weather-tall",
       "name": "Slim weather",
       "type": "weather",
@@ -617,7 +646,7 @@
       "settings": {
         "location": "Paris",
         "temperature": "19",
-        "unit": "\u00b0C",
+        "unit": "°C",
         "condition": "Partly cloudy",
         "high": "22",
         "low": "14",
@@ -668,7 +697,7 @@
         "label": "CPU load",
         "value": 24.0,
         "unit": "%",
-        "detail": "8 cores \u00b7 42 \u00b0C",
+        "detail": "8 cores · 42 °C",
         "source": "cpu",
         "min": 0,
         "max": 100,
@@ -689,7 +718,7 @@
         "label": "CPU load",
         "value": 24.0,
         "unit": "%",
-        "detail": "8 cores \u00b7 42 \u00b0C",
+        "detail": "8 cores · 42 °C",
         "source": "cpu",
         "min": 0,
         "max": 100,
@@ -710,7 +739,7 @@
         "label": "CPU load",
         "value": 24.0,
         "unit": "%",
-        "detail": "8 cores \u00b7 42 \u00b0C",
+        "detail": "8 cores · 42 °C",
         "source": "cpu",
         "min": 0,
         "max": 100,
@@ -731,7 +760,7 @@
         "label": "CPU load",
         "value": 24.0,
         "unit": "%",
-        "detail": "8 cores \u00b7 42 \u00b0C",
+        "detail": "8 cores · 42 °C",
         "source": "cpu",
         "min": 0,
         "max": 100,
@@ -1004,7 +1033,7 @@
         "label": "Download",
         "value": 128.0,
         "unit": "KB/s",
-        "detail": "Download \u00b7 wlan0",
+        "detail": "Download · wlan0",
         "source": "network-down",
         "min": 0,
         "max": 1024,
@@ -1025,7 +1054,7 @@
         "label": "Download",
         "value": 128.0,
         "unit": "KB/s",
-        "detail": "Download \u00b7 wlan0",
+        "detail": "Download · wlan0",
         "source": "network-down",
         "min": 0,
         "max": 1024,
@@ -1046,7 +1075,7 @@
         "label": "Download",
         "value": 128.0,
         "unit": "KB/s",
-        "detail": "Download \u00b7 wlan0",
+        "detail": "Download · wlan0",
         "source": "network-down",
         "min": 0,
         "max": 1024,
@@ -1067,7 +1096,7 @@
         "label": "Download",
         "value": 128.0,
         "unit": "KB/s",
-        "detail": "Download \u00b7 wlan0",
+        "detail": "Download · wlan0",
         "source": "network-down",
         "min": 0,
         "max": 1024,
@@ -1088,7 +1117,7 @@
         "label": "Upload",
         "value": 32.0,
         "unit": "KB/s",
-        "detail": "Upload \u00b7 wlan0",
+        "detail": "Upload · wlan0",
         "source": "network-up",
         "min": 0,
         "max": 1024,
@@ -1109,7 +1138,7 @@
         "label": "Upload",
         "value": 32.0,
         "unit": "KB/s",
-        "detail": "Upload \u00b7 wlan0",
+        "detail": "Upload · wlan0",
         "source": "network-up",
         "min": 0,
         "max": 1024,
@@ -1130,7 +1159,7 @@
         "label": "Upload",
         "value": 32.0,
         "unit": "KB/s",
-        "detail": "Upload \u00b7 wlan0",
+        "detail": "Upload · wlan0",
         "source": "network-up",
         "min": 0,
         "max": 1024,
@@ -1151,7 +1180,7 @@
         "label": "Upload",
         "value": 32.0,
         "unit": "KB/s",
-        "detail": "Upload \u00b7 wlan0",
+        "detail": "Upload · wlan0",
         "source": "network-up",
         "min": 0,
         "max": 1024,
@@ -1171,7 +1200,7 @@
       "settings": {
         "label": "CPU temperature",
         "value": 48.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "CPU package",
         "source": "cpu-temperature",
         "min": 0,
@@ -1192,7 +1221,7 @@
       "settings": {
         "label": "CPU temperature",
         "value": 48.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "CPU package",
         "source": "cpu-temperature",
         "min": 0,
@@ -1213,7 +1242,7 @@
       "settings": {
         "label": "CPU temperature",
         "value": 48.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "CPU package",
         "source": "cpu-temperature",
         "min": 0,
@@ -1234,7 +1263,7 @@
       "settings": {
         "label": "CPU temperature",
         "value": 48.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "CPU package",
         "source": "cpu-temperature",
         "min": 0,
@@ -1255,7 +1284,7 @@
       "settings": {
         "label": "GPU temperature",
         "value": 41.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "GPU sensor",
         "source": "gpu-temperature",
         "min": 0,
@@ -1276,7 +1305,7 @@
       "settings": {
         "label": "GPU temperature",
         "value": 41.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "GPU sensor",
         "source": "gpu-temperature",
         "min": 0,
@@ -1297,7 +1326,7 @@
       "settings": {
         "label": "GPU temperature",
         "value": 41.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "GPU sensor",
         "source": "gpu-temperature",
         "min": 0,
@@ -1318,7 +1347,7 @@
       "settings": {
         "label": "GPU temperature",
         "value": 41.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "GPU sensor",
         "source": "gpu-temperature",
         "min": 0,
@@ -1339,7 +1368,7 @@
       "settings": {
         "label": "CPU temperature",
         "value": 48.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "CPU package",
         "source": "cpu-temperature",
         "min": 0,
@@ -1360,7 +1389,7 @@
       "settings": {
         "label": "GPU temperature",
         "value": 41.0,
-        "unit": "\u00b0C",
+        "unit": "°C",
         "detail": "GPU sensor",
         "source": "gpu-temperature",
         "min": 0,
@@ -1373,6 +1402,158 @@
       "description": "A vertical stem and bulb show sensor temperature."
     },
     {
+      "id": "cpu-trend",
+      "name": "CPU load trend",
+      "type": "metric",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "CPU load",
+        "value": "24",
+        "unit": "%",
+        "detail": "8 cores · 42 °C",
+        "source": "cpu",
+        "trend": true
+      },
+      "group": "system",
+      "family": "cpu",
+      "variant": "Trend",
+      "description": "Last 120 readings with gaps for missing observations. Demo offline; observed readings on the panel."
+    },
+    {
+      "id": "gpu-trend",
+      "name": "GPU load trend",
+      "type": "metric",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "GPU load",
+        "value": "18",
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu",
+        "trend": true
+      },
+      "group": "system",
+      "family": "gpu",
+      "variant": "Trend",
+      "description": "Last 120 readings with gaps for missing observations. Demo offline; observed readings on the panel."
+    },
+    {
+      "id": "memory-trend",
+      "name": "Memory trend",
+      "type": "metric",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "Memory",
+        "value": "12.4",
+        "unit": "GB",
+        "detail": "32 GB installed · 39% used",
+        "source": "memory",
+        "trend": true
+      },
+      "group": "system",
+      "family": "memory",
+      "variant": "Trend",
+      "description": "Last 120 readings with gaps for missing observations. Demo offline; observed readings on the panel."
+    },
+    {
+      "id": "disk-trend",
+      "name": "Disk usage trend",
+      "type": "metric",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "Disk usage",
+        "value": "45",
+        "unit": "%",
+        "detail": "225 / 500 GB",
+        "source": "disk",
+        "trend": true
+      },
+      "group": "system",
+      "family": "disk",
+      "variant": "Trend",
+      "description": "Last 120 readings with gaps for missing observations. Demo offline; observed readings on the panel."
+    },
+    {
+      "id": "network-down-trend",
+      "name": "Download trend",
+      "type": "metric",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "Download",
+        "value": "128",
+        "unit": "KB/s",
+        "detail": "Download · wlan0",
+        "source": "network-down",
+        "trend": true
+      },
+      "group": "network",
+      "family": "network-down",
+      "variant": "Trend",
+      "description": "Last 120 readings with gaps for missing observations. Demo offline; observed readings on the panel."
+    },
+    {
+      "id": "network-up-trend",
+      "name": "Upload trend",
+      "type": "metric",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "Upload",
+        "value": "32",
+        "unit": "KB/s",
+        "detail": "Upload · wlan0",
+        "source": "network-up",
+        "trend": true
+      },
+      "group": "network",
+      "family": "network-up",
+      "variant": "Trend",
+      "description": "Last 120 readings with gaps for missing observations. Demo offline; observed readings on the panel."
+    },
+    {
+      "id": "cpu-temperature-trend",
+      "name": "CPU temperature trend",
+      "type": "metric",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "CPU temperature",
+        "value": "48",
+        "unit": "°C",
+        "detail": "CPU package",
+        "source": "cpu-temperature",
+        "trend": true
+      },
+      "group": "temperature",
+      "family": "cpu-temperature",
+      "variant": "Trend",
+      "description": "Last 120 readings with gaps for missing observations. Demo offline; observed readings on the panel."
+    },
+    {
+      "id": "gpu-temperature-trend",
+      "name": "GPU temperature trend",
+      "type": "metric",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "GPU temperature",
+        "value": "41",
+        "unit": "°C",
+        "detail": "GPU sensor",
+        "source": "gpu-temperature",
+        "trend": true
+      },
+      "group": "temperature",
+      "family": "gpu-temperature",
+      "variant": "Trend",
+      "description": "Last 120 readings with gaps for missing observations. Demo offline; observed readings on the panel."
+    },
+    {
       "id": "codex-tokens",
       "name": "Codex tokens",
       "type": "metric",
@@ -1382,7 +1563,7 @@
         "label": "Codex tokens",
         "value": "2.4",
         "unit": "M tokens",
-        "detail": "Demo \u00b7 UTC today",
+        "detail": "Demo · UTC today",
         "source": "codex-tokens"
       },
       "group": "ai-usage",
@@ -1400,7 +1581,7 @@
         "label": "Codex API cost",
         "value": "12.50",
         "unit": "USD",
-        "detail": "Demo API estimate \u00b7 not a subscription bill",
+        "detail": "Demo API estimate · not a subscription bill",
         "source": "codex-cost"
       },
       "group": "ai-usage",
@@ -1472,7 +1653,7 @@
         "label": "Claude tokens",
         "value": "2.4",
         "unit": "M tokens",
-        "detail": "Demo \u00b7 UTC today",
+        "detail": "Demo · UTC today",
         "source": "claude-tokens"
       },
       "group": "ai-usage",
@@ -1490,7 +1671,7 @@
         "label": "Claude API cost",
         "value": "12.50",
         "unit": "USD",
-        "detail": "Demo API estimate \u00b7 not a subscription bill",
+        "detail": "Demo API estimate · not a subscription bill",
         "source": "claude-cost"
       },
       "group": "ai-usage",
@@ -1580,7 +1761,7 @@
         "label": "Root storage",
         "value": "60",
         "unit": "%",
-        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "detail": "Demo / · 300 used · 180 free / 500 GiB",
         "source": "storage"
       },
       "group": "storage",
@@ -1600,7 +1781,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "codex-weekly",
         "style": "ring"
       },
@@ -1621,7 +1802,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "codex-weekly",
         "style": "bar"
       },
@@ -1642,7 +1823,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "codex-weekly",
         "style": "segments"
       },
@@ -1663,7 +1844,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "claude-session",
         "style": "ring"
       },
@@ -1684,7 +1865,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "claude-session",
         "style": "bar"
       },
@@ -1705,7 +1886,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "claude-session",
         "style": "segments"
       },
@@ -1726,7 +1907,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "claude-weekly",
         "style": "ring"
       },
@@ -1747,7 +1928,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "claude-weekly",
         "style": "bar"
       },
@@ -1768,7 +1949,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo \u00b7 cached provider allowance",
+        "detail": "Demo · cached provider allowance",
         "source": "claude-weekly",
         "style": "segments"
       },
@@ -1789,7 +1970,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "detail": "Demo / · 300 used · 180 free / 500 GiB",
         "source": "storage",
         "style": "arc"
       },
@@ -1810,7 +1991,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "detail": "Demo / · 300 used · 180 free / 500 GiB",
         "source": "storage",
         "style": "ring"
       },
@@ -1831,7 +2012,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "detail": "Demo / · 300 used · 180 free / 500 GiB",
         "source": "storage",
         "style": "bar"
       },
@@ -1852,7 +2033,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "detail": "Demo / · 300 used · 180 free / 500 GiB",
         "source": "storage",
         "style": "segments"
       },
@@ -1873,7 +2054,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "detail": "Demo / · 300 used · 180 free / 500 GiB",
         "source": "storage",
         "style": "thermometer"
       },
@@ -1894,7 +2075,7 @@
         "min": 0,
         "max": 100,
         "unit": "%",
-        "detail": "Demo / \u00b7 300 used \u00b7 180 free / 500 GiB",
+        "detail": "Demo / · 300 used · 180 free / 500 GiB",
         "source": "storage",
         "style": "number"
       },
@@ -1912,12 +2093,13 @@
       "settings": {
         "label": "Mounted storage",
         "style": "bars",
-        "source": "mounted-storage"
+        "source": "mounted-storage",
+        "grouping": "drives"
       },
       "group": "storage",
       "family": "mounted-storage",
       "variant": "Standard",
-      "description": "Every mounted local filesystem, with used and free capacity. Shared filesystems are grouped."
+      "description": "Physical SSD, NVMe and HDD capacities, with usage from their mounted partitions. Shared filesystems are counted once."
     },
     {
       "id": "mounted-storage-table",
@@ -1928,12 +2110,13 @@
       "settings": {
         "label": "Mounted storage",
         "style": "table",
-        "source": "mounted-storage"
+        "source": "mounted-storage",
+        "grouping": "drives"
       },
       "group": "storage",
       "family": "mounted-storage",
       "variant": "Capacity table",
-      "description": "Every mounted local filesystem, with used and free capacity. Shared filesystems are grouped."
+      "description": "Physical SSD, NVMe and HDD capacities, with usage from their mounted partitions. Shared filesystems are counted once."
     },
     {
       "id": "mounted-storage-wide",
@@ -1944,12 +2127,13 @@
       "settings": {
         "label": "Mounted storage",
         "style": "bars",
-        "source": "mounted-storage"
+        "source": "mounted-storage",
+        "grouping": "drives"
       },
       "group": "storage",
       "family": "mounted-storage",
       "variant": "Wide bars",
-      "description": "Every mounted local filesystem, with used and free capacity. Shared filesystems are grouped."
+      "description": "Physical SSD, NVMe and HDD capacities, with usage from their mounted partitions. Shared filesystems are counted once."
     }
   ],
   "groups": [

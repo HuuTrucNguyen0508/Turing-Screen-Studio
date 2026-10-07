@@ -2,74 +2,79 @@ import { useEffect, useRef, useState } from 'react';
 import type { LayoutDocument } from './domain/layout';
 import { parseLayout, serializeLayout } from './domain/layout';
 import type { LayoutPreset } from './domain/widgets';
+import { duplicateEntry, libraryTarget, parseLibrary } from './domain/library';
+import type { Entry, Library, LibraryDraftTarget } from './domain/library';
 import { StaticLayout } from './WidgetContent';
 import './saved-layouts.css';
 
 export type LayoutSelection = { direction: 'next' | 'previous' } | { id: string } | { slot: number };
-type Entry = { id: string; name: string; document: LayoutDocument };
-type Library = { entries: Entry[]; revision: string; activeId: string | null };
+export type { Entry, Library, LibraryDraftTarget } from './domain/library';
+export { parseLibrary } from './domain/library';
+type Confirmation = { kind: 'replace'; entry: Entry; document: LayoutDocument }
+  | { kind: 'remove'; entry: Entry } | { kind: 'rename'; entry: Entry };
 
-function parseLibrary(raw: unknown): Library {
-  if (!raw || typeof raw !== 'object' || !('entries' in raw) || !Array.isArray(raw.entries)
-    || !('revision' in raw) || typeof raw.revision !== 'string' || !('activeId' in raw)
-    || (raw.activeId !== null && typeof raw.activeId !== 'string')) throw new Error('Saved layouts could not be read.');
-  const entries = raw.entries.map((entry: unknown) => {
-    if (!entry || typeof entry !== 'object' || !('id' in entry) || typeof entry.id !== 'string'
-      || !('name' in entry) || typeof entry.name !== 'string' || !('document' in entry)) throw new Error('Invalid saved layout.');
-    return { id: entry.id, name: entry.name, document: parseLayout(JSON.stringify(entry.document)) };
-  });
-  return { entries, revision: raw.revision, activeId: raw.activeId };
-}
-
-export default function SavedLayouts({ available, busy, presets, getDocument, onSwitch, onError, onMessage }: {
+export default function SavedLayouts({ available, busy, presets, getDocument, onSwitch, onError, onMessage, onEdit, onTargetUpdated, onLibraryUpdated }: {
   available: boolean; busy: boolean; presets: LayoutPreset[]; getDocument: () => LayoutDocument;
   onSwitch: (selection: LayoutSelection) => Promise<{ activeId: string } | null>;
   onError: (message: string) => void; onMessage: (message: string) => void;
+  onEdit?: (document: LayoutDocument, target: LibraryDraftTarget) => void;
+  onLibraryUpdated?: (library: Library) => void;
+  onTargetUpdated?: (target: LibraryDraftTarget) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const confirmationDialog = useRef<HTMLDialogElement>(null);
   const [library, setLibrary] = useState<Library | null>(null);
   const [working, setWorking] = useState(false);
   const operation = useRef(false);
   const [error, setError] = useState('');
   const [presetId, setPresetId] = useState('');
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [rename, setRename] = useState('');
   const callbacks = useRef({ onSwitch, onError, busy });
   callbacks.current = { onSwitch, onError, busy };
 
+  useEffect(() => {
+    if (confirmation) confirmationDialog.current?.showModal();
+    else confirmationDialog.current?.close();
+  }, [confirmation]);
+
   async function refresh() {
-    const response = await fetch('/api/layouts');
+    const response = await fetch('/api/layouts', { signal: AbortSignal.timeout(8000) });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? 'Saved layouts are unavailable.');
+    if (!response.ok) throw new Error(data.error ?? 'Library is unavailable.');
     const next = parseLibrary(data);
     setLibrary(next);
     return next;
   }
 
   async function show() {
-    dialog.current?.showModal();
+    if (!dialog.current?.open) dialog.current?.showModal();
     setError('');
     if (operation.current) return;
     operation.current = true; setWorking(true);
     try { await refresh(); }
-    catch (failure) { setError(failure instanceof Error ? failure.message : 'Saved layouts are unavailable.'); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : 'Library is unavailable.'); }
     finally { operation.current = false; setWorking(false); }
   }
 
-  async function update(entries: Entry[]) {
-    if (operation.current || !library) return;
+  async function update(entries: Entry[]): Promise<Library | null> {
+    if (operation.current || !library) return null;
     operation.current = true; setWorking(true); setError('');
     try {
       const response = await fetch('/api/layouts', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': library.revision },
-        body: JSON.stringify({ entries }),
+        body: JSON.stringify({ entries }), signal: AbortSignal.timeout(8000),
       });
       const data = await response.json();
       if (!response.ok) {
-        if (response.status === 409) throw new Error('Saved layouts changed elsewhere. Refresh the list before trying again.');
-        throw new Error(data.error ?? 'Could not save the layout rotation.');
+        if (response.status === 409) throw new Error('Library changed elsewhere. Refresh the list before trying again.');
+        throw new Error(data.error ?? 'Could not save the library.');
       }
-      setLibrary(parseLibrary(data));
-      onMessage('Saved layout rotation. The panel keeps its current dashboard.');
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not save the layout rotation.'); }
+      const next = parseLibrary(data);
+      setLibrary(next); onLibraryUpdated?.(next);
+      onMessage('Saved to library. The panel keeps its current dashboard.');
+      return next;
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not save the library.'); return null; }
     finally { operation.current = false; setWorking(false); }
   }
 
@@ -100,6 +105,11 @@ export default function SavedLayouts({ available, busy, presets, getDocument, on
     return () => window.removeEventListener('keydown', handle);
   }, [available]);
 
+  function edit(entry: Entry, next: Library) {
+    dialog.current?.close();
+    onEdit?.(parseLayout(serializeLayout(entry.document)), libraryTarget(entry, next.revision));
+  }
+
   function addDraft() {
     if (!library) return;
     const snapshot = parseLayout(serializeLayout(getDocument()));
@@ -114,6 +124,13 @@ export default function SavedLayouts({ available, busy, presets, getDocument, on
     void update([...library.entries, { id: `layout-${crypto.randomUUID()}`, name: preset.name, document: snapshot }]);
   }
 
+  function duplicate(entry: Entry, index: number) {
+    if (!library || library.entries.length >= 12) return;
+    const entries = [...library.entries];
+    entries.splice(index + 1, 0, duplicateEntry(entry, entries, `layout-${crypto.randomUUID()}`));
+    void update(entries);
+  }
+
   function reorder(index: number, offset: number) {
     if (!library) return;
     const entries = [...library.entries];
@@ -121,25 +138,74 @@ export default function SavedLayouts({ available, busy, presets, getDocument, on
     void update(entries);
   }
 
+  function confirm(action: Confirmation) {
+    setError(''); setRename(action.entry.name); setConfirmation(action);
+  }
+
+  async function commitConfirmation() {
+    if (!confirmation || !library) return;
+    const action = confirmation;
+    const entries = action.kind === 'remove' ? library.entries.filter((saved) => saved.id !== action.entry.id)
+      : library.entries.map((saved) => saved.id !== action.entry.id ? saved
+        : action.kind === 'rename' ? { ...saved, name: rename.trim() }
+        : { ...saved, name: action.document.name, document: action.document });
+    const next = await update(entries);
+    if (!next) return;
+    setConfirmation(null);
+    if (action.kind === 'replace') {
+      const entry = next.entries.find((saved) => saved.id === action.entry.id);
+      if (entry) edit(entry, next);
+    } else if (action.kind === 'rename') {
+      const entry = next.entries.find((saved) => saved.id === action.entry.id);
+      if (entry) onTargetUpdated?.(libraryTarget(entry, next.revision));
+    }
+  }
+
   const disabled = working || busy;
+  const full = (library?.entries.length ?? 0) >= 12;
+  const removedIndex = confirmation?.kind === 'remove'
+    ? library?.entries.findIndex((entry) => entry.id === confirmation.entry.id) ?? -1 : -1;
+  const shifted = library?.entries.slice(removedIndex + 1).filter((_, index) => removedIndex + index < 4) ?? [];
+  const confirmationTitle = confirmation?.kind === 'rename' ? 'Rename library entry'
+    : confirmation?.kind === 'remove' ? 'Remove from library' : 'Replace with draft';
   return <>
-    {available && <button onClick={() => void show()}>Saved layouts</button>}
+    {available && <button onClick={() => void show()}>Library</button>}
     <dialog ref={dialog} className="catalog-dialog saved-layouts-dialog" aria-labelledby="saved-layouts-title">
-      <div className="panel-heading"><h2 id="saved-layouts-title">Saved layouts</h2><button aria-label="Close saved layouts" onClick={() => dialog.current?.close()}>×</button></div>
-      <p className="saved-layouts-lede">Keep dashboards in this order and switch the panel whenever you want. Each changed switch archives the previous configuration. Your draft stays in the editor. Open saved layout to edit the panel's dashboard.</p>
-      <div className="rotation-controls"><button disabled={disabled || !library?.entries.length} onClick={() => void switchTo({ direction: 'previous' })}>Previous layout</button><button disabled={disabled || !library?.entries.length} className="primary-button" onClick={() => void switchTo({ direction: 'next' })}>Next layout</button><span><kbd>Ctrl</kbd> + <kbd>F9</kbd> / <kbd>F10</kbd> / <kbd>F11</kbd> / <kbd>F12</kbd></span></div>
-      {error && <p className="saved-layouts-error" role="alert">{error}</p>}
-      <div className="rotation-add"><button disabled={disabled || !library || library.entries.length >= 12} onClick={addDraft}>Add current draft</button><label>Ready-made layout<select aria-label="Ready-made layout to save" value={presetId} disabled={disabled} onChange={(event) => setPresetId(event.target.value)}><option value="">Choose a preset</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select></label><button disabled={disabled || !library || !presetId || library.entries.length >= 12} onClick={addPreset}>Add preset</button><button disabled={disabled} onClick={() => void show()}>Refresh list</button></div>
+      <div className="panel-heading"><h2 id="saved-layouts-title">Library</h2><button aria-label="Close library" onClick={() => dialog.current?.close()}>×</button></div>
+      <p className="saved-layouts-lede">Edit a saved layout as a draft, or show it on the panel. Saving the library keeps the panel's current dashboard.</p>
+      <div className="rotation-controls"><button disabled={disabled || !library?.entries.length} onClick={() => void switchTo({ direction: 'previous' })}>Previous layout</button><button disabled={disabled || !library?.entries.length} onClick={() => void switchTo({ direction: 'next' })}>Next layout</button><span><kbd>Ctrl</kbd> + <kbd>F9</kbd> / <kbd>F10</kbd> / <kbd>F11</kbd> / <kbd>F12</kbd></span></div>
+      {error && !confirmation && <p className="saved-layouts-error" role="alert">{error}</p>}
+      <div className="rotation-add"><button disabled={disabled || !library || full} onClick={addDraft}>Add current draft</button><label>Ready-made layout<select aria-label="Ready-made layout to save" value={presetId} disabled={disabled} onChange={(event) => setPresetId(event.target.value)}><option value="">Choose a preset</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select></label><button disabled={disabled || !library || !presetId || full} onClick={addPreset}>Add preset</button><button disabled={disabled} onClick={() => void show()}>Refresh list</button></div>
+      {full && <p className="panel-note">Library holds 12 layouts. Remove an entry before adding another.</p>}
       {library ? <ol className="saved-layout-list">{library.entries.map((entry, index) => <li key={entry.id} className={entry.id === library.activeId ? 'active-layout' : ''}>
         <span className="layout-order" aria-hidden="true">{index + 1}</span><StaticLayout document={entry.document} />
-        <div className="saved-layout-info"><h3>{entry.name}</h3><p>{index < 4 && <><kbd>Ctrl + F{index + 9}</kbd> · </>}{entry.document.widgets.length} widgets{entry.id === library.activeId && <span className="on-panel">On panel</span>}</p><div className="saved-layout-actions"><button disabled={disabled} onClick={() => void switchTo({ id: entry.id })}>Use on panel</button><button disabled={disabled} onClick={() => {
-          const snapshot = parseLayout(serializeLayout(getDocument()));
-          void update(library.entries.map((saved) => saved.id === entry.id ? { ...saved, name: snapshot.name, document: snapshot } : saved));
-        }}>Update with draft</button><button disabled={disabled} aria-label={`Remove ${entry.name} from rotation`} onClick={() => void update(library.entries.filter((saved) => saved.id !== entry.id))}>Remove</button></div></div>
+        <div className="saved-layout-info"><h3>{entry.name}</h3><p>{index < 4 && <kbd>Ctrl + F{index + 9}</kbd>}<span className="library-widget-count">{entry.document.widgets.length} widgets</span>{entry.id === library.activeId && <span className="on-panel">On panel</span>}</p><div className="saved-layout-actions">
+          <button disabled={disabled} onClick={() => void switchTo({ id: entry.id })}>Show on panel</button>
+          <button className="primary-button" disabled={disabled || !onEdit} onClick={() => edit(entry, library)}>Edit as draft</button>
+          <button disabled={disabled || full} title={full ? 'Library holds 12 layouts.' : undefined} onClick={() => duplicate(entry, index)}>Duplicate</button>
+          <button disabled={disabled} onClick={() => confirm({ kind: 'rename', entry })}>Rename</button>
+          <button disabled={disabled} onClick={() => confirm({ kind: 'replace', entry, document: parseLayout(serializeLayout(getDocument())) })}>Replace with draft…</button>
+          <button disabled={disabled} aria-label={`Remove ${entry.name} from library`} onClick={() => confirm({ kind: 'remove', entry })}>Remove…</button>
+        </div></div>
         <div className="layout-order-controls"><button disabled={disabled || index === 0} aria-label={`Move ${entry.name} earlier`} onClick={() => reorder(index, -1)}>↑</button><button disabled={disabled || index === library.entries.length - 1} aria-label={`Move ${entry.name} later`} onClick={() => reorder(index, 1)}>↓</button></div>
-      </li>)}</ol> : <p className="panel-note">{working ? 'Loading saved layouts…' : 'Refresh the list to load saved layouts.'}</p>}
-      {library && !library.entries.length && <p className="panel-note">Add your current draft or a preset to start a layout rotation.</p>}
-      <p className="panel-note">The first four layouts use Ctrl+F9 through Ctrl+F12. Reordering changes these assignments. Keep up to 12 layouts and reach the rest with Previous or Next. Updating or removing an entry archives its older configuration and keeps the current panel intact.</p>
+      </li>)}</ol> : <p className="panel-note">{working ? 'Loading library…' : 'Refresh the list to load the library.'}</p>}
+      {library && !library.entries.length && <p className="panel-note">Add your current draft or a preset to start your library.</p>}
+      <p className="panel-note">The first four layouts use Ctrl+F9 through Ctrl+F12. Reordering changes these assignments. Reach the rest with Previous or Next. Replacing or removing an entry keeps its previous document in History.</p>
+    </dialog>
+    <dialog ref={confirmationDialog} className="catalog-dialog library-confirm-dialog" aria-labelledby="library-confirm-title" onCancel={() => setConfirmation(null)} onClose={() => setConfirmation(null)}>
+      <div className="panel-heading"><h2 id="library-confirm-title">{confirmationTitle}</h2></div>
+      {confirmation?.kind === 'rename' && <label className="library-rename-field">Library name<input autoFocus maxLength={120} value={rename} onChange={(event) => setRename(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && rename.trim() && !disabled) void commitConfirmation(); }} /></label>}
+      {confirmation?.kind === 'replace' && <>
+        <p className="saved-layouts-lede">Replace {confirmation.entry.name} with this draft? The current version is kept in History. The panel keeps its current dashboard.</p>
+        <div className="library-replace-previews"><div><p>Current library entry</p><StaticLayout document={confirmation.entry.document} /></div><div><p>Draft</p><StaticLayout document={confirmation.document} /></div></div>
+      </>}
+      {confirmation?.kind === 'remove' && <>
+        <p className="saved-layouts-lede">Remove {confirmation.entry.name}? A copy is kept in History.{library?.activeId === confirmation.entry.id && ' The panel keeps showing it.'}</p>
+        {shifted.length > 0 && <div className="library-shortcut-shifts"><p>Shortcuts move:</p><ul>{shifted.map((entry, index) => <li key={entry.id}>{entry.name} becomes <kbd>Ctrl + F{removedIndex + index + 9}</kbd></li>)}</ul></div>}
+      </>}
+      {error && <p className="saved-layouts-error" role="alert">{error}</p>}
+      <div className="library-confirm-actions"><button disabled={working} onClick={() => setConfirmation(null)}>Cancel</button><button className="primary-button" disabled={disabled || (confirmation?.kind === 'rename' && !rename.trim())} onClick={() => void commitConfirmation()}>{confirmation?.kind === 'rename' ? 'Save name' : confirmation?.kind === 'remove' ? 'Remove from library' : 'Replace with draft'}</button></div>
+      {error && <button disabled={disabled} onClick={() => { setConfirmation(null); void show(); }}>Refresh library</button>}
     </dialog>
   </>;
 }

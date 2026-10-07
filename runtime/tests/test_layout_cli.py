@@ -33,6 +33,7 @@ class LayoutCLITests(unittest.TestCase):
             with self.subTest(template=template['id']):
                 document = layout_cli.generate({'widgets': [{'template': template['id']}]})
                 self.assertEqual(document['widgets'][0]['settings'], template['settings'])
+                self.assertEqual(document['widgets'][0].get('design'), template.get('design'))
         for spec in ({'widgets': [{'template': 'not-a-widget'}]},
                      {'widgets': [{'template': 'cpu', 'x': 1279}]},
                      {'widgets': [{'template': 'clock', 'settings': {'format': 'invalid'}}]},

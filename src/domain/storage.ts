@@ -1,6 +1,24 @@
 import sample from '../../public/storage-sample.json';
+import type { StorageWidget } from './layout';
 
 export const storageSample = sample;
+export type StorageRow = { mount: string; aliases: string[]; device: string; filesystem: string; totalGiB: number | null; usedGiB: number | null; freeGiB: number | null; usedPercent: number | null; stale: boolean; errors: string[]; partial?: boolean; driveKind?: string };
+export function storageRows(settings: StorageWidget['settings'], data: { mounts?: StorageRow[]; drives?: StorageRow[] } = storageSample): StorageRow[] {
+  const rows = settings.grouping === 'drives' ? data.drives ?? [] : data.mounts ?? [];
+  if (!settings.mounts) return rows;
+  const seen = new Set<StorageRow>();
+  return settings.mounts.flatMap((path) => {
+    const row = rows.find((item) => item.mount === path || item.aliases.includes(path));
+    if (row && seen.has(row)) return [];
+    if (row) { seen.add(row); return [row]; }
+    return [{ mount: path, aliases: [], device: '', filesystem: '', totalGiB: null, usedGiB: null, freeGiB: null, usedPercent: null, stale: true, errors: ['storage_selected_mount_unavailable'] }];
+  });
+}
+export function storageRowName(row: StorageRow, filtered = false): string {
+  if (!filtered) return [row.mount, ...row.aliases].join(' · ');
+  const name = row.mount === '/' ? row.driveKind ?? 'System' : row.mount.split('/').at(-1) ?? row.mount;
+  return name.toLowerCase() === 'nvme' ? 'NVMe partition' : name.toLowerCase() === 'games' ? 'Games partition' : name;
+}
 export function storageGeometry(width: number, height: number, style: 'bars' | 'table') {
   const table = style === 'table' && width >= 460;
   const start = table ? 96 : 80;

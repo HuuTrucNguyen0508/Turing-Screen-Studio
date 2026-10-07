@@ -16,6 +16,7 @@ from .watch import LayoutWatcher
 from .storage import Paths, PaletteWatcher, atomic_write
 from .usage import UsageCollector
 from .usage_display import USAGE_SOURCES, UsageStats
+from .live import LiveHistory, HistoryStats
 from .usb_ownership import open_claimed_device
 
 MAX_RESPONSE_BYTES = 64
@@ -79,10 +80,16 @@ class RuntimeIntegration:
         self.usage = UsageCollector()
         self.usage_snapshot = None
         self.usb_device = None
+        self.live = LiveHistory()
+        self.last_live_publish = 0.0
+        self.live_identity = process_start(os.getpid())
         self.invalidate_frame(pid=os.getpid(), processStart=process_start(os.getpid()),
                               connected=False, view='stats', error=None,
                               supportedWidgetTypes=['metric', 'weather', 'clock', 'text', 'gauge', 'storage'],
                               supportedGaugeStyles=list(GAUGE_STYLES),
+                              supportedDesignTypes=['clock'],
+                              supportedTrendWidgets=True,
+                              supportedStorageViews=['drives', 'partitions'],
                               supportedUsageSources=list(USAGE_SOURCES),
                               responseHex=None, responseBytes=None, responseTruncated=False)
 
@@ -171,7 +178,9 @@ class RuntimeIntegration:
                 if owner.document is not None:
                     try:
                         rendered_revision = owner.frame_revision
-                        display_stats = UsageStats(stats, owner.usage_snapshot) if owner.usage_snapshot is not None else stats
+                        display_stats = HistoryStats(stats, owner.live.histories) if stats is not None else None
+                        if owner.usage_snapshot is not None:
+                            display_stats = UsageStats(display_stats, owner.usage_snapshot)
                         frame = self.layout.render(owner.document, stats=display_stats, palette=owner.palette)
                         owner.rendered_layout = True
                         owner.rendered_revision = rendered_revision
@@ -189,6 +198,18 @@ class RuntimeIntegration:
                 return self.legacy.render_speedtest(state)
 
         def dirty(*args, **kwargs):
+            # Reuse existing readings even when USB dirty-skip avoids rendering.
+            stats = kwargs.get('stats', args[2] if len(args) > 2 else None)
+            if owner.live.observe(stats):
+                now = time.monotonic()
+                if now - owner.last_live_publish >= 2:
+                    try:
+                        snapshot = owner.live.snapshot(os.getpid(), owner.live_identity)
+                        atomic_write(owner.paths.live, (json.dumps(snapshot, allow_nan=False) + '\n').encode())
+                        owner.last_live_publish = now
+                    except (OSError, ValueError):
+                        # Preview telemetry must not interrupt the dashboard.
+                        pass
             owner.layouts.poll()
             owner.document = owner.layouts.document
             live = owner.scheme.poll()
@@ -198,6 +219,8 @@ class RuntimeIntegration:
                           error=owner.render_error or owner.transport_error or owner.layouts.error or owner.scheme.error)
             palette_key = hashlib.sha256(json.dumps(owner.palette, sort_keys=True).encode()).hexdigest()
             key = (legacy_dirty(*args, **kwargs), owner.frame_revision, palette_key)
+            if owner.document and any(widget['settings'].get('trend') for widget in owner.document['widgets']):
+                key = (*key, owner.live.observed_at)
             if owner.document and any(widget['settings'].get('source') in USAGE_SOURCES or (widget['type'] == 'storage' and widget['settings'].get('source') == 'mounted-storage') for widget in owner.document['widgets']):
                 owner.usage_snapshot = owner.usage.snapshot()
                 return (*key, owner.usage_snapshot.get('readAt'))

@@ -1,5 +1,71 @@
 # Verification
 
+## Physical drives and custom partitions, 7 October 2026
+
+New mounted-storage cards show SSD, NVMe and HDD as physical drives with whole-device capacity and usage bars. Usage sums distinct mounted filesystems once, including shared Btrfs mounts. A `+` marks mounted usage when unmounted partitions prevent a complete reading. Existing documents without a storage grouping retain their filesystem view. The inspector can switch views and select ordered absolute mount paths.
+
+`pnpm build` passed, including both TypeScript checks. All 268 domain tests and 23 selected browser tests passed. The final Python suite ran 295 tests with one font-related skip. Browser checks cover drive defaults, partition filters, validation, Undo and Redo, export and reopening, and reusable custom copies. Two independent review rounds found and cleared missing-capacity text and a schema mismatch. `git diff --check` passed. Evidence is in `artifacts/storage-build.log`, `artifacts/storage-domain-checks.log`, `artifacts/storage-browser-rerun.log` and `artifacts/storage-runtime-final.log`.
+
+Restarted the Studio and dashboard services to load the storage collector, renderer and advertised view support. Applied `layouts/storage-physical-drives.json` through the revision-checked CLI. The panel accepted revision `672a0c01e5007b643ebed5c54191736996041a296a37c39d1d327481e3a30828`, is connected and returned a positive `66c8` response without an error. Storage grouping is the only panel document change. The original document is preserved exactly in archive `20261007T005244949507Z-2250be13b0ad`; all other 59 previously saved files retain their bytes.
+
+Saved the custom widget "SSD, NVMe and Games partitions" through the widget API with its library revision. It selects `/`, `/mnt/nvme` and `/mnt/games` in that order and is available from Custom widgets. The custom card was verified with current readings through the live preview API. Ask AI removal remains intact. Activation evidence is in `artifacts/storage-before-activation.json`, `artifacts/storage-after-activation.json`, `artifacts/storage-apply.log`, `artifacts/storage-custom-widget-saved.json` and `artifacts/storage-applied-panel.png`.
+
+T3 reports the Studio preview tab available but not visible; a native snapshot timed out. Embedded preview visibility remains unverified. The local Studio responds at `http://127.0.0.1:5174`.
+
+## Ask AI removal, 7 October 2026
+
+Removed Ask AI from the editor and deleted its proposal UI, stylesheet, domain helpers, model runner and dedicated tests. The local server no longer starts an AI service or serves its status, submission, polling or cancellation endpoints. The README no longer describes the feature. Provider usage widgets, presets and the layout CLI remain available.
+
+The production build and both TypeScript checks passed. The domain run passed 266 tests. The final Python run completed 294 tests with one skip. All 44 selected browser cases passed across the initial run and the corrected AI-removal regression rerun. The new regression checks that manual editing and Undo work without AI controls or requests. Server checks cover GET, HEAD and POST returning JSON 404 responses without changing saved layouts. `git diff --check` passed. Claude review hit a rate limit; Codex completed the review under the documented fallback.
+
+Restarted only `turzx-studio.service`. Live API checks confirm the removed endpoints return 404, and T3 browser inspection confirms the Ask AI control is absent. All 60 saved configuration and archive files retain their original bytes. The dashboard process remained PID 3309431, connected, with matching requested and applied revision `2250be13b0adbe3503a3b57afb30a50051997b5a7b315807c80522a1efd507ae`. Evidence is in `artifacts/remove-ai-before.json`, `artifacts/remove-ai-after.json` and the `artifacts/remove-ai-*.log` files.
+
+## Ask AI, 7 October 2026, historical
+
+This feature was later removed at the user's request. The following records its earlier verification.
+
+Ask AI was active in the connected Studio at `http://127.0.0.1:5174`. The production API reports the signed-in `codex-pro` account and `gpt-6.1-sol`. A real model request moved CPU from X=64 to X=74 and preserved every other field. It used an isolated sample draft and did not save a panel layout.
+
+The production build and both TypeScript checks passed. All 269 domain tests passed. The full browser run passed 83 cases; a new test used the wrong saved-status label. After correcting that assertion and adding the original-revision regression, all eight focused Ask AI cases passed. These runs cover 85 distinct browser cases. The full Python run completed 300 tests with one font-related skip. After tightening the quota guard, all 27 AI domain and HTTP checks passed, including the additional quota regression. `git diff --check` passed.
+
+Browser checks cover one Undo step, reusable copies, newer edits, identical replacement drafts, cancellation without another submission, malformed output, unavailable authentication, manual Apply and direct-save conflicts. Two independent review rounds identified and then cleared the quota-expiry and original-revision findings. A known quota block survives stale observations and elapsed resets until fresh lower readings verify that it has cleared.
+
+Only `turzx-studio.service` was restarted. The existing dashboard stayed connected at revision `959c5251f2e984a1080542e20d2a8d8107110d9f1711fbd2470f3f44a30d9af4`. The saved layout, library, all 49 archive paths and their contents stayed unchanged. Evidence is in `artifacts/ask-ai-real-proposal.json`, `artifacts/ask-ai-activation.json`, `artifacts/ask-ai-browser-rerun.log`, `artifacts/ask-ai-runtime-tests.log` and `artifacts/ask-ai-runtime-rerun.log`.
+
+## Widget sizing and snapping, 7 October 2026
+
+Added Same width, Same height and Same size using the selected reference card. Matching preserves positions and rejects a group operation atomically if a target cannot fit. Resize handles now snap to matching dimensions, edges and 24 px gutters. Snapping starts enabled and remembers the browser preference; keyboard and numeric adjustments remain precise.
+
+`pnpm build` and all 266 domain tests passed. The full browser run passed 76 of 77 tests. The cancellation test still assumed snapping was disabled, so its setup was corrected to turn snapping off explicitly; that focused rerun passed. All four new browser checks passed, covering size matching, boundary errors, resize snapping at different zoom levels, undo/redo and stationary gestures. Independent review found no remaining actionable P1/P2 findings. `git diff --check` passed.
+
+The Studio service serves the updated production assets without a restart. The saved dashboard and library checksums remain unchanged, and the panel is connected with matching requested and applied revisions and no error. No Python runtime or hardware changes were needed.
+
+T3 accepted the initial preview-open request but reported `visible: false`; snapshot and navigation commands timed out. The local website responds at `http://127.0.0.1:5174`. Embedded preview visibility could not be verified. Test evidence is in `artifacts/size-snap-browser-tests.log`, `artifacts/size-snap-browser-rerun.log`, `artifacts/size-matching-tools.png` and `artifacts/size-snap-review-r1.md`.
+
+## Five editor milestones, 7 October 2026
+
+The [five milestones](studio-milestones.md) are implemented. Final checks used the production build and isolated fixture storage for saves, recovery, custom widgets and archive operations.
+
+| Check | Result |
+| --- | --- |
+| `pnpm build` | Passed, including both TypeScript checks. |
+| `pnpm test --testTimeout=15000` | 246 tests passed. |
+| `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium pnpm test:e2e` | 73 browser tests passed. |
+| `PYTHONPATH=runtime ~/Documents/dashboard/.venv/bin/python -m unittest discover -s runtime/tests -q` | 274 tests ran, with 273 passing and one font-related skip. |
+| `git diff --check` | Passed. |
+
+Checks cover recovery ownership, complete undo/redo, delayed saves, library conflicts, custom-widget revisions and imports, clock design parity, group gestures and cancellation, integer snapping, layers, live-preview freshness and mode changes, bounded histories and quota scanning. Final independent reviews found no remaining P1/P2 issue. Claude hit its rate limit during the third milestone; Codex completed the remaining work and reviews under the documented fallback.
+
+The local Studio and dashboard services were restarted after the checks passed. The panel acknowledged the existing saved revision `959c5251f2e984a1080542e20d2a8d8107110d9f1711fbd2470f3f44a30d9af4`, with a positive `66c8` reply and no runtime error. Layout and library checksums and all 49 existing archive files stayed unchanged. No generated draft was applied.
+
+The centered clock draft validates without overlaps and renders with both deterministic sample data and current live readings. Evidence is in `artifacts/m3-clock-centered.png` and `artifacts/m5-clock-centered-live.png`. Native T3 browser snapshots timed out, so these images came from the CLI and API. Browser regression checks used their owned fixture server, and the user's draft tab was preserved.
+
+Read [resource checks](studio-milestones.md#resource-checks) for the separate runtime and preview measurements. Refresh `http://127.0.0.1:5174` to load the updated editor.
+
+The final comparison used freshly started old and updated adapters with the same saved layout. Over 60 seconds, CPU changed from 4.68% to 4.10% and peak RSS from 72.26 to 71.96 MiB, passing both overhead limits. The first comparison against the long-running process failed the memory limit and remains documented. The temporary baseline override was removed, and final readback verifies that the updated adapter is running with fresh live data and the original saved revision.
+
+## Earlier verification
+
 Checked on 6 October 2026 in the local installation. The first editor and API verification ran on 4 October; the checks below passed again before panel activation on 6 October.
 
 ## Editor and runtime checks

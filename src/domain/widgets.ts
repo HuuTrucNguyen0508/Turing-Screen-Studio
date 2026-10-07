@@ -1,6 +1,8 @@
+export { formatClockTime } from './design';
 import sharedCatalog from '../../public/widget-catalog.json';
 import { createSampleLayout, metricSources, validateLayout } from './layout';
 import type { Geometry, LayoutDocument, Widget } from './layout';
+import { trendSources } from './trend';
 
 export const sourceLabels: Record<string, string> = {
   sample: 'Sample values', cpu: 'CPU load', gpu: 'GPU load', memory: 'Memory used',
@@ -19,6 +21,7 @@ export function widgetSources(widget: Widget): readonly string[] {
   if (widget.type === 'text') return [];
   if (widget.type === 'clock') return ['sample', 'clock'];
   if (widget.type === 'weather') return ['sample', 'weather'];
+  if (widget.type === 'metric' && widget.settings.trend) return ['sample', ...trendSources];
   return metricSources;
 }
 
@@ -56,6 +59,7 @@ export function parseWidgetCatalog(input: unknown): { entries: WidgetTemplate[];
     ...createSampleLayout(), version: input.version, canvas: input.canvas,
     widgets: input.widgets.map((entry: Record<string, unknown>) => ({
       id: entry.id, type: entry.type, x: 0, y: 0, width: entry.width, height: entry.height, settings: entry.settings,
+      ...(Object.hasOwn(entry, 'design') ? { design: entry.design } : {}),
     })),
   });
   return {
@@ -125,6 +129,11 @@ export function addWidget(doc: LayoutDocument, presetId: string): LayoutDocument
   return append(doc, preset.widget, preset.id);
 }
 
+/** Place a detached custom template through the same bounded catalog path. */
+export function addWidgetTemplate(doc: LayoutDocument, widget: Omit<Widget, 'id' | 'x' | 'y'>, baseId: string): LayoutDocument {
+  return append(doc, { ...widget, id: baseId, x: 0, y: 0 } as Widget, baseId);
+}
+
 export function duplicateWidget(doc: LayoutDocument, id: string): LayoutDocument {
   const current = doc.widgets.find((widget) => widget.id === id);
   if (!current) throw new Error(`Widget "${id}" was not found.`);
@@ -137,18 +146,14 @@ export function removeWidget(doc: LayoutDocument, id: string): LayoutDocument {
 
 export function updateWidgetSettings(doc: LayoutDocument, id: string, patch: Record<string, unknown>): LayoutDocument {
   if (!doc.widgets.some((widget) => widget.id === id)) throw new Error(`Widget "${id}" was not found.`);
-  return validateLayout({ ...doc, widgets: doc.widgets.map((widget) => widget.id === id
-    ? { ...widget, settings: { ...widget.settings, ...patch } } : widget) });
+  return validateLayout({ ...doc, widgets: doc.widgets.map((widget) => {
+    if (widget.id !== id) return widget;
+    const settings: Record<string, unknown> = { ...widget.settings, ...patch };
+    for (const [key, value] of Object.entries(patch)) if (value === undefined) delete settings[key];
+    return { ...widget, settings };
+  }) });
 }
 
-export function formatClockTime(time: string, format: '24h' | '12h'): string {
-  const match = /\b([01]?\d|2[0-3]):([0-5]\d)\b/.exec(time);
-  if (!match) return time;
-  let hour = Number(match[1]);
-  if (/\bPM\b/i.test(time) && hour < 12) hour += 12;
-  else if (/\bAM\b/i.test(time) && hour === 12) hour = 0;
-  return format === '24h' ? `${String(hour).padStart(2, '0')}:${match[2]}` : `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
-}
 
 export function gaugeFraction(value: number, min: number, max: number): number {
   if (value <= min) return 0;

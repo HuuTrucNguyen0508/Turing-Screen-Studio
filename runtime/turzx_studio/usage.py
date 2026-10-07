@@ -32,7 +32,8 @@ MAX_RATES = 20_000
 MAX_SCAN_ENTRIES = 4096
 MAX_SCAN_DIRS = 256
 MAX_QUOTA_FILES = 16
-MAX_TAIL_BYTES = 128 * 1024
+MAX_TAIL_BYTES = 1024 * 1024
+QUOTA_CHUNK_BYTES = 128 * 1024
 MAX_SCAN_BYTES = 2 * 1024 * 1024
 MAX_LINE_BYTES = 64 * 1024
 MAX_DB_ROWS = 256
@@ -41,6 +42,30 @@ MAX_DB_SECONDS = 0.25
 PROVIDERS = ("codex", "claude")
 TOKEN_FIELDS = ("input", "cacheRead", "cacheWrite", "output", "reasoning")
 UNPRICEABLE = {"<synthetic>", "synthetic", "opus", "sonnet", "haiku", "fable"}
+QUOTA_HEADER = re.compile(
+    rb'^\s*\{\s*"timestamp"\s*:\s*"[^"\\]{1,64}"\s*,\s*'
+    rb'(?:"ordinal"\s*:\s*[0-9]+\s*,\s*)?'
+    rb'"type"\s*:\s*"(?P<outer>[a-z_]+)"\s*,\s*"payload"\s*:\s*')
+QUOTA_PAYLOAD_HEADER = re.compile(rb'^\{\s*"type"\s*:\s*"(?P<inner>[a-z_]+)"')
+
+
+def _quota_record_kind(line: bytes) -> str:
+    """Classify only the bounded envelope, never transcript or tool content."""
+    prefix = line[:512]
+    header = QUOTA_HEADER.match(prefix)
+    if header is None:
+        return "unknown"
+    if header["outer"] in (b"response_item", b"session_meta", b"turn_context"):
+        return "irrelevant"
+    if header["outer"] == b"event_msg":
+        payload = QUOTA_PAYLOAD_HEADER.match(prefix[header.end():])
+        if payload is not None:
+            if payload["inner"] == b"token_count":
+                return "quota"
+            if payload["inner"] in (b"agent_message", b"user_message", b"agent_reasoning",
+                                    b"task_started", b"task_complete"):
+                return "irrelevant"
+    return "unknown"
 
 
 def _number(value: object) -> bool:
@@ -396,6 +421,60 @@ class UsageCollector:
         found.sort(key=lambda item: (item[0], str(item[1])), reverse=True)
         return found[:MAX_QUOTA_FILES], errors
 
+    def _codex_event(self, line: bytes, now: float, state: dict) -> bool:
+        kind = _quota_record_kind(line)
+        if kind == "irrelevant":
+            return False
+        if len(line) > MAX_LINE_BYTES:
+            state["errors"].append("codex_quota_line_bound_reached")
+            return False
+        if kind != "quota" and b'"rate_limits"' not in line:
+            return False
+        try:
+            event = json.loads(line)
+            if not isinstance(event, dict):
+                return False
+            payload = event.get("payload")
+            if (event.get("type") != "event_msg" or not isinstance(payload, dict)
+                    or payload.get("type") != "token_count"):
+                return False
+            limits = payload.get("rate_limits")
+            # Some token_count events carry token totals without quota telemetry.
+            if limits is None:
+                return False
+            stamp = _timestamp(event.get("timestamp"))
+            if stamp is None or not isinstance(limits, dict):
+                raise ValueError("quota")
+            if stamp > now:
+                state["retryAt"] = min(stamp, state.get("retryAt", stamp))
+                return False
+            supported = False
+            for key in ("primary", "secondary"):
+                window = limits.get(key)
+                if window is None:
+                    continue
+                if not isinstance(window, dict):
+                    raise ValueError("window")
+                used, duration, reset = window.get("used_percent"), window.get("window_minutes"), window.get("resets_at")
+                if not _number(duration):
+                    raise ValueError("duration")
+                # This source is Pro only. Never manufacture a session bar.
+                if duration < 10080:
+                    continue
+                if not _number(used) or used > 100:
+                    raise ValueError("percent")
+                reset = reset if _number(reset) and _iso(reset) is not None else None
+                self._remember("codex", key, {"id": key, "label": "Weekly" if duration == 10080 else f"{duration:g}-minute window",
+                               "usedPercent": used, "remainingPercent": 100 - used,
+                               "resetsAt": _iso(reset), "resetKind": "reported", "observedAt": _iso(stamp),
+                               "stale": True, "source": "codex_pro_token_count", "windowMinutes": duration})
+                state["latestSupportedAt"] = max(stamp, state.get("latestSupportedAt", stamp))
+                supported = True
+            return supported
+        except (ValueError, RecursionError):
+            state["errors"].append("codex_quota_invalid_event")
+            return False
+
     def _codex_limits(self, now: float) -> list[str]:
         files, errors = self._quota_files()
         byte_budget = MAX_SCAN_BYTES
@@ -406,84 +485,85 @@ class UsageCollector:
             if (previous and previous["identity"] == identity
                     and (previous.get("retryAt") is None or previous["retryAt"] > now)):
                 keep[path] = previous
+                errors.extend(previous["errors"])
                 continue
             if byte_budget <= 0:
                 errors.append("codex_quota_byte_bound_reached")
                 break
+            state = {"errors": []}
             try:
                 with path.open("rb") as handle:
                     current = os.fstat(handle.fileno())
                     size = current.st_size
-                    head = handle.read(min(64, size, byte_budget))
+                    identity = (current.st_dev, current.st_ino, size, current.st_mtime_ns)
+                    file_budget = min(MAX_TAIL_BYTES, byte_budget)
+                    head = handle.read(min(64, size, file_budget))
+                    file_budget -= len(head)
                     byte_budget -= len(head)
                     head_hash = hashlib.sha256(head).hexdigest()
+                    boundary_guard = b""
                     resumed = bool(previous and previous["identity"][:2] == identity[:2]
                                    and previous["identity"][2] < size and previous.get("guardLength", 0)
                                    and previous.get("headHash") == head_hash)
                     if resumed:
                         length = previous["guardLength"]
-                        if byte_budget < length:
+                        if file_budget < length:
                             resumed = False
                         else:
                             handle.seek(previous["offset"] - length)
                             guard = handle.read(length)
+                            file_budget -= len(guard)
                             byte_budget -= len(guard)
                             resumed = len(guard) == length and hashlib.sha256(guard).hexdigest() == previous["guardHash"]
-                    start = max(0, size - min(MAX_TAIL_BYTES, byte_budget))
-                    resumed = resumed and previous["offset"] >= start
-                    if resumed:
-                        start = previous["offset"]
-                    handle.seek(start)
-                    data = handle.read(min(MAX_TAIL_BYTES, byte_budget))
-                byte_budget -= len(data)
-                if start > 0 and not resumed:
-                    newline = data.find(b"\n")
-                    start += newline + 1 if newline >= 0 else len(data)
-                    data = data[newline + 1:] if newline >= 0 else b""
-                complete = data.rfind(b"\n") + 1
-                offset = start + complete
-                guard = data[:complete][-64:]
-                keep[path] = {"identity": identity, "offset": offset, "guardLength": len(guard),
-                              "guardHash": hashlib.sha256(guard).hexdigest(), "headHash": head_hash}
-                for line in data[:complete].splitlines():
-                    if len(line) > MAX_LINE_BYTES:
-                        errors.append("codex_quota_line_bound_reached")
-                        continue
-                    if b'"rate_limits"' not in line:
-                        continue
-                    try:
-                        event = json.loads(line)
-                        if not isinstance(event, dict):
-                            continue
-                        payload = event.get("payload")
-                        if (event.get("type") != "event_msg" or not isinstance(payload, dict)
-                                or payload.get("type") != "token_count"):
-                            continue
-                        stamp, limits = _timestamp(event.get("timestamp")), payload.get("rate_limits")
-                        if stamp is None or not isinstance(limits, dict):
-                            continue
-                        if stamp > now:
-                            # A writer can append between snapshot's clock read
-                            # and this read. Revisit that unchanged file later.
-                            keep[path]["retryAt"] = min(stamp, keep[path].get("retryAt", stamp))
-                            continue
-                        for key in ("primary", "secondary"):
-                            window = limits.get(key)
-                            if not isinstance(window, dict):
-                                continue
-                            used, duration, reset = window.get("used_percent"), window.get("window_minutes"), window.get("resets_at")
-                            # This source is Pro only. Never manufacture a session bar.
-                            if not _number(used) or used > 100 or not _number(duration) or duration < 10080:
-                                continue
-                            reset = reset if _number(reset) and _iso(reset) is not None else None
-                            self._remember("codex", key, {"id": key, "label": "Weekly" if duration == 10080 else f"{duration:g}-minute window",
-                                           "usedPercent": used, "remainingPercent": 100 - used,
-                                           "resetsAt": _iso(reset), "resetKind": "reported", "observedAt": _iso(stamp),
-                                           "stale": True, "source": "codex_pro_token_count", "windowMinutes": duration})
-                    except (ValueError, RecursionError):
-                        errors.append("codex_quota_invalid_event")
+                            if resumed:
+                                boundary_guard = guard
+                    resumed = resumed and size - previous["offset"] <= file_budget
+                    if resumed and previous.get("latestSupportedAt") is not None:
+                        state["latestSupportedAt"] = previous["latestSupportedAt"]
+                    lower = previous["offset"] if resumed else 0
+                    cursor, pending, at_end, found = size, b"", True, False
+                    offset, guard = lower, boundary_guard if resumed else b""
+                    # Scan the permitted range even after finding telemetry.
+                    # Observation timestamps need not follow physical line order.
+                    while cursor > lower and file_budget > 0:
+                        length = min(QUOTA_CHUNK_BYTES, cursor - lower, file_budget)
+                        cursor -= length
+                        handle.seek(cursor)
+                        block = handle.read(length)
+                        file_budget -= len(block)
+                        byte_budget -= len(block)
+                        if len(block) != length:
+                            raise OSError("changed file")
+                        data = block + pending
+                        lines = data.split(b"\n")
+                        if at_end and len(lines) > 1:
+                            complete = data.rfind(b"\n") + 1
+                            offset, guard = cursor + complete, data[:complete][-64:]
+                            partial = lines.pop()
+                            if _quota_record_kind(partial) == "quota":
+                                state["errors"].append("codex_quota_incomplete_event")
+                            at_end = False
+                        pending = lines[0]
+                        for line in reversed(lines[1:]):
+                            found = self._codex_event(line, now, state) or found
+                        if cursor == lower:
+                            if not at_end:
+                                found = self._codex_event(pending, now, state) or found
+                            elif _quota_record_kind(pending) == "quota":
+                                state["errors"].append("codex_quota_incomplete_event")
+                    if cursor > lower and not found:
+                        state["errors"].append("codex_quota_byte_bound_reached")
+                    advanced = (state.get("latestSupportedAt") is not None
+                                and (not previous or previous.get("latestSupportedAt") is None
+                                     or state["latestSupportedAt"] > previous["latestSupportedAt"]))
+                    if resumed and not advanced:
+                        state["errors"].extend(previous["errors"])
+                    state.update(identity=identity, offset=offset, guardLength=len(guard),
+                                 guardHash=hashlib.sha256(guard).hexdigest(), headHash=head_hash)
+                    keep[path] = state
             except OSError:
-                errors.append("codex_quota_file_unavailable")
+                state["errors"].append("codex_quota_file_unavailable")
+            errors.extend(state["errors"])
         self._tails = keep
         if not self._limits["codex"]:
             errors.append("codex_quota_unavailable")

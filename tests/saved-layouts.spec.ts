@@ -18,7 +18,10 @@ async function setup(page: Page) {
   let conflict = false;
   let switchGate: Promise<void> | null = null;
   await page.route('**/api/layout', (route) => {
-    if (route.request().method() === 'POST') panelWrites++;
+    if (route.request().method() === 'POST') {
+      panelWrites++;
+      if (route.request().headers()['if-match'] !== revision) return route.fulfill({ status: 409, json: { error: 'Changed elsewhere', revision } });
+    }
     return route.fulfill({ json: { document: panel, revision } });
   });
   await page.route('**/api/layouts', (route) => {
@@ -45,7 +48,7 @@ async function setup(page: Page) {
   await page.route('**/api/palette', (route) => route.fulfill({ json: { palette: null } }));
   await page.route('**/api/preview', (route) => route.fulfill({ status: 422, json: { error: 'Test uses HTML preview' } }));
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Saved layouts', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
   return { entries, switches, getPanelWrites: () => panelWrites, getUpdates: () => updates,
     getPanel: () => panel,
     setConflict: () => { conflict = true; }, setGate: (gate: Promise<void>) => { switchGate = gate; } };
@@ -55,8 +58,8 @@ test('saving and reordering a layout rotation never applies the editor draft to 
   const state = await setup(page);
   await page.getByLabel('Layout name').fill('My custom dashboard');
   await page.getByLabel('Layout name').press('Enter');
-  await page.getByRole('button', { name: 'Saved layouts', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Saved layouts', exact: true });
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Library', exact: true });
   await expect(dialog.locator('li')).toHaveCount(4);
   await expect(dialog.getByText('Ctrl + F9', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Ctrl + F12', { exact: true })).toBeVisible();
@@ -70,6 +73,20 @@ test('saving and reordering a layout rotation never applies the editor draft to 
   expect(state.getPanelWrites()).toBe(0);
   expect(state.switches).toHaveLength(0);
   await expect(page.getByTestId('document-status')).toHaveText('Unsaved changes');
+});
+
+test('switching a dashboard does not silently rebase the editor draft for saving', async ({ page }) => {
+  const state = await setup(page);
+  await page.getByRole('group', { name: 'CPU load card' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Control+F10');
+  await expect.poll(() => state.switches.length).toBe(1);
+  await expect(page.getByRole('button', { name: 'Save to panel', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save to panel', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('changed elsewhere');
+  await expect(page.getByLabel('X position')).toHaveValue('65');
+  expect(state.getPanel().name).toBe('System overview');
+  await expect(page.getByRole('button', { name: 'Review panel changes', exact: true })).toBeVisible();
 });
 
 test('Ctrl+F9 through Ctrl+F12 select the four physical panel slots', async ({ page }) => {
@@ -94,7 +111,7 @@ test('switching preserves edits made before and during the request and blocks co
   await page.keyboard.press('Control+F11');
   await expect.poll(() => state.switches.length).toBe(1);
   await expect(page.getByRole('button', { name: 'Save to panel', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Open saved layout', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Open panel dashboard', exact: true })).toBeDisabled();
   await page.keyboard.press('Control+F12');
   await page.keyboard.press('ArrowRight');
   await expect(page.getByLabel('X position')).toHaveValue('66');

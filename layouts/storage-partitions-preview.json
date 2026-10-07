@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "name": "System overview",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "dynamic",
+    "background": "#0a0f0f",
+    "surface": "#131b1b",
+    "surfaceRaised": "#192121",
+    "text": "#dce8e7",
+    "muted": "#a2adad",
+    "primary": "#9bd0d1",
+    "secondary": "#b0cccc",
+    "outline": "#3f4a4a"
+  },
+  "widgets": [
+    {
+      "id": "mounted-storage",
+      "type": "storage",
+      "x": 193,
+      "y": 161,
+      "width": 374,
+      "height": 479,
+      "settings": {
+        "label": "SSD / NVMe / Games",
+        "style": "bars",
+        "source": "mounted-storage",
+        "grouping": "partitions",
+        "mounts": [
+          "/",
+          "/mnt/nvme",
+          "/mnt/games"
+        ]
+      }
+    }
+  ],
+  "paletteMode": "live"
+}

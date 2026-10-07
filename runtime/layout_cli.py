@@ -68,8 +68,8 @@ def generate(spec: dict) -> dict:
         raise ValueError('Spec.canvas must contain width and height')
     x, y, row_height = 64, 160, 0
     for index, entry in enumerate(raw):
-        if not isinstance(entry, dict) or set(entry) - {'template', 'id', 'x', 'y', 'width', 'height', 'settings'}:
-            raise ValueError(f'Spec.widgets[{index}] accepts template, id, geometry and settings only')
+        if not isinstance(entry, dict) or set(entry) - {'template', 'id', 'x', 'y', 'width', 'height', 'settings', 'design'}:
+            raise ValueError(f'Spec.widgets[{index}] accepts template, id, geometry, settings and design only')
         identifier = entry.get('template')
         if not isinstance(identifier, str) or identifier not in templates:
             raise ValueError(f'Spec.widgets[{index}].template must be a catalog ID')
@@ -85,7 +85,8 @@ def generate(spec: dict) -> dict:
         widgets.append({'id': entry.get('id', f'{identifier}-{index + 1}'), 'type': template['type'],
                         'x': entry.get('x', x), 'y': entry.get('y', y),
                         'width': width, 'height': height,
-                        'settings': {**deepcopy(template['settings']), **settings}})
+                        'settings': {**deepcopy(template['settings']), **settings},
+                        **({'design': deepcopy(entry.get('design', template.get('design')))} if 'design' in entry or 'design' in template else {})})
         x += width + 24
         row_height = max(row_height, height)
     return validate_layout({'version': 1, 'name': spec.get('name', 'Generated dashboard'),

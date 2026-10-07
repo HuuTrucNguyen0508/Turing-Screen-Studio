@@ -9,8 +9,10 @@ import re
 from PIL import Image, ImageDraw, ImageFont
 
 from .layout import _palette, validate_layout
+from .design import clock_time, resolve_elements
 from .usage_display import USAGE_SOURCES, usage_content
-from .storage_display import storage_content, storage_geometry, storage_size, storage_short
+from .storage_display import storage_content, storage_geometry, storage_size, storage_short, storage_row_name
+from .trend import widget_trend, trend_unit
 
 MAX_RENDER_PIXELS = 16_000_000
 _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
@@ -33,20 +35,6 @@ def _format(value: float | None, places: int = 0) -> str:
 
 def _text(value: object) -> str:
     return str(value) if value is not None and str(value).strip() else "—"
-
-
-def clock_time(value: str, format: str) -> str:
-    """Keep minute precision, including when a saved sample includes seconds."""
-    match = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", value)
-    if not match:
-        return value
-    hour, minute = int(match[1]), match[2]
-    if re.search(r"\bPM\b", value, re.IGNORECASE) and hour < 12:
-        hour += 12
-    elif re.search(r"\bAM\b", value, re.IGNORECASE) and hour == 12:
-        hour = 0
-    return (f"{hour:02d}:{minute}" if format == "24h" else
-            f"{hour % 12 or 12}:{minute} {'PM' if hour >= 12 else 'AM'}")
 
 
 def gauge_fraction(value: float, minimum: float, maximum: float) -> float:
@@ -243,6 +231,9 @@ class LayoutRenderer:
 
     def _metric(self, draw: ImageDraw.ImageDraw, width: int, height: int,
                 settings: dict, palette: dict, stats: object = None) -> None:
+        if settings.get('trend'):
+            self._trend_metric(draw, width, height, settings, palette, stats)
+            return
         if settings.get('source') in USAGE_SOURCES:
             self._usage_metric(draw, width, height, settings, palette)
             return
@@ -267,6 +258,38 @@ class LayoutRenderer:
         if len(points) > 1:
             draw.line(points, fill=palette['primary'], width=2)
         self._draw_text(draw, (29, top + plot_height + 14), settings["detail"], palette["muted"], 14)
+
+    def _trend_metric(self, draw: ImageDraw.ImageDraw, width: int, height: int,
+                      settings: dict, palette: dict, stats: object = None) -> None:
+        chart, caption = widget_trend(settings, stats, width, height)
+        source = settings.get('source', 'sample')
+        size = max(12, min(36, math.floor((width - 58) / max(1, len(settings['value']) * .64 + len(settings['unit']) * .3))))
+
+        def shortened(text, character_width):
+            capacity = max(1, math.floor((width - 58) / character_width))
+            return text[:capacity - 1] + '…' if len(text) > capacity else text
+
+        self._draw_text(draw, (29, 42), shortened(settings['label'], 8), palette['muted'], 15, anchor='ls')
+        self._draw_text(draw, (29, 92), settings['value'], palette['primary'], size, 'mono', 'ls')
+        value_width = draw.textlength(self._safe_text(settings['value']), font=self._font('mono', size))
+        self._draw_text(draw, (35 + value_width, 92), settings['unit'], palette['muted'], 16, anchor='ls')
+        if chart['showChart']:
+            bounds = f"{gauge_number(chart['min'])}-{gauge_number(chart['max'])} {trend_unit(source)}".strip()
+            self._draw_text(draw, (chart['right'], chart['top'] - 10), bounds, palette['muted'], 11, anchor='rs')
+            draw.line((chart['left'], chart['bottom'], chart['right'], chart['bottom']), fill=palette['outline'])
+            for points in chart['segments']:
+                coordinates = [(point['x'], point['y']) for point in points]
+                if len(coordinates) > 1:
+                    draw.line(coordinates, fill=palette['primary'], width=2)
+                else:
+                    x, y = coordinates[0]
+                    draw.ellipse((x - 1, y - 1, x + 1, y + 1), fill=palette['primary'])
+            if chart['state']:
+                self._draw_text(draw, (chart['left'], (chart['top'] + chart['bottom']) // 2),
+                                chart['state'], palette['muted'], 13, anchor='ls')
+        if height >= 216:
+            self._draw_text(draw, (29, height - 48), shortened(settings['detail'], 6.7), palette['muted'], 12, anchor='ls')
+        self._draw_text(draw, (29, chart['captionY']), shortened(caption, 6.7), palette['muted'], 12, anchor='ls')
 
     @staticmethod
     def _weather_icon(draw: ImageDraw.ImageDraw, cx: float, top: int, palette: dict) -> None:
@@ -354,6 +377,26 @@ class LayoutRenderer:
             date = raw[:match.start()].strip() if match else ""
         self._draw_text(draw, (width - 64, 47), clock, palette["text"], 37, "mono", "rt")
         self._draw_text(draw, (width - 64, 91), date, palette["muted"], 14, anchor="rt")
+
+    def _designed_text(self, draw: ImageDraw.ImageDraw, elements: list[dict], palette: dict) -> None:
+        for element in elements:
+            if element["hidden"]:
+                continue
+            text = self._safe_text(element["text"])
+            x, y = element["x"], element["y"]
+            color = palette[element["color"]]
+            size, family = element["size"], element["family"]
+            suffix = self._safe_text(element.get("suffix", ""))
+            if suffix:
+                digits_width = draw.textlength(text, font=self._font(family, size))
+                suffix_size, gap = element["suffixSize"], element["gap"]
+                width = digits_width + gap + draw.textlength(suffix, font=self._font("sans", suffix_size))
+                left = x - (width / 2 if element["align"] == "center" else width if element["align"] == "end" else 0)
+                self._draw_text(draw, (left, y), text, color, size, family, "ls")
+                self._draw_text(draw, (left + digits_width + gap, y), suffix, palette["muted"], suffix_size, "sans", "ls")
+            else:
+                anchor = {"start": "ls", "center": "ms", "end": "rs"}[element["align"]]
+                self._draw_text(draw, (x, y), text, color, size, family, anchor)
 
     def _clock(self, draw: ImageDraw.ImageDraw, height: int, settings: dict, palette: dict) -> None:
         compact = height < 184
@@ -508,25 +551,30 @@ class LayoutRenderer:
         padding, available = 24, max(0, width - 48)
         text = lambda x, y, value, color, size=12, anchor='ls': self._draw_text(draw, (x, y), value, palette[color], size, anchor=anchor)
         text(padding, 34, storage_short(settings['label'], max(1, available // 8)), 'text', 14)
+        drives = settings.get('grouping') == 'drives'
+        noun = 'drives' if drives else 'filesystems'
         state = 'sample data' if settings['sample'] else 'stale reading' if settings['stale'] else 'live · refresh 60s'
         if settings['errors'] or any(row.get('errors') for row in mounts):
             state += ' · partial data' if mounts else ' · unavailable'
-        subtitle = f"{len(mounts)} filesystems · {state}" if mounts else 'Mounted storage unavailable' if settings['stale'] or settings['errors'] else 'No mounted local storage'
+        subtitle = f"{len(mounts)} {noun} · {state}" if mounts else 'Mounted storage unavailable' if settings['stale'] or settings['errors'] else 'No mounted local storage'
         text(padding, 56, storage_short(subtitle, max(1, available // 6)), 'muted')
         if table:
-            for x, title, anchor in [(padding, 'Mount', 'ls'), (width * .63, 'Used / total', 'rs'), (width * .82, 'Free', 'rs'), (width - padding, 'Used', 'rs')]:
+            for x, title, anchor in [(padding, 'Drive' if drives else 'Mount', 'ls'), (width * .63, 'Used / total', 'rs'), (width * .82, 'Free', 'rs'), (width - padding, 'Used', 'rs')]:
                 text(x, 83, title, 'muted', anchor=anchor)
         for index, row in enumerate(rows):
             y = start + index * stride
-            aliases = row.get('aliases', [])
-            path = ' · '.join([row['mount'], *aliases])
+            path = storage_row_name(row, settings.get('filtered', False))
             text(padding, y + 12, storage_short(path, max(1, math.floor((width * .35 - padding if table else available - 50) / 8))), 'text', 14)
             percent = row.get('usedPercent')
             valid = type(percent) in (int, float) and math.isfinite(percent) and 0 <= percent <= 100
             percent_text = f'{math.floor(percent + .5)}%' if valid else '—'
             if row.get('stale') and valid:
                 percent_text += '*'
+            if row.get('partial') and valid:
+                percent_text += '+'
             used, total, free = (storage_size(row.get(key)) for key in ('usedGiB', 'totalGiB', 'freeGiB'))
+            if row.get('partial') and row.get('usedGiB') is not None:
+                used += '+'
             if table:
                 text(width * .63, y + 12, f'{used} / {total}', 'muted', anchor='rs')
                 text(width * .82, y + 12, free, 'muted', anchor='rs')
@@ -534,13 +582,13 @@ class LayoutRenderer:
                 draw.line((padding, y + 28, width - padding, y + 28), fill=palette['outline'])
             else:
                 text(width - padding, y + 12, percent_text, 'primary', 14, 'rs')
-                detail = f'{used} / {total} · {free} free' if valid else 'Unavailable · mount could not be read'
+                detail = f'{used} / {total}' + ('' if drives else f' · {free} free')
                 text(padding, y + 33, storage_short(detail, max(1, math.floor(available / 6.7))), 'muted')
                 if settings['style'] == 'bars' and available:
                     draw.rounded_rectangle((padding, y + 45, width - padding, y + 51), radius=3, fill=palette['outline'])
                     if valid and percent > 0:
                         draw.rounded_rectangle((padding, y + 45, padding + available * percent / 100, y + 51), radius=3, fill=palette['primary'])
-        footer = f'+{hidden} filesystems · enlarge card' if hidden else '* Stale readings' if any(row.get('stale') for row in rows) else 'Shared mounts grouped · GiB / TiB'
+        footer = f'+{hidden} {noun} · enlarge card' if hidden else '* Stale readings' if any(row.get('stale') for row in rows) else '+ Mounted usage only · GiB / TiB' if drives else 'Shared mounts grouped · GiB / TiB'
         text(padding, height - 19, storage_short(footer, max(1, math.floor(available / 6.7))), 'muted')
 
     def render(self, document: object, stats: object = None, palette: object = None) -> Image.Image:
@@ -567,7 +615,10 @@ class LayoutRenderer:
                 self._weather(card_draw, w, h, settings, colors,
                               stats is not None and settings.get("source", "sample") == "weather")
             elif widget["type"] == "clock":
-                self._clock(card_draw, h, settings, colors)
+                if "design" in widget:
+                    self._designed_text(card_draw, resolve_elements({**widget, "settings": settings}), colors)
+                else:
+                    self._clock(card_draw, h, settings, colors)
             elif widget["type"] == "storage":
                 self._storage_card(card_draw, w, h, settings, colors)
             elif widget["type"] == "text":

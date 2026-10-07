@@ -164,6 +164,19 @@ class ServerTests(unittest.TestCase):
         self.assertIn("error", json.loads(body))
         self.assertNotIn("Access-Control-Allow-Origin", headers)
 
+    def test_removed_ai_endpoints_return_404_without_changing_saved_layout(self):
+        original = self.paths.layout.read_bytes()
+        for path in ("/api/ai", "/api/ai/jobs/test-job"):
+            for method in ("GET", "HEAD"):
+                with self.subTest(method=method, path=path):
+                    response = self.request(method, path)
+                    self.assertEqual(response[0], 404)
+                    self.assertTrue(response[1]["Content-Type"].startswith("application/json"))
+        for path in ("/api/ai/jobs", "/api/ai/jobs/test-job/cancel"):
+            with self.subTest(method="POST", path=path):
+                self.assert_json_error(self.post(path, {}), 404)
+        self.assertEqual(self.paths.layout.read_bytes(), original)
+
     def test_seed_is_live_canonical_and_never_overwrites_existing_file(self):
         self.assertEqual(self.document["paletteMode"], "live")
         for widget in self.document["widgets"]:
@@ -194,6 +207,20 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(parse_layout(self.paths.layout.read_text()), changed)
         changed["name"] = "Second save"
         self.assertEqual(self.post("/api/layout", changed, {"If-Match": updated["revision"]})[0], 200)
+
+    def test_live_endpoints_and_preview_mode_are_read_only_and_explicit(self):
+        previous = self.paths.layout.read_bytes()
+        status, _, body = self.request('GET', '/api/live')
+        self.assertEqual(status, 200)
+        self.assertFalse(json.loads(body)['available'])
+        self.assert_json_error(self.post('/api/preview?mode=live', self.document), 503)
+        for query in ('mode=other', 'mode=live&mode=sample', 'mode=', 'unknown=yes'):
+            self.assert_json_error(self.post('/api/preview?' + query, self.document), 400)
+        status, headers, body = self.post('/api/preview?mode=sample', self.document)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers['Content-Type'], 'image/png')
+        self.assertEqual(self.paths.layout.read_bytes(), previous)
+        self.assertFalse(self.paths.older_configs.exists())
 
     def test_concurrent_writers_with_same_revision_have_one_winner(self):
         current = self.app.layout()["revision"]

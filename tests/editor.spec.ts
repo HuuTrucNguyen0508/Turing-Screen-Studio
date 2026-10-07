@@ -7,6 +7,24 @@ import sharedCatalog from '../public/widget-catalog.json' with { type: 'json' };
 
 const samplePath = 'public/sample-layout.json';
 
+test('editor has no AI controls or AI requests and keeps manual editing', async ({ page }) => {
+  const aiRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/^\/api\/ai(?:\/|$)/.test(new URL(request.url()).pathname)) aiRequests.push(request.url());
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Ask AI', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Ask AI' })).toHaveCount(0);
+  await page.locator('[data-widget-id="cpu"]').click();
+  const x = page.getByRole('textbox', { name: 'X position', exact: true });
+  await x.fill('74');
+  await x.press('Enter');
+  await expect(x).toHaveValue('74');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(x).toHaveValue('64');
+  expect(aiRequests).toEqual([]);
+});
+
 test('AI usage preset is a demo draft with preserved live sources and no automatic apply', async ({ page }) => {
   let saves = 0;
   page.on('request', (request) => { if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/layout') saves++; });
@@ -164,11 +182,12 @@ test('invalid numeric edits and imports preserve the current document', async ({
   expect(await geometry(page)).toEqual(before);
 });
 
-test('offline export and confirmed reopen preserve geometry, settings, and palette', async ({ page, context }) => {
+test('offline export and confirmed reopen preserve geometry, settings, and palette', async ({ page, context }, testInfo) => {
   const errors: string[] = [];
   const externalRequests: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  page.on('request', (request) => { if (!request.url().startsWith('http://127.0.0.1:4175/')) externalRequests.push(request.url()); });
+  const origin = new URL(String(testInfo.project.use.baseURL)).origin;
+  page.on('request', (request) => { if (!request.url().startsWith(`${origin}/`)) externalRequests.push(request.url()); });
   await page.goto('/');
   await context.setOffline(true);
   const sample = JSON.parse(await readFile(samplePath, 'utf8')) as LayoutDocument;
@@ -319,7 +338,7 @@ test('widget library browses all choices and combines case-insensitive search wi
   await expect(library.getByRole('button', { name: 'Add Upload', exact: true })).toHaveCount(0);
   expect(await choices.count()).toBeGreaterThanOrEqual(cpuEntries.length);
   await library.getByRole('button', { name: /^System/ }).click();
-  await expect(choices).toHaveCount(2);
+  await expect(choices).toHaveCount(cpuEntries.filter((entry) => entry.group === 'system').length);
   await expect(library.getByRole('button', { name: /^System/ })).toHaveAttribute('aria-pressed', 'true');
   await search.fill('WiDe');
   await expect(choices).toHaveCount(4);
@@ -331,7 +350,7 @@ test('widget library browses all choices and combines case-insensitive search wi
   await expect(library).toContainText(/No widgets/);
   await library.getByRole('button', { name: /Clear search/ }).click();
   await expect(search).toHaveValue('');
-  await expect(choices).toHaveCount(4);
+  await expect(choices).toHaveCount(sharedCatalog.widgets.filter((entry) => entry.group === 'network').length);
   await library.getByRole('button', { name: /^All widgets/ }).click();
   await expect(choices).toHaveCount(sharedCatalog.widgets.length);
   await library.getByRole('button', { name: 'Close widget catalog', exact: true }).click();
@@ -512,6 +531,12 @@ test('mounted storage can be added, restyled, exported and reopened without appl
   await dialog.getByRole('button', { name: 'Add Mounted storage wide', exact: true }).click();
   const mounted = card(page, 'mounted-storage-wide');
   await expect(mounted.locator('[data-storage-style="bars"]')).toBeVisible();
+  await expect(mounted).toContainText('3 drives');
+  await expect(mounted).toContainText('SSD');
+  await expect(mounted).toContainText('NVMe');
+  await expect(mounted).toContainText('HDD');
+  await expect(mounted).not.toContainText('/mnt/games');
+  await page.getByRole('combobox', { name: 'Storage view' }).selectOption('partitions');
   await expect(mounted).toContainText('/mnt/games');
   await expect(mounted).toContainText('/mnt/nvme');
   await expect(mounted).toContainText('/mnt/hdd');
@@ -522,7 +547,7 @@ test('mounted storage can be added, restyled, exported and reopened without appl
   await expect(mounted).toContainText('Used / total');
   const doc = validateLayout(JSON.parse(await exportJson(page)));
   const widget = doc.widgets.find((widget) => widget.id === 'mounted-storage-wide');
-  expect(widget?.settings).toEqual({ label: 'Mounted storage', style: 'table', source: 'mounted-storage' });
+  expect(widget?.settings).toEqual({ label: 'Mounted storage', style: 'table', source: 'mounted-storage', grouping: 'partitions' });
   await openJson(page, JSON.stringify(doc));
   await expect(mounted.locator('[data-storage-style="table"]')).toBeVisible();
   expect(saves).toBe(0);

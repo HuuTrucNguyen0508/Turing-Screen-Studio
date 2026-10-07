@@ -1,4 +1,6 @@
 import { usageSources } from './usage';
+import { validateWidgetDesign } from './design';
+import type { WidgetDesign } from './design';
 
 export interface Palette {
   name: string;
@@ -19,16 +21,18 @@ export interface Geometry {
   height: number;
 }
 
-export interface MetricWidget extends Geometry {
+interface WidgetPresentation { design?: WidgetDesign }
+
+export interface MetricWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'metric';
-  settings: { label: string; value: string; unit: string; detail: string; source?: MetricSource };
+  settings: { label: string; value: string; unit: string; detail: string; source?: MetricSource; trend?: boolean };
 }
 
 export const metricSources = ['sample', 'cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature', ...usageSources] as const;
 export type MetricSource = typeof metricSources[number];
 
-export interface WeatherWidget extends Geometry {
+export interface WeatherWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'weather';
   settings: {
@@ -42,13 +46,13 @@ export interface WeatherWidget extends Geometry {
   };
 }
 
-export interface ClockWidget extends Geometry {
+export interface ClockWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'clock';
   settings: { label: string; time: string; date: string; format: '24h' | '12h'; showDate: boolean; source?: 'sample' | 'clock' };
 }
 
-export interface TextWidget extends Geometry {
+export interface TextWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'text';
   settings: { label: string; text: string };
@@ -57,17 +61,17 @@ export interface TextWidget extends Geometry {
 export const gaugeStyles = ['arc', 'ring', 'bar', 'segments', 'thermometer', 'number'] as const;
 export type GaugeStyle = typeof gaugeStyles[number];
 
-export interface GaugeWidget extends Geometry {
+export interface GaugeWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'gauge';
   settings: { label: string; value: number; min: number; max: number; unit: string; detail: string; source?: MetricSource; style?: GaugeStyle };
 }
 
 export const storageStyles = ['bars', 'table'] as const;
-export interface StorageWidget extends Geometry {
+export interface StorageWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'storage';
-  settings: { label: string; style: typeof storageStyles[number]; source?: 'sample' | 'mounted-storage' };
+  settings: { label: string; style: typeof storageStyles[number]; source?: 'sample' | 'mounted-storage'; grouping?: 'drives' | 'partitions'; mounts?: string[] };
 }
 
 export type Widget = MetricWidget | WeatherWidget | ClockWidget | TextWidget | GaugeWidget | StorageWidget;
@@ -160,9 +164,9 @@ function palette(input: unknown, path: string): Palette {
   };
 }
 
-function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']): Widget {
+function widgetContent(input: unknown, path: string, canvas: LayoutDocument['canvas']): Widget {
   const value = object(input, path);
-  exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path);
+  exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path, ['design']);
   const id = string(value.id, `${path}.id`, true);
   if (typeof value.type !== 'string' || !['metric', 'weather', 'clock', 'text', 'gauge', 'storage'].includes(value.type)) {
     fail(`${path}.type`, 'unsupported widget type; expected metric, weather, clock, text, gauge, storage');
@@ -182,11 +186,20 @@ function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']):
   const settings = object(value.settings, `${path}.settings`);
   const settingsPath = `${path}.settings`;
   if (value.type === 'storage') {
-    exactKeys(settings, ['label', 'style'], settingsPath, ['source']);
+    exactKeys(settings, ['label', 'style'], settingsPath, ['source', 'grouping', 'mounts']);
     const style = optionalChoice(settings, 'style', settingsPath, storageStyles)!;
     const source = optionalChoice(settings, 'source', settingsPath, ['sample', 'mounted-storage'] as const);
+    const grouping = optionalChoice(settings, 'grouping', settingsPath, ['drives', 'partitions'] as const);
+    let mounts: string[] | undefined;
+    if (Object.hasOwn(settings, 'mounts')) {
+      if (!Array.isArray(settings.mounts) || settings.mounts.length < 1 || settings.mounts.length > 32 || settings.mounts.some((mount) => typeof mount !== 'string' || !mount.startsWith('/') || mount.length > 256 || /[\u0000-\u001f\u007f]/.test(mount)) || new Set(settings.mounts).size !== settings.mounts.length) fail(`${settingsPath}.mounts`, 'expected 1 to 32 unique absolute mount paths');
+      if (grouping === 'drives') fail(`${settingsPath}.mounts`, 'mount filters require the partitions view');
+      mounts = [...settings.mounts] as string[];
+    }
     return { id, type: 'storage', ...geometry, settings: {
       label: string(settings.label, `${settingsPath}.label`), style,
+      ...(grouping === undefined ? {} : { grouping }),
+      ...(mounts === undefined ? {} : { mounts }),
       ...(source === undefined ? {} : { source }),
     } };
   }
@@ -224,8 +237,11 @@ function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']):
     } };
   }
   if (value.type === 'metric') {
-    exactKeys(settings, METRIC_SETTINGS, `${path}.settings`, ['source']);
+    exactKeys(settings, METRIC_SETTINGS, `${path}.settings`, ['source', 'trend']);
     const source = optionalChoice(settings, 'source', `${path}.settings`, metricSources);
+    if (Object.hasOwn(settings, 'trend') && typeof settings.trend !== 'boolean') {
+      fail(`${path}.settings.trend`, 'expected a boolean');
+    }
     return {
       id, type: 'metric', ...geometry,
       settings: {
@@ -234,6 +250,7 @@ function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']):
         unit: string(settings.unit, `${path}.settings.unit`),
         detail: string(settings.detail, `${path}.settings.detail`),
         ...(source === undefined ? {} : { source }),
+        ...(Object.hasOwn(settings, 'trend') ? { trend: settings.trend as boolean } : {}),
       },
     };
   }
@@ -251,6 +268,14 @@ function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']):
       ...(source === undefined ? {} : { source }),
     },
   };
+}
+
+function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']): Widget {
+  const result = widgetContent(input, path, canvas);
+  const value = input as Record<string, unknown>;
+  return Object.hasOwn(value, 'design')
+    ? { ...result, design: validateWidgetDesign(value.design, result.type, `${path}.design`) }
+    : result;
 }
 
 /** Validate unknown data and return a detached document in canonical key order. */
