@@ -9,6 +9,11 @@ import CustomWidgets from './CustomWidgets';
 import MaterialImport from './MaterialImport';
 import { verifyImportedImages } from './importImages';
 import DesignEditor from './DesignEditor';
+import ColorEditor, { WidgetColorEditor } from './ColorEditor';
+import useStudioTheme from './useStudioTheme';
+import { effectiveStudioPalette, paletteColorScheme } from './domain/studioTheme';
+import { effectiveWidgetPalette } from './domain/colors';
+import { paletteStyle } from './paletteStyles';
 import { nudgeWidgetElement, resolveElements, updateWidgetDesign } from './domain/design';
 import { placedTemplate } from './domain/widgetTemplates';
 import useDraftRecovery from './useDraftRecovery';
@@ -28,7 +33,7 @@ import { addWidget, addWidgetTemplate, duplicateWidget, parseLayoutPresets, remo
 import type { LayoutPreset } from './domain/widgets';
 import { moveSelection } from './domain/canvas';
 import { parseCaelestiaPalette, parseLayout, serializeLayout, updateGeometry } from './domain/layout';
-import type { Geometry, LayoutDocument, Palette, Widget } from './domain/layout';
+import type { Geometry, LayoutDocument, Widget } from './domain/layout';
 
 const workspacePreference = 'turzx-studio.workspace-panels.v1';
 type WorkspacePanels = { widgets: boolean; inspector: boolean; tools: boolean };
@@ -41,10 +46,6 @@ function initialPanels(): WorkspacePanels {
 }
 
 const geometryLabels: Record<keyof Geometry, string> = { x: 'X position', y: 'Y position', width: 'Width', height: 'Height' };
-
-function paletteStyle(palette: Palette): CSSProperties {
-  return Object.fromEntries(Object.entries(palette).filter(([key]) => key !== 'name').map(([key, value]) => [`--${key}`, value])) as CSSProperties;
-}
 
 function GeometryField({ field, value, max, onCommit, disabled = false }: { field: keyof Geometry; value: number; max: number; disabled?: boolean; onCommit: (value: number) => void }) {
   const [draft, setDraft] = useState(String(value));
@@ -83,6 +84,9 @@ function GeometryField({ field, value, max, onCommit, disabled = false }: { fiel
 
 export default function App() {
   const editor = useEditor();
+  const studioTheme = useStudioTheme();
+  const [colorsTab, setColorsTab] = useState<'studio' | 'dashboard' | null>(null);
+  const colorsButton = useRef<HTMLButtonElement>(null);
   const [panels, setPanels] = useState(initialPanels);
   useEffect(() => {
     try { localStorage.setItem(workspacePreference, JSON.stringify(panels)); } catch { /* Keep the choice for this tab. */ }
@@ -158,6 +162,8 @@ export default function App() {
   const panelCompatible = document.canvas.width === 1280 && document.canvas.height === 800;
   const customEntries = custom.document.widgets.map((entry) => ({ id: `custom:${entry.id}`, name: entry.name, group: 'custom', family: entry.id, variant: 'Custom', description: custom.storeLabel, widget: placedTemplate(entry) }));
   const displayPalette = document.paletteMode === 'live' && panel.palette ? panel.palette : document.palette;
+  const studioPalette = effectiveStudioPalette(studioTheme.preference, displayPalette, panel.palette);
+  useEffect(() => { window.document.documentElement.style.colorScheme = paletteColorScheme(studioPalette); }, [studioPalette]);
   const panelAccepted = Boolean(panel.revision && panel.status.appliedRevision === panel.revision && panel.status.requestedRevision === panel.revision);
   const panelChangedElsewhere = panel.status.requestedRevision && panel.status.requestedRevision !== editor.state.baseRevision;
   const panelState = !panel.status.runtimeRunning ? 'Runtime offline' : !panel.status.connected ? 'Reconnecting to panel' : panel.status.view === 'speedtest' ? 'Speedtest on panel' : panelChangedElsewhere ? 'Panel layout changed elsewhere' : panelAccepted ? 'Panel accepted frame' : 'Waiting for panel';
@@ -411,7 +417,7 @@ export default function App() {
         else load(next);
       } else {
         const palette = parseCaelestiaPalette(text);
-        change((current) => ({ ...current, palette, ...(panel.available ? { paletteMode: 'saved' as const } : {}) }));
+        change((current) => ({ ...current, palette, paletteMode: 'saved' as const }));
         setError(''); setMessage(`Imported ${palette.name} palette. Export to keep it with this layout.`);
       }
     } catch (failure) {
@@ -489,11 +495,11 @@ export default function App() {
     focusCard(ids.at(-1)!);
   }
 
-  return <main className="studio" style={paletteStyle(displayPalette)} onKeyDown={nudge}>
+  return <main className="studio" style={{ ...paletteStyle(studioPalette), '--editor-primary': studioPalette.primary, '--editor-muted': studioPalette.muted, '--editor-background': studioPalette.background } as CSSProperties} onKeyDown={nudge}>
     <header className="app-header">
       <a className="brand" href="#" onClick={(event) => event.preventDefault()} aria-label="TURZX Studio"><span className="brand-symbol" aria-hidden="true">T</span><span>TURZX<span className="brand-light"> Studio</span></span></a>
       <div className="mode-badge"><span className="status-dot" />{panel.available ? 'Panel editor' : 'Offline editor'}</div>
-      <div className="header-actions"><SavedLayouts draftCompatible={panelCompatible} onEdit={(next, target) => openDraft(next, target)} onLibraryUpdated={libraryUpdated} available={panel.available} busy={panel.saving || panel.openingSaved || panel.switching} presets={presets} getDocument={() => documentRef.current} onSwitch={switchPanelLayout} onError={setError} onMessage={setMessage} /><HistoryDialog available={panel.available} onOpen={openDraft} /><button onClick={() => setGameTimersOpen(true)}>Game timers</button><button onClick={() => presetsDialog.current?.showModal()}>Create layout</button><button onClick={() => layoutInput.current?.click()}>Open layout</button><button onClick={exportLayout} className={panel.available ? '' : 'primary-button'}>Export JSON <span aria-hidden="true">↗</span></button>{panel.available && editor.state.target.kind === 'library' && <button aria-describedby={!panelCompatible ? 'panel-size-note' : undefined} title={!panelCompatible ? 'Panel saves need 1280 × 800. Export JSON to keep this draft.' : undefined} disabled={!panelCompatible || librarySaving || serialized === editor.state.target.entryText} onClick={() => void saveToLibrary()}>Save to library</button>}{panel.available && <button className="primary-button" aria-describedby={!panelCompatible ? 'panel-size-note' : undefined} title={!panelCompatible ? 'Panel saves need 1280 × 800. Export JSON to keep this draft.' : undefined} disabled={!panelCompatible || panel.saving || panel.openingSaved || panel.switching} onClick={() => void saveToPanel()}>{panel.saving ? 'Saving…' : 'Save to panel'}</button>}</div>
+      <div className="header-actions"><SavedLayouts draftCompatible={panelCompatible} onEdit={(next, target) => openDraft(next, target)} onLibraryUpdated={libraryUpdated} available={panel.available} busy={panel.saving || panel.openingSaved || panel.switching} presets={presets} getDocument={() => documentRef.current} onSwitch={switchPanelLayout} onError={setError} onMessage={setMessage} /><HistoryDialog available={panel.available} onOpen={openDraft} /><button ref={colorsButton} onClick={() => setColorsTab('studio')}>Colors</button><button onClick={() => setGameTimersOpen(true)}>Game timers</button><button onClick={() => presetsDialog.current?.showModal()}>Create layout</button><button onClick={() => layoutInput.current?.click()}>Open layout</button><button onClick={exportLayout} className={panel.available ? '' : 'primary-button'}>Export JSON <span aria-hidden="true">↗</span></button>{panel.available && editor.state.target.kind === 'library' && <button aria-describedby={!panelCompatible ? 'panel-size-note' : undefined} title={!panelCompatible ? 'Panel saves need 1280 × 800. Export JSON to keep this draft.' : undefined} disabled={!panelCompatible || librarySaving || serialized === editor.state.target.entryText} onClick={() => void saveToLibrary()}>Save to library</button>}{panel.available && <button className="primary-button" aria-describedby={!panelCompatible ? 'panel-size-note' : undefined} title={!panelCompatible ? 'Panel saves need 1280 × 800. Export JSON to keep this draft.' : undefined} disabled={!panelCompatible || panel.saving || panel.openingSaved || panel.switching} onClick={() => void saveToPanel()}>{panel.saving ? 'Saving…' : 'Save to panel'}</button>}</div>
       <input ref={layoutInput} type="file" accept=".json,application/json" hidden aria-label="Open layout file" onChange={(event) => void importFile(event, 'layout')} />
       <input ref={paletteInput} type="file" accept=".json,application/json" hidden aria-label="Import palette file" onChange={(event) => void importFile(event, 'palette')} />
     </header>
@@ -510,15 +516,15 @@ export default function App() {
           <span><strong>{widgetLabel(widget)}</strong><small>{widget.type}{widget.type === 'text' || widget.type === 'image' ? '' : ` · ${sourceLabels[widget.settings.source ?? 'sample']}`}</small></span><span className="widget-row-mark" title="Paint layer, higher is in front">{document.widgets.findIndex((entry) => entry.id === widget.id) + 1}</span>
         </button>)}</div>
         {document.widgets.length === 0 && <p className="panel-note">This canvas is empty. Add a widget or create a layout from a preset.</p>}
-        <div className="palette-section"><span className="eyebrow">Preview palette</span><h3>Caelestia</h3><div className="swatches" aria-label={`${document.palette.name} palette`}>
-          {(['background', 'surface', 'primary', 'secondary', 'text'] as const).map((key) => <span key={key} title={`${key} ${document.palette[key]}`} style={{ background: document.palette[key] }} />)}
-        </div><p className="panel-note">{displayPalette.name}<br />{document.paletteMode === 'live' ? 'Following the desktop scheme.' : 'Stored with this layout.'}</p>{panel.available && <label className="theme-choice"><input type="checkbox" checked={document.paletteMode === 'live'} onChange={(event) => change((current) => ({ ...current, paletteMode: event.target.checked ? 'live' : 'saved' }))} /> Follow desktop colours</label>}<button className="text-button" onClick={() => paletteInput.current?.click()}>Import scheme.json <span aria-hidden="true">↗</span></button></div>
+        <div className="palette-section"><span className="eyebrow">Preview palette</span><h3>{displayPalette.name}</h3><div className="swatches" aria-label={`${displayPalette.name} palette`}>
+          {(['background', 'surface', 'primary', 'secondary', 'text'] as const).map((key) => <span key={key} title={`${key} ${displayPalette[key]}`} style={{ background: displayPalette[key] }} />)}
+        </div><button className="text-button" onClick={() => setColorsTab('dashboard')}>Edit dashboard colors</button><p className="panel-note">{displayPalette.name}<br />{document.paletteMode === 'live' ? 'Following the desktop scheme.' : 'Stored with this layout.'}</p>{panel.palette && <label className="theme-choice"><input type="checkbox" checked={document.paletteMode === 'live'} onChange={(event) => change((current) => event.target.checked ? { ...current, paletteMode: 'live' } : { ...current, palette: { ...displayPalette }, paletteMode: 'saved' })} /> Follow desktop colours</label>}<button className="text-button" onClick={() => paletteInput.current?.click()}>Import scheme.json <span aria-hidden="true">↗</span></button></div>
         <div className="offline-note"><span className="status-dot" /><div><strong>{panel.available ? 'Panel connection' : 'Preview only'}</strong><p>{panel.available ? panel.status.error || (panelChangedElsewhere ? 'The panel switched outside this editor. Open panel dashboard to view it.' : 'Preview uses the chosen data mode. Save to panel applies this draft.') : panel.connectionError || 'Sample data. No panel connection.'}</p>{panel.available && <><button className="text-button" disabled={panel.saving || panel.openingSaved || panel.switching} onClick={() => void openPanelLayout()}>Open panel dashboard</button><button className="text-button" onClick={() => { setPanelImage(`/api/frame?t=${Date.now()}`); panelDialog.current?.showModal(); }}>View panel frame</button></>}</div></div>
       </aside>
       <CanvasPreview toolsVisible={panels.tools} panelControls={<>
         {!panels.widgets && <><button ref={quickAddButton} onClick={() => catalogDialog.current?.showModal()}>Add widget</button><button onClick={() => setMaterialOpen(true)}>Import…</button></>}
         {(['widgets', 'inspector', 'tools'] as const).map((name) => <button key={name} data-panel-toggle={name} disabled={Boolean(editor.state.gesture)} aria-expanded={panels[name]} aria-controls={name === 'tools' ? 'canvas-extra-tools' : `${name}-panel`} onClick={() => togglePanel(name)}>{panels[name] ? 'Hide' : 'Show'} {name === 'inspector' ? 'Inspector' : name === 'widgets' ? 'Widgets' : 'tools'}</button>)}
-      </>} onResizeCanvas={() => setCanvasSizeOpen(true)} key={documentGeneration} document={document} selectedId={selectedId} selectedIds={selectedIds} getSelection={() => editor.current.current.selectedIds} onSelect={setSelectedId} onChange={change} getDocument={() => documentRef.current} onGestureStart={editor.begin} onGestureEnd={editor.finish} previewControls={<PreviewSources available={panel.available} mode={panel.previewMode} onMode={panel.setPreviewMode} />} designElement={activeElement ?? designElement} activeElement={activeElement} onMoveTarget={chooseMoveTarget} onNudge={moveBy} onCardDrag={() => setMoveTarget(null)} onSelectElement={selectCanvasElement} onDuplicate={() => appendWidget()} onDelete={removeSelected} onDetails={editSelectionDetails} onImportWidgets={(file) => { setWidgetImport(file); setMaterialOpen(true); }} bitmap={editor.state.gesture ? null : panel.preview} onPreviewRetry={panel.previewError ? panel.retryPreview : undefined} previewNotice={panel.available ? panel.previewError || (panel.previewPending ? panel.previewMode === 'live' ? 'Rendering live preview…' : 'Rendering sample preview…' : panel.previewMode === 'live' ? 'Panel renderer · Live readings' : 'Panel renderer · Sample values') : 'Browser renderer · Sample values'} />
+      </>} onResizeCanvas={() => setCanvasSizeOpen(true)} key={documentGeneration} document={document} palette={displayPalette} selectedId={selectedId} selectedIds={selectedIds} getSelection={() => editor.current.current.selectedIds} onSelect={setSelectedId} onChange={change} getDocument={() => documentRef.current} onGestureStart={editor.begin} onGestureEnd={editor.finish} previewControls={<PreviewSources available={panel.available} mode={panel.previewMode} onMode={panel.setPreviewMode} />} designElement={activeElement ?? designElement} activeElement={activeElement} onMoveTarget={chooseMoveTarget} onNudge={moveBy} onCardDrag={() => setMoveTarget(null)} onSelectElement={selectCanvasElement} onDuplicate={() => appendWidget()} onDelete={removeSelected} onDetails={editSelectionDetails} onImportWidgets={(file) => { setWidgetImport(file); setMaterialOpen(true); }} bitmap={editor.state.gesture ? null : panel.preview} onPreviewRetry={panel.previewError ? panel.retryPreview : undefined} previewNotice={panel.available ? panel.previewError || (panel.previewPending ? panel.previewMode === 'live' ? 'Rendering live preview…' : 'Rendering sample preview…' : panel.previewMode === 'live' ? 'Panel renderer · Live readings' : 'Panel renderer · Sample values') : 'Browser renderer · Sample values'} />
       <aside id="inspector-panel" className="inspector-panel" aria-label="Inspector" tabIndex={-1} hidden={!panels.inspector}><div className="panel-heading"><h2>Inspector</h2><button className="panel-close" aria-label="Close Inspector" disabled={Boolean(editor.state.gesture)} onClick={() => closePanel('inspector')}>×</button></div>
         {selected ? <div key={`${documentGeneration}:${selected.id}`}>
           <div className="selected-widget"><span className="eyebrow">{selected.type} card</span><h3>{widgetLabel(selected)}</h3><span className="mono widget-id">{selected.id}</span><div className="widget-actions"><button onClick={() => appendWidget()}>Duplicate</button><button className="remove-button" onClick={removeSelected}>Remove</button></div></div>
@@ -531,7 +537,8 @@ export default function App() {
           <button disabled={custom.loading || custom.working} onClick={() => setCustomCandidate(parseLayout(serializeLayout(editor.current.current.document)).widgets.find((widget) => widget.id === selected.id)!)}>Save as custom widget…</button>
           {selected.type === 'metric' && selected.settings.source === 'game-resources' && <button onClick={() => setGameTimersOpen(true)}>Set game timers</button>}
           <ContentEditor widget={selected} onCommit={(patch) => change((current) => updateWidgetSettings(current, selected.id, patch))} />
-          <DesignEditor widget={selected} onInspect={setDesignElement} onMove={chooseMoveTarget} onCommit={(patch) => change((current) => updateWidgetDesign(current, selected.id, patch))} />
+          <WidgetColorEditor document={document} widget={selected} palette={displayPalette} onChange={change} />
+          <DesignEditor widget={selected} palette={effectiveWidgetPalette(displayPalette, selected)} onInspect={setDesignElement} onMove={chooseMoveTarget} onCommit={(patch) => change((current) => updateWidgetDesign(current, selected.id, patch))} />
           <div className="keyboard-note"><span className="eyebrow">Fine adjustments</span><p>Arrows move {activeElement ? resolveElements(selected).find((element) => element.id === activeElement)?.name.toLowerCase() : selectedIds.length > 1 ? 'the selected cards' : 'this card'}. Choose the target below the canvas.</p><div><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><span>1 px</span></div><p>Hold <kbd>Shift</kbd> for 10 px.</p></div>
         </div> : <p className="panel-note">Select a card on the canvas or in the widget list.</p>}
       </aside>
@@ -539,6 +546,7 @@ export default function App() {
     <footer className="app-footer"><span role="status" aria-live="polite">{message}</span><div className="recovery-status"><span title={recovery.time ? `Backed up ${new Date(recovery.time).toLocaleTimeString()}` : undefined}>{recovery.backedUp ? 'Draft backed up' : recovery.error && dirty ? 'Draft not backed up' : dirty ? 'Backing up draft…' : panel.previewMode === 'live' && panel.preview && !panel.previewError ? 'Layout v1 · Live readings' : 'Layout v1 · Sample data'}</span><button className="text-button" onClick={recovery.refresh}>Recover drafts</button></div></footer>
     {recovery.error && !recovery.pending && <p className="recovery-error" role="alert">{recovery.error}</p>}
     {error && !comparison && !libraryComparison && !recovery.pending && <div className="error-banner" role="alert"><span>{error}</span><button aria-label="Dismiss import error" onClick={() => setError('')}>×</button></div>}
+    {colorsTab && <ColorEditor initialTab={colorsTab} document={document} dashboardPalette={displayPalette} studioPalette={studioPalette} desktopAvailable={Boolean(panel.palette)} preference={studioTheme.preference} storageError={studioTheme.storageError} onStudioChange={studioTheme.setPreference} onDashboardChange={change} onImport={() => paletteInput.current?.click()} onClose={() => { setColorsTab(null); requestAnimationFrame(() => colorsButton.current?.focus()); }} />}
     {canvasSizeOpen && <CanvasSize document={document} available={panel.available} onClose={() => setCanvasSizeOpen(false)} onResize={next => {
       change(next); setDocumentGeneration(generation => generation + 1); setError('');
       setMessage(`Resized canvas to ${next.canvas.width} × ${next.canvas.height}. Undo restores the previous size and cards.`);
@@ -572,9 +580,9 @@ export default function App() {
     </dialog>
     {libraryError && !libraryComparison && <p role="alert" className="recovery-error">{libraryError}</p>}
     <dialog ref={catalogDialog} className="catalog-dialog widget-library-dialog" aria-labelledby="catalog-title">
-      <button className="text-button" onClick={() => setCustomOpen(true)}>Manage custom widgets</button><WidgetLibrary entries={[...customEntries, ...widgetCatalog]} groups={[{ id: 'custom', name: 'Custom widgets' }, ...widgetGroups]} onAdd={appendWidget} onClose={() => catalogDialog.current?.close()} />
+      <button className="text-button" onClick={() => setCustomOpen(true)}>Manage custom widgets</button><WidgetLibrary palette={displayPalette} entries={[...customEntries, ...widgetCatalog]} groups={[{ id: 'custom', name: 'Custom widgets' }, ...widgetGroups]} onAdd={appendWidget} onClose={() => catalogDialog.current?.close()} />
     </dialog>
-    <MaterialImport open={materialOpen} onClose={() => { setMaterialOpen(false); setWidgetImport(null); }} file={widgetImport} canvas={document.canvas} palette={displayPalette} store={custom} onAdd={importToDraft} onOpen={(next) => { setMaterialOpen(false); openDraft(next, { kind: 'local' }); }} /><CustomWidgets store={custom} candidate={customCandidate} onCloseCandidate={() => setCustomCandidate(null)} open={customOpen} onClose={() => setCustomOpen(false)} getWidget={() => editor.current.current.document.widgets.find((widget) => widget.id === editor.current.current.selectedId)} onAdd={(id) => appendWidget(`custom:${id}`)} />
+    <MaterialImport open={materialOpen} onClose={() => { setMaterialOpen(false); setWidgetImport(null); }} file={widgetImport} canvas={document.canvas} palette={displayPalette} store={custom} onAdd={importToDraft} onOpen={(next) => { setMaterialOpen(false); openDraft(next, { kind: 'local' }); }} /><CustomWidgets palette={displayPalette} store={custom} candidate={customCandidate} onCloseCandidate={() => setCustomCandidate(null)} open={customOpen} onClose={() => setCustomOpen(false)} getWidget={() => editor.current.current.document.widgets.find((widget) => widget.id === editor.current.current.selectedId)} onAdd={(id) => appendWidget(`custom:${id}`)} />
     <dialog ref={presetsDialog} className="catalog-dialog" aria-labelledby="presets-title">
       <div className="panel-heading"><h2 id="presets-title">Create layout from a preset</h2><button aria-label="Close layout presets" onClick={() => presetsDialog.current?.close()}>×</button></div>
       <p className="panel-note">A preset replaces the draft and keeps your palette. The panel keeps its current layout until you choose Save to panel.</p>

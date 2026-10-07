@@ -1,3 +1,4 @@
+import { elementColor, paletteStyle, widgetColorStyle } from './paletteStyles';
 import { resolveElements } from './domain/design';
 import { formatGaugeNumber, gaugeFraction, gaugeGeometry, instrumentGeometry } from './domain/widgets';
 import type { GaugeWidget, LayoutDocument, MetricWidget, Widget } from './domain/layout';
@@ -100,9 +101,9 @@ function DesignedCard({ widget }: { widget: Widget }) {
       {resolveElements(widget).filter((element) => !element.hidden).map((element) => <text
         key={element.id} data-element={element.id} x={element.x} y={element.y}
         textAnchor={element.align === 'center' ? 'middle' : element.align}
-        fill={`var(--${element.color})`} fontFamily={designFonts[element.family]} fontSize={element.size}>
+        fill={elementColor(element.color)} fontFamily={designFonts[element.family]} fontSize={element.size}>
         <tspan>{element.text}</tspan>{element.suffix && <tspan fontFamily={designFonts.sans}
-          dx={element.gap} fontSize={element.suffixSize} fill="var(--muted)">{element.suffix}</tspan>}
+          dx={element.gap} fontSize={element.suffixSize} fill={element.color.startsWith('#') ? element.color : 'var(--muted)'}>{element.suffix}</tspan>}
       </text>)}
     </svg>
   </div>;
@@ -163,9 +164,9 @@ export function CardContent({ widget }: { widget: Widget }) {
 
 export function StaticLayout({ document, maxHeight }: { document: LayoutDocument; maxHeight?: number }) {
   const scale = Math.min(240 / document.canvas.width, (maxHeight ?? Infinity) / document.canvas.height);
-  return <div className="preset-thumbnail" aria-hidden="true" style={maxHeight ? { width: document.canvas.width * scale, height: document.canvas.height * scale } : undefined}><div className="static-document" style={{ width: document.canvas.width, height: document.canvas.height, transform: `scale(${scale})` }}>
+  return <div className="preset-thumbnail" aria-hidden="true" style={maxHeight ? { width: document.canvas.width * scale, height: document.canvas.height * scale } : undefined}><div className="static-document" style={{ ...paletteStyle(document.palette), color: 'var(--text)', width: document.canvas.width, height: document.canvas.height, transform: `scale(${scale})` }}>
     {document.chrome !== 'none' && <div className="dashboard-header"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
-    {document.widgets.map((widget) => <div key={widget.id} className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}><CardContent widget={widget} /></div>)}
+    {document.widgets.map((widget) => <div key={widget.id} className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ ...widgetColorStyle(widget), color: 'var(--text)', left: widget.x, top: widget.y, width: widget.width, height: widget.height }}><CardContent widget={widget} /></div>)}
     {document.chrome !== 'none' && <div className="dashboard-footer"><span>Deterministic preview</span><span>{document.canvas.width} / {document.canvas.height}</span></div>}
   </div></div>;
 }

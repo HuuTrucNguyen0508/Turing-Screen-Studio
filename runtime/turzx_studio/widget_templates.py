@@ -42,8 +42,8 @@ def validate_templates(raw):
         if not isinstance(name, str) or not 1 <= utf16_length(normalized_name(name)) <= 60 or normalized_name(name).lower() in names:
             raise ValueError(f'{path}.name must be unique and 1 to 60 characters')
         ids.add(identifier); names.add(normalized_name(name).lower())
-        if type(widget) is not dict or set(widget) not in ({'type', 'width', 'height', 'settings'}, {'type', 'width', 'height', 'settings', 'design'}):
-            raise ValueError(f'{path}.widget accepts type, width, height, settings and optional design')
+        if type(widget) is not dict or not {'type', 'width', 'height', 'settings'} <= set(widget) or set(widget) - {'type', 'width', 'height', 'settings', 'design', 'colors'}:
+            raise ValueError(f'{path}.widget accepts type, width, height, settings and optional design, colors')
         roles = ('background', 'surface', 'surfaceRaised', 'text', 'muted', 'primary', 'secondary', 'outline')
         document = validate_layout({'version': 1, 'name': 'Template', 'canvas': {'width': 1280, 'height': 800},
                                     'palette': {'name': 'Template', **{key: '#000000' for key in roles}},
@@ -52,6 +52,8 @@ def validate_templates(raw):
         copy = {key: checked[key] for key in ('type', 'width', 'height', 'settings')}
         if 'design' in checked:
             copy['design'] = checked['design']
+        if 'colors' in checked:
+            copy['colors'] = checked['colors']
         result.append({'id': identifier, 'name': normalized_name(name), 'widget': copy})
     library = {'version': 1, 'widgets': result}
     if len(encode_templates(library)) > MAX_BYTES:

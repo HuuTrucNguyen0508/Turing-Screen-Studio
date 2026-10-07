@@ -114,7 +114,7 @@ describe('design editing and cross-language contract', () => {
     [{ elements: { time: { size: 7 } } }, '.elements.time.size: must be between 8 and 160'],
     [{ elements: { time: { hidden: 1 } } }, '.elements.time.hidden: expected a boolean'],
     [{ elements: { time: { align: 'middle' } } }, '.elements.time.align: expected start, center, end'],
-    [{ elements: { time: { color: '#ffffff' } } }, '.elements.time.color: expected text, muted, primary, secondary'],
+    [{ elements: { time: { color: '#fff' } } }, '.elements.time.color: expected text, muted, primary, secondary or a six-digit #hex color'],
     [{ elements: { time: { dx: null } } }, '.elements.time.dx: expected a safe integer'],
   ];
   it.each(invalid)('rejects invalid overrides at their precise path: %j', (input, error) => {
@@ -130,5 +130,44 @@ describe('design editing and cross-language contract', () => {
     for (const type of ['metric', 'weather', 'gauge', 'text', 'storage']) {
       expect(() => validateWidgetDesign({ padding: 29 }, type, '$.widgets[0].design')).toThrow(`${type} cards have no editable elements`);
     }
+  });
+
+  it('round-trips literal colors and resolves the time suffix in both languages', () => {
+    const cases = ['text', 'muted', 'primary', 'secondary', '#A1b2C3'] as const;
+    const widgets = cases.map((color, i) => ({ ...clock(), id: `clock-${i}`,
+      settings: { ...clock().settings, format: '12h' as const },
+      design: { elements: { label: { color: '#abcdef' as const }, time: { color }, date: { color: '#012345' as const } } } }));
+    const input = { ...document(), widgets };
+    const script = 'import json,sys\nfrom turzx_studio.design import resolve_elements\nfrom turzx_studio.layout import serialize_layout\nv=json.load(sys.stdin)\nprint(json.dumps({"resolved":[resolve_elements(w) for w in v["widgets"]],"bytes":serialize_layout(v)},ensure_ascii=False))';
+    const python = JSON.parse(execFileSync('python3', ['-c', script], {
+      input: JSON.stringify(input), env: { ...process.env, PYTHONPATH: 'runtime' }, encoding: 'utf8',
+    }));
+    expect(python.resolved).toEqual(widgets.map(resolveElements));
+    expect(python.bytes).toBe(serializeLayout(input));
+    expect(widgets.map((widget) => resolveElements(widget)[1].suffixColor)).toEqual(['muted', 'muted', 'muted', 'muted', '#A1b2C3']);
+  });
+
+  it('edits literal clock ink without changing widget colors and resets back to defaults', () => {
+    const original = document();
+    original.widgets[0].colors = { primary: '#010203' };
+    const edited = updateWidgetDesign(original, 'clock', { element: 'time', set: { color: '#Ab12Cd' } });
+    expect(original.widgets[0].design).toBeUndefined();
+    expect(edited.widgets[0].colors).toBe(original.widgets[0].colors);
+    expect(resolveElements(edited.widgets[0])[1].color).toBe('#Ab12Cd');
+    expect(updateWidgetDesign(edited, 'clock', { element: 'time', set: { color: '#Ab12Cd' } })).toBe(edited);
+    const reset = updateWidgetDesign(edited, 'clock', { element: 'time', reset: true });
+    expect(resolveElements(reset.widgets[0])[1].color).toBe('text');
+    expect(serializeLayout(reset)).toBe(serializeLayout(original));
+  });
+
+  it.each(['#12345', '#1234567', '#12345g', '#123456\n', 'red', 'surface', '', null, true, 123456])('rejects malformed element color %j in both languages', (color) => {
+    const input = { elements: { time: { color } } };
+    let error = '';
+    try { validateWidgetDesign(input, 'clock', '$.design'); } catch (caught) { error = (caught as Error).message; }
+    expect(error).toBe('$.design.elements.time.color: expected text, muted, primary, secondary or a six-digit #hex color');
+    const script = 'import json,sys\nfrom turzx_studio.design import validate_widget_design\ntry: validate_widget_design(json.load(sys.stdin),"clock","$.design")\nexcept ValueError as e: print(e)';
+    expect(execFileSync('python3', ['-c', script], {
+      input: JSON.stringify(input), env: { ...process.env, PYTHONPATH: 'runtime' }, encoding: 'utf8',
+    }).trim()).toBe(error);
   });
 });

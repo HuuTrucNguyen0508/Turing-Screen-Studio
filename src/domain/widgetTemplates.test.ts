@@ -5,6 +5,16 @@ import { MAX_CUSTOM_BYTES, MAX_CUSTOM_WIDGETS, MAX_WIDGET_IMPORT_BYTES, mergeCus
 
 const sample = () => ({ version: 1 as const, widgets: [{ id: 'my-cpu', name: 'My CPU', widget: templateWidget(createSampleLayout().widgets[0]) }] });
 describe('custom widget copies', () => {
+  it('preserves palette overrides and literal element colors in reusable packs and standalone imports', () => {
+    const widget: ClockWidget = { id: 'clock', type: 'clock', x: 0, y: 0, width: 320, height: 240,
+      settings: { label: 'Clock', time: '14:32', date: 'Today', format: '12h', showDate: true },
+      colors: { surface: '#223344', primary: '#aabbcc' }, design: { elements: { time: { color: '#d56789' } } } };
+    const original = { version: 1 as const, widgets: [{ id: 'colored-clock', name: 'Colored clock', widget: templateWidget(widget) }] };
+    const recovered = parseCustomWidgets(serializeCustomWidgets(original));
+    expect(recovered).toEqual(original);
+    expect(placedTemplate(recovered.widgets[0])).toMatchObject({ colors: widget.colors, design: widget.design });
+    expect(parseWidgetImport(JSON.stringify(original.widgets[0].widget)).widgets[0].widget).toMatchObject({ colors: widget.colors, design: widget.design });
+  });
   it('roundtrips without document identity and returns detached placements', () => {
     const original = sample();
     const recovered = parseCustomWidgets(serializeCustomWidgets(original));

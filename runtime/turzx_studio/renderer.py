@@ -8,7 +8,7 @@ import re
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .layout import _palette, validate_layout
+from .layout import _palette, effective_widget_palette, validate_layout
 from .design import clock_time, resolve_elements
 from .usage_display import USAGE_SOURCES, usage_content
 from .dashboard_display import (DASHBOARD_SOURCES, dashboard_content, dashboard_rows,
@@ -535,7 +535,7 @@ class LayoutRenderer:
                 continue
             text = self._safe_text(element["text"])
             x, y = element["x"], element["y"]
-            color = palette[element["color"]]
+            color = element["color"] if element["color"].startswith("#") else palette[element["color"]]
             size, family = element["size"], element["family"]
             suffix = self._safe_text(element.get("suffix", ""))
             if suffix:
@@ -544,7 +544,9 @@ class LayoutRenderer:
                 width = digits_width + gap + draw.textlength(suffix, font=self._font("sans", suffix_size))
                 left = x - (width / 2 if element["align"] == "center" else width if element["align"] == "end" else 0)
                 self._draw_text(draw, (left, y), text, color, size, family, "ls")
-                self._draw_text(draw, (left + digits_width + gap, y), suffix, palette["muted"], suffix_size, "sans", "ls")
+                suffix_color = element.get("suffixColor", "muted")
+                suffix_color = suffix_color if suffix_color.startswith("#") else palette[suffix_color]
+                self._draw_text(draw, (left + digits_width + gap, y), suffix, suffix_color, suffix_size, "sans", "ls")
             else:
                 anchor = {"start": "ls", "center": "ms", "end": "rs"}[element["align"]]
                 self._draw_text(draw, (x, y), text, color, size, family, anchor)
@@ -757,38 +759,46 @@ class LayoutRenderer:
             self._header(draw, width, stats, colors, not any(widget["type"] == "clock" for widget in doc["widgets"]), heading)
         for widget in doc["widgets"]:
             w, h = widget["width"], widget["height"]
+            card_colors = effective_widget_palette(colors, widget)
             if widget['type'] == 'image':
                 settings = widget['settings']
                 layer = render_image(settings['data'], w, h, settings['fit'], settings['opacity'])
+                overrides = widget.get('colors', {})
+                if 'surface' in overrides:
+                    background = Image.new('RGBA', (w, h), card_colors['surface'])
+                    background.alpha_composite(layer)
+                    layer = background
+                if 'outline' in overrides:
+                    ImageDraw.Draw(layer).rectangle((0, 0, w - 1, h - 1), outline=card_colors['outline'], width=1)
                 image.paste(layer, (widget['x'], widget['y']), layer.getchannel('A'))
                 continue
             # The separate layer clips all glyphs and strokes to this card.
-            card = Image.new("RGB", (w, h), colors["surface"])
+            card = Image.new("RGB", (w, h), card_colors["surface"])
             card_draw = ImageDraw.Draw(card)
             settings = rendered_content(widget, stats)
             if widget["type"] == "metric":
-                self._metric(card_draw, w, h, settings, colors, stats)
+                self._metric(card_draw, w, h, settings, card_colors, stats)
             elif widget["type"] == "weather":
-                self._weather(card_draw, w, h, settings, colors,
+                self._weather(card_draw, w, h, settings, card_colors,
                               stats is not None and settings.get("source", "sample") == "weather")
             elif widget["type"] == "clock":
                 if "design" in widget:
-                    self._designed_text(card_draw, resolve_elements({**widget, "settings": settings}), colors)
+                    self._designed_text(card_draw, resolve_elements({**widget, "settings": settings}), card_colors)
                 else:
-                    self._clock(card_draw, h, settings, colors)
+                    self._clock(card_draw, h, settings, card_colors)
             elif widget["type"] == "storage":
-                self._storage_card(card_draw, w, h, settings, colors)
+                self._storage_card(card_draw, w, h, settings, card_colors)
             elif widget["type"] == "text":
-                self._text_card(card_draw, w, h, settings, colors)
+                self._text_card(card_draw, w, h, settings, card_colors)
             else:
-                self._gauge(card_draw, w, h, settings, colors)
+                self._gauge(card_draw, w, h, settings, card_colors)
             radius = min(18, (w - 1) // 2, (h - 1) // 2)
             bounds = (0, 0, w - 1, h - 1)
             mask = Image.new("L", (w, h), 255 if min(w, h) == 1 else 0)
             if min(w, h) == 1:
-                card_draw.rectangle(bounds, fill=colors['outline'])
+                card_draw.rectangle(bounds, fill=card_colors['outline'])
             else:
-                card_draw.rounded_rectangle(bounds, radius=radius, outline=colors["outline"], width=1)
+                card_draw.rounded_rectangle(bounds, radius=radius, outline=card_colors["outline"], width=1)
                 ImageDraw.Draw(mask).rounded_rectangle(bounds, radius=radius, fill=255)
             image.paste(card, (widget["x"], widget["y"]), mask)
         # Match the preview's paint order: footer appears above cards.

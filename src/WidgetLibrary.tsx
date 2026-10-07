@@ -1,7 +1,8 @@
+import { paletteStyle, widgetColorStyle } from './paletteStyles';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { CardContent } from './WidgetContent';
-import type { Widget } from './domain/layout';
+import type { Palette, Widget } from './domain/layout';
 
 export interface LibraryEntry {
   id: string;
@@ -53,15 +54,16 @@ function buildSections(entries: readonly LibraryEntry[], groups: readonly Librar
   }).filter((section) => section.count > 0);
 }
 
-function Specimen({ widget }: { widget: Widget }) {
+function Specimen({ widget, palette }: { widget: Widget; palette: Palette }) {
   const scale = previewScale(widget);
   return <div className="library-specimen" style={{ width: Math.round(widget.width * scale), height: Math.round(widget.height * scale) }}>
-    <div className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ left: 0, top: 0, width: widget.width, height: widget.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><CardContent widget={widget} /></div>
+    <div className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ ...paletteStyle(palette), ...widgetColorStyle(widget), color: 'var(--text)', left: 0, top: 0, width: widget.width, height: widget.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><CardContent widget={widget} /></div>
   </div>;
 }
 
-export default function WidgetLibrary({ entries, groups, onAdd, onClose }: {
+export default function WidgetLibrary({ entries, groups, palette, onAdd, onClose }: {
   entries: readonly LibraryEntry[];
+  palette: Palette;
   groups: readonly LibraryGroup[];
   onAdd: (id: string) => void;
   onClose: () => void;
@@ -123,7 +125,7 @@ export default function WidgetLibrary({ entries, groups, onAdd, onClose }: {
             <div className="library-family-name"><strong>{family.name}</strong>{family.entries.length > 1 && <span className="mono">{family.entries.length} versions</span>}</div>
             <div className="library-variants">
               {family.entries.map((entry) => <button key={entry.id} className="library-tile" aria-label={`Add ${entry.name}`} onClick={() => onAdd(entry.id)}>
-                <span className="library-stage" aria-hidden="true"><Specimen widget={entry.widget} /></span>
+                <span className="library-stage" aria-hidden="true"><Specimen palette={palette} widget={entry.widget} /></span>
                 <span className="library-tile-title"><strong>{entry.name}</strong><span className="library-variant">{entry.variant}</span></span>
                 <span className="library-size mono">{entry.widget.width} × {entry.widget.height}</span>
                 <span className="library-description">{entry.description}</span>

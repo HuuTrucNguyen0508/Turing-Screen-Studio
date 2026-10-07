@@ -60,7 +60,11 @@ Export JSON saves your draft at its chosen canvas size. Open layout reopens it w
 
 Draft recovery backs up committed edits in this browser. Reloading offers Restore draft, Export backup and Discard draft; Recover drafts opens that list later. Each tab has its own backup. Uncommitted text and unfinished drags are not backed up. Keep a separate JSON export for layouts you want to retain.
 
-Import scheme.json can read a Caelestia palette file you select, such as `~/.local/state/caelestia/scheme.json`. The editor starts with a bundled palette and preserves imported preview colors in exports.
+Open Colors in the header to customize Studio and dashboard colors with pickers, exact hex values or presets. Studio appearance is remembered in this browser. Dashboard colors are saved in layout JSON and support Undo. Desktop color sync is optional; editing a dashboard color captures the displayed palette and switches to saved colors.
+
+Open Colors in the Inspector to override a widget's backgrounds, text, chart accents and border. Reset a color to follow the dashboard again, or reset all widget colors. Clock elements also accept exact colors in Design. Overrides survive exports and custom widget copies. Embedded image pixels retain their original colors.
+
+Import scheme.json can read a Caelestia palette file you select, such as `~/.local/state/caelestia/scheme.json`. The editor starts with a bundled palette and works without Caelestia.
 
 The clean drafts in [system-overview-clean.json](layouts/system-overview-clean.json) and [ai-usage-30d.json](layouts/ai-usage-30d.json) omit the fixed header and footer. Usage cards separate tokens, API cost estimates and cached provider quotas. Missing history, stale observations and unpriced models remain visible. See [usage data](docs/usage-data.md), [thread and timer data](docs/thread-game-data.md) and [widget design references](docs/widget-design-references.md).
 

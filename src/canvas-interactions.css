@@ -2,8 +2,8 @@
 .canvas-stage > .canvas-viewport { margin: 0; }
 .element-targets { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .element-targets rect { fill: transparent; stroke: transparent; stroke-width: 1.5px; pointer-events: all; cursor: grab; }
-.element-targets rect:hover { stroke: var(--muted); stroke-dasharray: 3 3; }
-.element-targets rect[data-active='true'] { stroke: var(--primary); stroke-dasharray: none; }
+.element-targets rect:hover { stroke: var(--editor-muted, var(--muted)); stroke-dasharray: 3 3; }
+.element-targets rect[data-active='true'] { stroke: var(--editor-primary, var(--primary)); stroke-dasharray: none; }
 .element-targets rect:active { cursor: grabbing; }
 .selection-toolbar { position: absolute; z-index: 10; display: flex; flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 4px; width: max-content; max-width: calc(100% - 16px); padding: 5px; border: 1px solid var(--outline); border-radius: 9px; background: var(--surface); box-shadow: 0 3px 12px #0004; font-size: 11px; }
 .selection-toolbar[data-busy='true'] { visibility: hidden; }
@@ -15,7 +15,7 @@
 .selection-align summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .selection-align > div { position: fixed; z-index: 20; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 210px; padding: 6px; background: var(--surface); border: 1px solid var(--outline); border-radius: 8px; }
 .resize-handle.directional { right: auto; bottom: auto; transform: translate(-50%, -50%); display: grid; place-items: center; padding: 0; background: transparent; border: 0; border-radius: 0; }
-.resize-handle.directional::after { content: ''; width: var(--handle-visual); height: var(--handle-visual); background: var(--primary); border: 0; border-radius: 2px; box-shadow: 0 0 0 1px var(--background); }
+.resize-handle.directional::after { content: ''; width: var(--handle-visual); height: var(--handle-visual); background: var(--editor-primary, var(--primary)); border: 0; border-radius: 2px; box-shadow: 0 0 0 1px var(--editor-background, var(--background)); }
 .resize-handle.directional:hover::after, .resize-handle.directional:focus-visible::after { background: var(--secondary); }
 .resize-handle.directional:focus-visible { outline: 2px solid var(--primary); outline-offset: 0; }
 .gesture-readout { position: absolute; z-index: 11; bottom: 10px; left: 50%; transform: translateX(-50%); padding: 7px 10px; max-width: calc(100% - 20px); border: 1px solid var(--primary); border-radius: 6px; background: var(--surface); color: var(--primary); font-size: 12px; pointer-events: none; overflow-wrap: anywhere; text-align: center; }

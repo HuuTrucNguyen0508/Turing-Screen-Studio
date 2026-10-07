@@ -79,11 +79,17 @@ def validate_widget_design(input: object, kind: str, path: str) -> dict:
                     if type(raw[prop]) is not bool:
                         _fail(field_path, "expected a boolean")
                     element[prop] = raw[prop]
-                elif prop in ("align", "color"):
-                    choices = DESIGN_ALIGNS if prop == "align" else DESIGN_COLORS
+                elif prop == "align":
+                    choices = DESIGN_ALIGNS
                     if raw[prop] not in choices:
                         _fail(field_path, f"expected {', '.join(choices)}")
                     element[prop] = raw[prop]
+                elif prop == "color":
+                    color = raw[prop]
+                    if not isinstance(color, str) or (color not in DESIGN_COLORS
+                            and not re.fullmatch(r"#[0-9a-fA-F]{6}", color)):
+                        _fail(field_path, f"expected {', '.join(DESIGN_COLORS)} or a six-digit #hex color")
+                    element[prop] = color
                 else:
                     element[prop] = _integer(raw[prop], field_path,
                                              8 if prop == "size" else -512,
@@ -149,6 +155,7 @@ def resolve_elements(widget: dict) -> list[dict]:
         if "suffix" in default:
             # Python round ties to even; the editor's Math.round ties upward.
             resolved["suffixSize"] = math.floor(size * (.4 if compact else 23 / 72) + .5)
+            resolved["suffixColor"] = resolved["color"] if resolved["color"].startswith("#") else "muted"
         result.append(resolved)
     return result
 

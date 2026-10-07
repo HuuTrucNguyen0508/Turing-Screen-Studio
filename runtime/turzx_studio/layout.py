@@ -86,9 +86,23 @@ def _palette(value: object, path: str) -> dict:
     }
 
 
+def _widget_colors(value: object, path: str) -> dict:
+    value = _object(value, path)
+    _keys(value, (), path, PALETTE_ROLES)
+    if not value:
+        _fail(path, "remove the empty object")
+    return {role: _color(value[role], f"{path}.{role}")
+            for role in PALETTE_ROLES if role in value}
+
+
+def effective_widget_palette(base: dict, widget: dict) -> dict:
+    """Merge validated saved overrides with a saved or caller-supplied palette."""
+    return {**base, **widget.get("colors", {})}
+
+
 def _widget(value: object, path: str, canvas: dict) -> dict:
     value = _object(value, path)
-    _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path, ("design",))
+    _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path, ("design", "colors"))
     widget_id = _string(value["id"], f"{path}.id", nonempty=True)
     kind = value["type"]
     if kind not in ("metric", "weather", "clock", "text", "gauge", "storage", "image"):
@@ -185,6 +199,8 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
     widget = {"id": widget_id, "type": kind, **geometry, "settings": result}
     if "design" in value:
         widget["design"] = validate_widget_design(value["design"], kind, f"{path}.design")
+    if "colors" in value:
+        widget["colors"] = _widget_colors(value["colors"], f"{path}.colors")
     return widget
 
 

@@ -79,6 +79,7 @@ test('duplicate and rename change only the library, and removal requires confirm
   await library.getByRole('button', { name: 'Duplicate', exact: true }).click();
   await expect.poll(() => state.entries.length).toBe(2);
   expect(state.entries[1].document.name).toBe('Focus copy');
+  await expect(library.locator('li').last().getByRole('heading')).toHaveText('Focus copy');
   await library.locator('li').last().getByRole('button', { name: 'Rename', exact: true }).click();
   await page.getByLabel('Library name', { exact: true }).fill('New label');
   await page.getByRole('button', { name: 'Save name', exact: true }).click();

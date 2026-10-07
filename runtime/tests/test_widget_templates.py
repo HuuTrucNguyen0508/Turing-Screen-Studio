@@ -12,6 +12,18 @@ from turzx_studio.widget_templates import validate_templates
 
 
 class TemplateTests(unittest.TestCase):
+    def test_saved_widget_colors_are_preserved_and_invalid_overrides_are_rejected(self):
+        self.copy['widgets'][0]['widget']['colors'] = {'surface': '#223344', 'primary': '#aabbcc'}
+        checked = validate_templates(self.copy)
+        self.assertEqual(checked['widgets'][0]['widget']['colors'], self.copy['widgets'][0]['widget']['colors'])
+        self.assertIsNot(checked['widgets'][0]['widget']['colors'], self.copy['widgets'][0]['widget']['colors'])
+        saved = self.app.save_widgets(self.copy, self.app.widgets()['revision'])
+        self.assertEqual(self.app.widgets()['widgets'], checked['widgets'])
+        self.assertEqual(self.paths.layout.read_bytes(), self.panel)
+        bad = deepcopy(self.copy)
+        bad['widgets'][0]['widget']['colors']['primary'] = 'red'
+        self.error(422, self.app.save_widgets, bad, saved['revision'])
+
     def setUp(self):
         self.temp = TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

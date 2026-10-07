@@ -47,6 +47,7 @@ export function validateCustomWidgets(raw: unknown): CustomWidgets {
     ids.add(value.id); names.add(value.name.trim().toLowerCase());
     const fields = ['type', 'width', 'height', 'settings'];
     if (value.widget && typeof value.widget === 'object' && Object.hasOwn(value.widget, 'design')) fields.push('design');
+    if (value.widget && typeof value.widget === 'object' && Object.hasOwn(value.widget, 'colors')) fields.push('colors');
     const widget = object(value.widget, fields, `${path}.widget`);
     const checked = validateLayout({ ...createSampleLayout(), widgets: [{ id: value.id, x: 0, y: 0, ...widget }] }).widgets[0];
     return { id: value.id, name: value.name.trim(), widget: templateWidget(checked) };
@@ -106,6 +107,7 @@ export function parseWidgetImport(text: string): CustomWidgets {
       else {
         const fields = ['type', 'width', 'height', 'settings'];
         if (Object.hasOwn(value, 'design')) fields.push('design');
+        if (Object.hasOwn(value, 'colors')) fields.push('colors');
         widget = { id: 'widget', x: 0, y: 0, ...object(value, fields, '$') };
       }
       // A standalone placement must be valid at its original coordinates on

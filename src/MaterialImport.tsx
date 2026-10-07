@@ -1,3 +1,4 @@
+import { paletteStyle, widgetColorStyle } from './paletteStyles';
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutDocument, Palette, Widget } from './domain/layout';
 import { parseLayout, serializeLayout } from './domain/layout';
@@ -121,7 +122,7 @@ export default function MaterialImport({ open, onClose, file, canvas, palette, s
         const scale = Math.min(.35, 120 / widget.width, 80 / widget.height);
         return <article key={widget.id}>
           <label><input type="checkbox" aria-label={`Import ${widgetLabel(widget)}`} checked={selected.includes(widget.id)} disabled={!fits(widget)} onChange={(event) => setSelected((ids) => event.target.checked ? [...ids, widget.id] : ids.filter((id) => id !== widget.id))} /><strong>{widgetLabel(widget)}</strong><span className="mono">{widget.width} × {widget.height}{!fits(widget) && ' / larger than canvas'}</span></label>
-          <div className="material-specimen" aria-hidden="true" style={{ width: widget.width * scale, height: widget.height * scale }}><div className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ left: 0, top: 0, width: widget.width, height: widget.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><CardContent widget={widget} /></div></div>
+          <div className="material-specimen" aria-hidden="true" style={{ width: widget.width * scale, height: widget.height * scale }}><div className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ ...paletteStyle(palette), ...widgetColorStyle(widget), color: 'var(--text)', left: 0, top: 0, width: widget.width, height: widget.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><CardContent widget={widget} /></div></div>
           {widget.type === 'image' && <label className="material-background"><input type="checkbox" aria-label={`Use ${widgetLabel(widget)} as background`} checked={backgrounds.includes(widget.id)} onChange={(event) => { setBackgrounds((ids) => event.target.checked ? [...ids, widget.id] : ids.filter((id) => id !== widget.id)); if (event.target.checked && !selected.includes(widget.id)) setSelected((ids) => [...ids, widget.id]); }} />Fill canvas behind widgets</label>}
         </article>;
       })}</div>

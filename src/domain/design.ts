@@ -2,13 +2,14 @@ import type { ClockWidget, LayoutDocument, Widget } from './layout';
 
 export const designAligns = ['start', 'center', 'end'] as const;
 export const designColors = ['text', 'muted', 'primary', 'secondary'] as const;
+export type ElementColor = typeof designColors[number] | `#${string}`;
 export interface ElementDesign {
   hidden?: boolean;
   align?: typeof designAligns[number];
   dx?: number;
   dy?: number;
   size?: number;
-  color?: typeof designColors[number];
+  color?: ElementColor;
 }
 export interface WidgetDesign {
   padding?: number;
@@ -20,12 +21,13 @@ export interface ResolvedElement {
   x: number;
   y: number;
   size: number;
-  color: typeof designColors[number];
+  color: ElementColor;
   align: typeof designAligns[number];
   hidden: boolean;
   text: string;
   family: 'mono' | 'sans';
   suffix?: string;
+  suffixColor?: ElementColor;
   suffixSize?: number;
   gap?: number;
 }
@@ -117,7 +119,10 @@ export function validateWidgetDesign(input: unknown, type: string, path: string)
           if (!designAligns.includes(raw[prop] as ElementDesign['align'] & string)) fail(fieldPath, `expected ${designAligns.join(', ')}`);
           element.align = raw[prop] as ElementDesign['align'];
         } else if (prop === 'color') {
-          if (!designColors.includes(raw[prop] as ElementDesign['color'] & string)) fail(fieldPath, `expected ${designColors.join(', ')}`);
+          if (typeof raw[prop] !== 'string' || (!designColors.includes(raw[prop] as typeof designColors[number])
+            && (raw[prop].length !== 7 || !/^#[0-9a-fA-F]{6}$/.test(raw[prop])))) {
+            fail(fieldPath, `expected ${designColors.join(', ')} or a six-digit #hex color`);
+          }
           element.color = raw[prop] as ElementDesign['color'];
         } else element[prop] = integer(raw[prop], fieldPath, prop === 'size' ? 8 : -512, prop === 'size' ? 160 : 512);
       }
@@ -135,11 +140,13 @@ export function resolveElements(widget: Widget): ResolvedElement[] {
     const design = widget.design?.elements?.[spec.id] ?? {};
     const align = design.align ?? defaults.align;
     const size = design.size ?? defaults.size;
+    const color = design.color ?? defaults.color;
     return { ...defaults, id: spec.id, name: spec.name, align, size,
       x: (align === 'center' ? widget.width / 2 : align === 'end' ? widget.width - padding : padding) + (design.dx ?? 0),
-      y: defaults.y + (design.dy ?? 0), color: design.color ?? defaults.color,
+      y: defaults.y + (design.dy ?? 0), color,
       hidden: (spec.id === 'date' && !widget.settings.showDate) || (design.hidden ?? defaults.hidden),
-      ...(defaults.suffix === undefined ? {} : { suffixSize: Math.round(size * (widget.height < 184 ? .4 : 23 / 72)) }),
+      ...(defaults.suffix === undefined ? {} : { suffixSize: Math.round(size * (widget.height < 184 ? .4 : 23 / 72)),
+        suffixColor: color.startsWith('#') ? color : 'muted' }),
     };
   });
 }

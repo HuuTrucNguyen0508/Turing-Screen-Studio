@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import type { Widget } from './domain/layout';
+import type { Palette, Widget } from './domain/layout';
 import { designAligns, designColors, elementSpecs, resolveElements } from './domain/design';
 import type { ElementDesign, ResolvedElement, WidgetDesignPatch } from './domain/design';
 import './design-styles.css';
+import ColorField from './ColorField';
 
 export type DesignPatch = WidgetDesignPatch;
 
@@ -65,8 +66,8 @@ function AlignGlyph({ align }: { align: ElementDesign['align'] }) {
   </svg>;
 }
 
-function ElementPanel({ widget, resolved, design, onCommit, onMove }: {
-  widget: Widget; resolved: ResolvedElement; design: ElementDesign | undefined; onCommit: (patch: DesignPatch) => void;
+function ElementPanel({ widget, palette, resolved, design, onCommit, onMove }: {
+  widget: Widget; palette: Palette; resolved: ResolvedElement; design: ElementDesign | undefined; onCommit: (patch: DesignPatch) => void;
   onMove?: (element: string) => void;
 }) {
   const name = resolved.name.toLowerCase();
@@ -87,16 +88,18 @@ function ElementPanel({ widget, resolved, design, onCommit, onMove }: {
     <IntField label="Y offset" value={design?.dy ?? 0} min={-512} max={512} onCommit={(dy) => set({ dy: dy ?? 0 })} />
     <IntField label="Size" value={resolved.size} min={8} max={160} onCommit={(size) => { if (size !== null) set({ size }); }} />
     <fieldset className="design-colors">
-      <legend className="design-field-label">Color <span>{colorLabels[resolved.color]}</span></legend>
+      <legend className="design-field-label">Color <span>{resolved.color.startsWith('#') ? 'Custom' : colorLabels[resolved.color as keyof typeof colorLabels]}</span></legend>
       <div className="design-swatches">
         {designColors.map((color) => <label key={color} className="design-swatch" title={colorLabels[color]}>
           <input type="radio" name={`design-color-${widget.id}-${resolved.id}`} className="visually-hidden"
             checked={resolved.color === color} aria-label={colorLabels[color]}
             onChange={() => set({ color })} />
-          <span style={{ background: `var(--${color})` }} aria-hidden="true" />
+          <span style={{ background: palette[color] }} aria-hidden="true" />
         </label>)}
       </div>
     </fieldset>
+    <ColorField label={`${resolved.name} custom color`} value={resolved.color.startsWith('#') ? resolved.color : palette[resolved.color as keyof typeof colorLabels]}
+      onChange={(color) => set({ color: color as ElementDesign['color'] })} />
     <label className="theme-choice design-hide">
       <input type="checkbox" checked={offInContent || resolved.hidden} disabled={offInContent}
         onChange={(event) => set({ hidden: event.target.checked })} />
@@ -108,8 +111,8 @@ function ElementPanel({ widget, resolved, design, onCommit, onMove }: {
   </div>;
 }
 
-export default function DesignEditor({ widget, onCommit, onInspect, onMove }: {
-  widget: Widget; onCommit: (patch: DesignPatch) => void; onInspect?: (element: string | null) => void;
+export default function DesignEditor({ widget, palette, onCommit, onInspect, onMove }: {
+  widget: Widget; palette: Palette; onCommit: (patch: DesignPatch) => void; onInspect?: (element: string | null) => void;
   onMove?: (element: string) => void;
 }) {
   const specs = elementSpecs(widget);
@@ -153,10 +156,10 @@ export default function DesignEditor({ widget, onCommit, onInspect, onMove }: {
               aria-controls={isOpen ? `design-element-${element.id}` : undefined} onClick={() => toggle(element.id)}>
               <span className="design-chevron" aria-hidden="true" />
               <span className={`design-element-name${element.hidden ? ' hidden' : ''}`}>{element.name}</span>
-              <span className="design-dot" style={{ background: `var(--${element.color})` }} aria-hidden="true" />
+              <span className="design-dot" style={{ background: element.color.startsWith('#') ? element.color : palette[element.color as keyof typeof colorLabels] }} aria-hidden="true" />
               <span className="mono">{element.hidden ? 'hidden' : `${element.size}`}</span>
             </button>
-            {isOpen && <ElementPanel widget={widget} resolved={element}
+            {isOpen && <ElementPanel widget={widget} palette={palette} resolved={element}
               design={widget.design?.elements?.[element.id]} onCommit={onCommit} onMove={onMove} />}
           </div>;
         })}

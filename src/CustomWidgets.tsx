@@ -1,5 +1,6 @@
+import { paletteStyle, widgetColorStyle } from './paletteStyles';
 import { useEffect, useRef, useState } from 'react';
-import type { Widget } from './domain/layout';
+import type { Palette, Widget } from './domain/layout';
 import { mergeCustomWidgets, parseCustomWidgets, placedTemplate, serializeCustomWidgets, templateWidget, uniqueTemplateId, validateCustomWidgets } from './domain/widgetTemplates';
 import type { CustomWidget } from './domain/widgetTemplates';
 import type useCustomWidgets from './useCustomWidgets';
@@ -9,8 +10,8 @@ import './custom-widgets.css';
 
 type Action = { kind: 'new'; widget: Widget } | { kind: 'rename' | 'remove' | 'replace'; entry: CustomWidget; widget?: Widget };
 
-export default function CustomWidgets({ store, candidate, onCloseCandidate, open, onClose, getWidget, onAdd }: {
-  store: ReturnType<typeof useCustomWidgets>; candidate: Widget | null; onCloseCandidate: () => void;
+export default function CustomWidgets({ store, palette, candidate, onCloseCandidate, open, onClose, getWidget, onAdd }: {
+  palette: Palette; store: ReturnType<typeof useCustomWidgets>; candidate: Widget | null; onCloseCandidate: () => void;
   open: boolean; onClose: () => void; getWidget: () => Widget | undefined; onAdd: (id: string) => void;
 }) {
   const manager = useRef<HTMLDialogElement>(null), edit = useRef<HTMLDialogElement>(null), input = useRef<HTMLInputElement>(null);
@@ -63,7 +64,7 @@ export default function CustomWidgets({ store, candidate, onCloseCandidate, open
       {message && <p role="status" className="panel-note">{message}</p>}
       {store.loading ? <p>Loading custom widgets…</p> : store.document.widgets.length === 0 ? <p className="panel-note">Select a card, adjust it, then choose Save as custom widget.</p> : <div className="custom-list">{store.document.widgets.map((entry) => {
         const widget = placedTemplate(entry), scale = Math.min(0.35, 180 / widget.width, 120 / widget.height);
-        return <article key={entry.id}><div className="custom-specimen" style={{ width: widget.width * scale, height: widget.height * scale }}><div className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ left: 0, top: 0, width: widget.width, height: widget.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><CardContent widget={widget} /></div></div><div><h3>{entry.name}</h3><span className="mono">{widget.width} × {widget.height} · {widget.type}</span><div className="custom-toolbar"><button disabled={disabled} onClick={() => { onAdd(entry.id); onClose(); }}>Add to layout</button><button disabled={disabled} onClick={() => choose({ kind: 'rename', entry })}>Rename</button><button disabled={disabled || !getWidget()} onClick={() => choose({ kind: 'replace', entry, widget: getWidget() })}>Replace with selected card…</button><button disabled={disabled} onClick={() => choose({ kind: 'remove', entry })}>Remove…</button></div></div></article>;
+        return <article key={entry.id}><div className="custom-specimen" style={{ width: widget.width * scale, height: widget.height * scale }}><div className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ ...paletteStyle(palette), ...widgetColorStyle(widget), color: 'var(--text)', left: 0, top: 0, width: widget.width, height: widget.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><CardContent widget={widget} /></div></div><div><h3>{entry.name}</h3><span className="mono">{widget.width} × {widget.height} · {widget.type}</span><div className="custom-toolbar"><button disabled={disabled} onClick={() => { onAdd(entry.id); onClose(); }}>Add to layout</button><button disabled={disabled} onClick={() => choose({ kind: 'rename', entry })}>Rename</button><button disabled={disabled || !getWidget()} onClick={() => choose({ kind: 'replace', entry, widget: getWidget() })}>Replace with selected card…</button><button disabled={disabled} onClick={() => choose({ kind: 'remove', entry })}>Remove…</button></div></div></article>;
       })}</div>}
     </dialog>
     <dialog ref={edit} className="catalog-dialog custom-edit-dialog" aria-labelledby="custom-edit-title" onCancel={(event) => { event.preventDefault(); closeEdit(); }}>

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent, ReactNode, SetStateAction } from 'react';
 import { fitCanvas, pointerDeltaToDocument } from './domain/layout';
-import type { LayoutDocument, Widget } from './domain/layout';
+import type { LayoutDocument, Palette, Widget } from './domain/layout';
 import { canvasWarnings, moveSelection, resizeFromHandle, snapSelection } from './domain/canvas';
 import type { CanvasGuide, ResizeHandle } from './domain/canvas';
 import CanvasTools from './CanvasTools';
@@ -14,10 +14,12 @@ import ElementTargets from './ElementTargets';
 import SelectionToolbar from './SelectionToolbar';
 import CompactResize from './CompactResize';
 import './canvas-interactions.css';
+import { paletteStyle, widgetColorStyle } from './paletteStyles';
 export { widgetLabel } from './WidgetContent';
 
 type Props = {
   document: LayoutDocument;
+  palette: Palette;
   selectedId: string | null;
   selectedIds: readonly string[];
   onSelect: (id: string, toggle?: boolean, preserve?: boolean) => void;
@@ -80,7 +82,7 @@ function initialSnapping() {
   catch { return true; }
 }
 
-export default function CanvasPreview({ document, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, panelControls, toolsVisible, previewNotice, onPreviewRetry, designElement, activeElement, onMoveTarget, onNudge, onCardDrag, onSelectElement, onDuplicate, onDelete, onDetails, onImportWidgets }: Props) {
+export default function CanvasPreview({ document, palette, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, panelControls, toolsVisible, previewNotice, onPreviewRetry, designElement, activeElement, onMoveTarget, onNudge, onCardDrag, onSelectElement, onDuplicate, onDelete, onDetails, onImportWidgets }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [toolbarSize, setToolbarSize] = useState({ width: 320, height: 46 });
@@ -303,7 +305,7 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
       onPointerCancel={(event) => { if (event.pointerId === gestureRef.current?.pointerId) finish(true); }}
       onLostPointerCapture={(event) => { if (event.pointerId === gestureRef.current?.pointerId && event.target === gestureRef.current.target) finish(true); }}
       onKeyDown={(event) => { if (gestureRef.current && event.key !== 'Escape' && event.code !== 'Space') { event.preventDefault(); event.stopPropagation(); } }}>
-      <div className={`document-canvas${bitmap ? ' rendered-canvas' : ''}`} data-testid="document-canvas" style={{ width: document.canvas.width, height: document.canvas.height, left: offsetX, top: offsetY, transform: `scale(${scale})` }}>
+      <div className={`document-canvas${bitmap ? ' rendered-canvas' : ''}`} data-testid="document-canvas" style={{ ...paletteStyle(palette), color: 'var(--text)', width: document.canvas.width, height: document.canvas.height, left: offsetX, top: offsetY, transform: `scale(${scale})` }}>
         {bitmap ? <img className="rendered-frame" src={bitmap} alt={previewNotice?.includes('Live') || previewNotice?.includes('live') ? 'Panel renderer with live readings' : 'Panel renderer with sample data'} draggable={false} /> : document.chrome !== 'none' && <div className="dashboard-header" aria-hidden="true"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
         {document.widgets.map((widget) => <div key={widget.id} tabIndex={0} role="group" aria-label={`${widgetLabel(widget)} card`} aria-roledescription="movable card"
           data-widget-id={widget.id} data-selected={selectedIds.includes(widget.id)} data-primary={selectedId === widget.id}
@@ -317,7 +319,7 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
             })?.dataset.elementTarget;
             if (element && !event.shiftKey && !spaceRef.current) { event.preventDefault(); event.stopPropagation(); onSelectElement(widget.id, element); }
           }}
-          style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height, '--selection-width': `${2 / (scale || 1)}px` } as CSSProperties}>
+          style={{ ...widgetColorStyle(widget), color: 'var(--text)', left: widget.x, top: widget.y, width: widget.width, height: widget.height, '--selection-width': `${2 / (scale || 1)}px` } as CSSProperties}>
           {!bitmap && <CardContent widget={widget} />}
           <ElementTargets widget={widget} active={selectedId === widget.id ? activeElement ?? null : null} scale={scale} />
           {selectedId === widget.id && designElement && <DesignMarker widget={widget} element={designElement} active={Boolean(activeElement)} />}

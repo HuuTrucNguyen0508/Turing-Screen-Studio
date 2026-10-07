@@ -216,6 +216,9 @@
                     }
                   }
                 ]
+              },
+              "colors": {
+                "$ref": "#/$defs/widgetColors"
               }
             }
           },
@@ -296,6 +299,9 @@
                     ]
                   }
                 }
+              },
+              "colors": {
+                "$ref": "#/$defs/widgetColors"
               }
             }
           },
@@ -378,6 +384,9 @@
               },
               "design": {
                 "$ref": "#/$defs/clockDesign"
+              },
+              "colors": {
+                "$ref": "#/$defs/widgetColors"
               }
             }
           },
@@ -436,6 +445,9 @@
                     "type": "string"
                   }
                 }
+              },
+              "colors": {
+                "$ref": "#/$defs/widgetColors"
               }
             }
           },
@@ -546,6 +558,9 @@
                     ]
                   }
                 }
+              },
+              "colors": {
+                "$ref": "#/$defs/widgetColors"
               }
             }
           },
@@ -652,6 +667,9 @@
                     }
                   }
                 ]
+              },
+              "colors": {
+                "$ref": "#/$defs/widgetColors"
               }
             }
           },
@@ -727,6 +745,9 @@
                     "maximum": 100
                   }
                 }
+              },
+              "colors": {
+                "$ref": "#/$defs/widgetColors"
               }
             }
           }
@@ -779,11 +800,21 @@
           "maximum": 160
         },
         "color": {
-          "enum": [
-            "text",
-            "muted",
-            "primary",
-            "secondary"
+          "oneOf": [
+            {
+              "enum": [
+                "text",
+                "muted",
+                "primary",
+                "secondary"
+              ]
+            },
+            {
+              "type": "string",
+              "minLength": 7,
+              "maxLength": 7,
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
           ]
         }
       }
@@ -813,6 +844,61 @@
               "$ref": "#/$defs/clockElementDesign"
             }
           }
+        }
+      }
+    },
+    "widgetColors": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "background": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "surface": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "surfaceRaised": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "muted": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "primary": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "secondary": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "outline": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
         }
       }
     }

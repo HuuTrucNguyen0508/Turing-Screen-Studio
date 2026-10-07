@@ -15,6 +15,12 @@ export interface Palette {
   outline: string;
 }
 
+export const paletteColorKeys = [
+  'background', 'surface', 'surfaceRaised', 'text', 'muted', 'primary', 'secondary', 'outline',
+] as const;
+export type PaletteColorKey = typeof paletteColorKeys[number];
+export type WidgetColors = Partial<Record<PaletteColorKey, string>>;
+
 export interface Geometry {
   x: number;
   y: number;
@@ -22,7 +28,7 @@ export interface Geometry {
   height: number;
 }
 
-interface WidgetPresentation { design?: WidgetDesign }
+interface WidgetPresentation { design?: WidgetDesign; colors?: WidgetColors }
 
 export interface MetricWidget extends Geometry, WidgetPresentation {
   id: string;
@@ -101,9 +107,6 @@ export interface LayoutDocument {
 
 const MAX_CANVAS_SIZE = 16384;
 const MAX_LAYOUT_BYTES = 1024 * 1024;
-const PALETTE_COLORS = [
-  'background', 'surface', 'surfaceRaised', 'text', 'muted', 'primary', 'secondary', 'outline',
-] as const;
 const GEOMETRY_KEYS = ['x', 'y', 'width', 'height'] as const;
 const METRIC_SETTINGS = ['label', 'value', 'unit', 'detail'] as const;
 const WEATHER_SETTINGS = ['location', 'temperature', 'unit', 'condition', 'high', 'low'] as const;
@@ -227,7 +230,7 @@ function imageData(input: unknown, path: string): string {
 
 function palette(input: unknown, path: string): Palette {
   const value = object(input, path);
-  exactKeys(value, ['name', ...PALETTE_COLORS], path);
+  exactKeys(value, ['name', ...paletteColorKeys], path);
   return {
     name: string(value.name, `${path}.name`),
     background: color(value.background, `${path}.background`),
@@ -241,9 +244,23 @@ function palette(input: unknown, path: string): Palette {
   };
 }
 
+/** Return detached overrides in palette role order, rejecting empty objects. */
+export function validateWidgetColors(input: unknown, path: string): WidgetColors {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(input))) fail(path, 'expected a plain JSON object');
+  const value = object(input, path);
+  exactKeys(value, [], path, paletteColorKeys);
+  if (!Reflect.ownKeys(value).length) fail(path, 'remove the empty object');
+  const colors: WidgetColors = {};
+  for (const key of paletteColorKeys) {
+    if (Object.hasOwn(value, key)) colors[key] = color(value[key], `${path}.${key}`);
+  }
+  return colors;
+}
+
 function widgetContent(input: unknown, path: string, canvas: LayoutDocument['canvas']): Widget {
   const value = object(input, path);
-  exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path, ['design']);
+  exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path, ['design', 'colors']);
   const id = string(value.id, `${path}.id`, true);
   if (typeof value.type !== 'string' || !['metric', 'weather', 'clock', 'text', 'gauge', 'storage', 'image'].includes(value.type)) {
     fail(`${path}.type`, 'unsupported widget type; expected metric, weather, clock, text, gauge, storage, image');
@@ -361,9 +378,11 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
 function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']): Widget {
   const result = widgetContent(input, path, canvas);
   const value = input as Record<string, unknown>;
-  return Object.hasOwn(value, 'design')
-    ? { ...result, design: validateWidgetDesign(value.design, result.type, `${path}.design`) }
-    : result;
+  return {
+    ...result,
+    ...(Object.hasOwn(value, 'design') ? { design: validateWidgetDesign(value.design, result.type, `${path}.design`) } : {}),
+    ...(Object.hasOwn(value, 'colors') ? { colors: validateWidgetColors(value.colors, `${path}.colors`) } : {}),
+  };
 }
 
 /** Validate unknown data and return a detached document in canonical key order. */
