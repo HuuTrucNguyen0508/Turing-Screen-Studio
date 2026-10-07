@@ -42,7 +42,7 @@ test('AI usage preset is a demo draft with preserved live sources and no automat
   const download = await downloadPromise;
   const document = validateLayout(JSON.parse(await readFile((await download.path())!, 'utf8')));
   expect(document.name).toBe('AI usage');
-  expect(document.widgets.filter((widget) => widget.type !== 'text' && /^(codex|claude)-/.test(widget.settings.source ?? ''))).toHaveLength(11);
+  expect(document.widgets.filter((widget) => widget.type !== 'text' && widget.type !== 'image' && /^(codex|claude)-/.test(widget.settings.source ?? ''))).toHaveLength(11);
   const cost = document.widgets.find((widget) => widget.id === 'codex-cost');
   expect(cost?.type === 'metric' ? cost.settings.detail : '').toContain('not a subscription bill');
   expect(saves).toBe(0);
@@ -118,7 +118,8 @@ test('clicking cards or a resize handle preserves drafts committed on blur', asy
   await field(page, 'X position').fill('450');
   await page.getByRole('button', { name: 'Resize GPU load', exact: true }).click();
   await expect(card(page, 'gpu')).toHaveCSS('left', '450px');
-  await card(page).click();
+  // Select the exposed part of CPU, away from the overlapping GPU's left resize handle.
+  await card(page).click({ position: { x: 20, y: 20 } });
   await field(page, 'X position').fill('260');
   await card(page).click();
   await expect(card(page)).toHaveCSS('left', '260px');
@@ -237,10 +238,10 @@ test('add, edit, duplicate, remove, undo, export and reopen expanded widgets off
   await field(page, 'Label').fill('Desk clock');
   await field(page, 'Label').press('Enter');
   await page.getByLabel('12-hour', { exact: true }).check();
-  await expect(card(page, 'clock').locator('.clock-value')).toHaveText('2:32PM');
+  await expect(card(page, 'clock').locator('[data-element="time"]')).toHaveText('2:32PM');
   await expect(page.locator('.document-canvas .dashboard-time')).toHaveCount(0);
   await page.getByLabel('Show date', { exact: true }).uncheck();
-  await expect(card(page, 'clock').locator('.clock-date')).toHaveCount(0);
+  await expect(card(page, 'clock').locator('[data-element="date"]')).toHaveCount(0);
   await page.locator('[data-widget-row="text"]').click();
   await field(page, 'Label').fill('Desk note');
   await field(page, 'Label').press('Enter');

@@ -51,11 +51,16 @@ def validate_library(raw: object) -> dict:
             document = validate_layout(entry['document'], panel=True)
         except ValueError as error:
             raise ValueError(f'{prefix}.document: {error}') from error
+        candidate = {'id': identifier, 'name': name, 'document': document}
+        # Check the library before computing a layout hash, which also enforces
+        # the per-layout limit. Oversized library updates remain HTTP 413.
+        if len(_encode({'entries': [*result, candidate]})) > MAX_BYTES:
+            raise LibraryTooLarge('Saved layouts exceed the 1 MB limit')
         checksum = revision(document)
         if checksum in documents:
             raise ValueError(f'{prefix}.document is already in Saved layouts. Edit or update the existing entry instead of adding an identical copy.')
         documents.add(checksum)
-        result.append({'id': identifier, 'name': name, 'document': document})
+        result.append(candidate)
     library = {'entries': result}
     if len(_encode(library)) > MAX_BYTES:
         raise LibraryTooLarge('Saved layouts exceed the 1 MB limit')

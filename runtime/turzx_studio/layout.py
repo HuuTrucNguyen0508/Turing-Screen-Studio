@@ -1,4 +1,4 @@
-"""The version 1 layout contract, independent of Pillow and the dashboard."""
+"""The version 1 layout contract, with lazy Pillow checks for embedded PNGs."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from .dashboard_display import DASHBOARD_SOURCES
 from .design import validate_widget_design
 
 MAX_CANVAS_SIZE = 16384
+MAX_LAYOUT_BYTES = 1024 * 1024
+MAX_IMAGE_DATA_BYTES = 512 * 1024
 MAX_SAFE_INTEGER = 2**53 - 1
 PALETTE_ROLES = (
     "background", "surface", "surfaceRaised", "text", "muted", "primary",
@@ -89,8 +91,8 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
     _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path, ("design",))
     widget_id = _string(value["id"], f"{path}.id", nonempty=True)
     kind = value["type"]
-    if kind not in ("metric", "weather", "clock", "text", "gauge", "storage"):
-        _fail(f"{path}.type", 'unsupported widget type; expected metric, weather, clock, text, gauge, storage')
+    if kind not in ("metric", "weather", "clock", "text", "gauge", "storage", "image"):
+        _fail(f"{path}.type", 'unsupported widget type; expected metric, weather, clock, text, gauge, storage, image')
     geometry = {
         key: _integer(value[key], f"{path}.{key}", 0 if key in ("x", "y") else 1)
         for key in ("x", "y", "width", "height")
@@ -104,8 +106,9 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
     fields = {"metric": METRIC_SETTINGS, "weather": WEATHER_SETTINGS,
               "clock": ("label", "time", "date", "format", "showDate"),
               "text": ("label", "text"), "storage": ("label", "style"),
+              "image": ("label", "data", "fit", "opacity"),
               "gauge": ("label", "value", "min", "max", "unit", "detail")}[kind]
-    _keys(settings, fields, settings_path, () if kind == "text" else
+    _keys(settings, fields, settings_path, () if kind in ("text", "image") else
           ("source", "style") if kind == "gauge" else
           ("source", "trend") if kind == "metric" else
           ("source", "grouping", "mounts") if kind == "storage" else ("source",))
@@ -113,7 +116,15 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
     for key in fields:
         raw = settings[key]
         field_path = f"{settings_path}.{key}"
-        if kind == "gauge" and key in ("value", "min", "max"):
+        if kind == "image" and key == "opacity":
+            result[key] = _integer(raw, field_path, 0, 100)
+        elif kind == "image" and key == "data":
+            from .image_assets import validate_image_data
+            try:
+                result[key] = validate_image_data(raw)
+            except ValueError as error:
+                _fail(field_path, str(error))
+        elif kind == "gauge" and key in ("value", "min", "max"):
             try:
                 valid = type(raw) in (int, float) and math.isfinite(raw)
             except OverflowError:
@@ -127,6 +138,8 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
             result[key] = raw
         else:
             result[key] = _string(raw, field_path)
+    if kind == "image" and result["fit"] not in ("contain", "cover", "stretch"):
+        _fail(f"{settings_path}.fit", "expected contain, cover, stretch")
     if kind == "clock" and result["format"] not in ("24h", "12h"):
         _fail(f"{settings_path}.format", "expected 24h, 12h")
     if kind == "storage" and result["style"] not in ("bars", "table"):
@@ -259,6 +272,8 @@ def _json(text: str) -> object:
 
 def parse_layout(text: str, panel: bool = False) -> dict:
     """Parse strict JSON, rejecting duplicate keys and nonfinite numbers."""
+    if isinstance(text, str):
+        _layout_size(text)
     return validate_layout(_json(text), panel=panel)
 
 
@@ -272,7 +287,14 @@ def serialize_layout(doc: object) -> str:
             return chr(0x10000 + (ord(value[0]) - 0xD800) * 0x400 + ord(value[1]) - 0xDC00)
         return f"\\u{ord(value):04x}"
 
-    return re.sub(r"[\ud800-\udbff][\udc00-\udfff]|[\ud800-\udfff]", surrogate, text) + "\n"
+    text = re.sub(r"[\ud800-\udbff][\udc00-\udfff]|[\ud800-\udfff]", surrogate, text) + "\n"
+    _layout_size(text)
+    return text
+
+
+def _layout_size(text: str) -> None:
+    if len(text.encode('utf-8', errors='surrogatepass')) > MAX_LAYOUT_BYTES:
+        _fail('$', 'layout exceeds the 1 MiB limit; resize or remove embedded images, or shorten text')
 
 
 def revision(doc: object) -> str:

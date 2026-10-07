@@ -147,6 +147,20 @@ export function resolveElements(widget: Widget): ResolvedElement[] {
 export type WidgetDesignPatch = { padding: number | null } | { element: string; set: Partial<ElementDesign> }
   | { element: string; reset: true } | { reset: true };
 
+/** Move an element by whole document pixels, independently of the canvas scale. */
+export function nudgeWidgetElement(doc: LayoutDocument, id: string, element: string, dx: number, dy: number): LayoutDocument {
+  if (!Number.isSafeInteger(dx) || !Number.isSafeInteger(dy)) fail('nudge', 'use whole pixels');
+  const widget = doc.widgets.find((entry) => entry.id === id);
+  if (!widget) fail('$.widgets', `widget ID "${id}" was not found`);
+  const resolved = resolveElements(widget).find((entry) => entry.id === element);
+  if (!resolved || resolved.hidden) return doc;
+  const current = widget.design?.elements?.[element];
+  const x = Math.max(-512, Math.min(512, (current?.dx ?? 0) + dx));
+  const y = Math.max(-512, Math.min(512, (current?.dy ?? 0) + dy));
+  if (x === (current?.dx ?? 0) && y === (current?.dy ?? 0)) return doc;
+  return updateWidgetDesign(doc, id, { element, set: { dx: x, dy: y } });
+}
+
 export function updateWidgetDesign(doc: LayoutDocument, id: string, patch: WidgetDesignPatch): LayoutDocument {
   const index = doc.widgets.findIndex((widget) => widget.id === id);
   const widget = doc.widgets[index];

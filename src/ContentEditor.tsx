@@ -8,6 +8,7 @@ const fieldLabels: Record<string, string> = {
   label: 'Label', value: 'Value', unit: 'Unit', detail: 'Detail', location: 'Location',
   temperature: 'Temperature', condition: 'Condition', high: 'High', low: 'Low',
   min: 'Minimum', max: 'Maximum', time: 'Time', date: 'Date', text: 'Text',
+  opacity: 'Opacity (%)',
 };
 
 const styleLabels = { arc: 'Arc', ring: 'Ring', bar: 'Bar', segments: 'Segments', thermometer: 'Thermometer', number: 'Number' };
@@ -42,14 +43,15 @@ export function ContentField({ label, value, multiline = false, onCommit }: {
 }
 
 export default function ContentEditor({ widget, onCommit }: { widget: Widget; onCommit: (patch: Record<string, unknown>) => void }) {
-  const source = widget.type === 'text' ? 'sample' : widget.settings.source ?? 'sample';
+  const source = widget.type === 'text' || widget.type === 'image' ? 'sample' : widget.settings.source ?? 'sample';
   return <div className="inspector-section"><h4>Content</h4><div className="content-fields">
+    {widget.type === 'image' && <><label className="source-field">Image fit<select aria-label="Image fit" value={widget.settings.fit} onChange={(event) => onCommit({ fit: event.target.value })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="stretch">Stretch</option></select></label><p className="panel-note">Image pixels are embedded in the layout. Set opacity from 0 to 100.</p></>}
     {widget.type === 'storage' && <label className="source-field">Display style<select aria-label="Display style" value={widget.settings.style} onChange={(event) => onCommit({ style: event.target.value })}>{storageStyles.map((style) => <option key={style} value={style}>{style === 'bars' ? 'Usage bars' : 'Capacity table'}</option>)}</select></label>}
     {widget.type === 'storage' && <><label className="source-field">Storage view<select aria-label="Storage view" value={widget.settings.grouping ?? 'partitions'} onChange={(event) => onCommit({ grouping: event.target.value, ...(event.target.value === 'drives' ? { mounts: undefined } : {}) })}><option value="drives">Physical drives</option><option value="partitions">Partitions</option></select></label>
       {widget.settings.grouping !== 'drives' && <><ContentField label="Mount paths" value={widget.settings.mounts?.join('\n') ?? ''} multiline onCommit={(value) => { const mounts = String(value).split('\n').map((path) => path.trim()).filter(Boolean); onCommit({ mounts: mounts.length ? mounts : undefined }); }} /><p className="panel-note">One absolute mount path per line, in display order. Leave blank to show all mounted partitions.</p></>}
     </>}
     {widget.type === 'gauge'  && <label className="source-field">Display style<select aria-label="Display style" value={widget.settings.style ?? 'arc'} onChange={(event) => { if (event.target.value !== (widget.settings.style ?? 'arc')) onCommit({ style: event.target.value }); }}>{gaugeStyles.map((style) => <option key={style} value={style}>{styleLabels[style]}</option>)}</select></label>}
-    {Object.entries(widget.settings).filter(([key]) => !['source', 'format', 'showDate', 'style', 'grouping', 'mounts'].includes(key) && (!isDashboardSource(source) || key === 'label')).map(([key, value]) =>
+    {Object.entries(widget.settings).filter(([key]) => !['source', 'format', 'showDate', 'style', 'grouping', 'mounts', 'data', 'fit'].includes(key) && (!isDashboardSource(source) || key === 'label')).map(([key, value]) =>
       <ContentField key={key} label={fieldLabels[key]} value={value as string | number} multiline={key === 'text'} onCommit={(next) => onCommit({ [key]: next })} />)}
     {widget.type === 'clock' && <>
       <fieldset className="clock-format"><legend>Time format</legend>{(['24h', '12h'] as const).map((format) => <label key={format}><input type="radio" name="clock-format" checked={widget.settings.format === format} onChange={() => onCommit({ format })} />{format === '24h' ? '24-hour' : '12-hour'}</label>)}</fieldset>

@@ -15,6 +15,7 @@ from .dashboard_display import (DASHBOARD_SOURCES, dashboard_content, dashboard_
                                 dashboard_geometry, short_dashboard_text)
 from .storage_display import storage_content, storage_geometry, storage_size, storage_short, storage_row_name
 from .trend import widget_trend, trend_unit
+from .image_assets import render_image
 
 MAX_RENDER_PIXELS = 16_000_000
 _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
@@ -756,6 +757,11 @@ class LayoutRenderer:
             self._header(draw, width, stats, colors, not any(widget["type"] == "clock" for widget in doc["widgets"]), heading)
         for widget in doc["widgets"]:
             w, h = widget["width"], widget["height"]
+            if widget['type'] == 'image':
+                settings = widget['settings']
+                layer = render_image(settings['data'], w, h, settings['fit'], settings['opacity'])
+                image.paste(layer, (widget['x'], widget['y']), layer.getchannel('A'))
+                continue
             # The separate layer clips all glyphs and strokes to this card.
             card = Image.new("RGB", (w, h), colors["surface"])
             card_draw = ImageDraw.Draw(card)

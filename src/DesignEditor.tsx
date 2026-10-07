@@ -65,14 +65,16 @@ function AlignGlyph({ align }: { align: ElementDesign['align'] }) {
   </svg>;
 }
 
-function ElementPanel({ widget, resolved, design, onCommit }: {
+function ElementPanel({ widget, resolved, design, onCommit, onMove }: {
   widget: Widget; resolved: ResolvedElement; design: ElementDesign | undefined; onCommit: (patch: DesignPatch) => void;
+  onMove?: (element: string) => void;
 }) {
   const name = resolved.name.toLowerCase();
   const set = (patch: Partial<ElementDesign>) => onCommit({ element: resolved.id, set: patch });
   const offInContent = widget.type === 'clock' && resolved.id === 'date' && !widget.settings.showDate;
   const outside = resolved.x < 0 || resolved.x > widget.width || resolved.y < 0 || resolved.y > widget.height;
   return <div className="design-element-body" id={`design-element-${resolved.id}`}>
+    <button className="design-move" disabled={resolved.hidden} onClick={() => onMove?.(resolved.id)}>Move {name} with arrows</button>
     <div className="design-control">
       <span className="design-field-label" id={`design-align-${resolved.id}`}>Align</span>
       <div className="design-segmented" role="group" aria-labelledby={`design-align-${resolved.id}`}>
@@ -106,8 +108,9 @@ function ElementPanel({ widget, resolved, design, onCommit }: {
   </div>;
 }
 
-export default function DesignEditor({ widget, onCommit, onInspect }: {
+export default function DesignEditor({ widget, onCommit, onInspect, onMove }: {
   widget: Widget; onCommit: (patch: DesignPatch) => void; onInspect?: (element: string | null) => void;
+  onMove?: (element: string) => void;
 }) {
   const specs = elementSpecs(widget);
   const resolved = resolveElements(widget);
@@ -154,7 +157,7 @@ export default function DesignEditor({ widget, onCommit, onInspect }: {
               <span className="mono">{element.hidden ? 'hidden' : `${element.size}`}</span>
             </button>
             {isOpen && <ElementPanel widget={widget} resolved={element}
-              design={widget.design?.elements?.[element.id]} onCommit={onCommit} />}
+              design={widget.design?.elements?.[element.id]} onCommit={onCommit} onMove={onMove} />}
           </div>;
         })}
       </div>

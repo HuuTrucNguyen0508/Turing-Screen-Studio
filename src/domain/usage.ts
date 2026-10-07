@@ -17,7 +17,7 @@ export function isUsageSource(source: string | undefined): boolean {
 }
 
 export function dashboardHeading(document: LayoutDocument): string {
-  if (document.widgets.some((widget) => widget.type !== 'text' && /^(codex|claude|usage)-/.test(widget.settings.source ?? ''))) return 'AI usage';
-  if (document.widgets.some((widget) => widget.type === 'storage' || (widget.type !== 'text' && widget.settings.source === 'storage'))) return 'Storage overview';
+  if (document.widgets.some((widget) => widget.type !== 'text' && widget.type !== 'image' && /^(codex|claude|usage)-/.test(widget.settings.source ?? ''))) return 'AI usage';
+  if (document.widgets.some((widget) => widget.type === 'storage' || (widget.type !== 'text' && widget.type !== 'image' && widget.settings.source === 'storage'))) return 'Storage overview';
   return 'System overview';
 }

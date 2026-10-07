@@ -208,7 +208,7 @@ test('size tools use the selected reference, preserve positions and undo as one 
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   expect(await geometry(page)).toEqual(after);
   await row(page, 'cpu').click();
-  await expect(page.getByRole('button', { name: 'Same size', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Same size', exact: true })).toHaveCount(0);
 });
 
 test('an impossible size match keeps the draft and history intact with an actionable error', async ({ page }) => {

@@ -32,7 +32,15 @@ Open `http://127.0.0.1:4173`. Keep that local server running when using the edit
 
 Use Create layout for a designed starting point, open [the sample layout](public/sample-layout.json), or add widgets from the searchable catalog. It includes metric, weather, clock, text, storage and gauge cards, plus AI usage summaries, T3 threads and game timers. Gauge designs include arc, ring, bar, segmented meter, thermometer and number. Browser previews use deterministic samples.
 
-Select a card and drag to move it, or use its lower-right handle to resize. Arrow keys nudge one document pixel; Shift moves ten. Numeric fields commit on Enter or when you leave the field. Invalid values leave the document unchanged. Escape cancels an unfinished drag or field edit.
+The editor starts with a large canvas. Use Show Widgets, Show Inspector or Show tools above it to reveal the panels you need, then hide them to regain space. Panel choices are remembered in this browser and kept separate from layout JSON. Add widget and Import remain available with the Widgets panel hidden. On phones, opening a side panel brings it into view; its close button returns to the canvas controls.
+
+Select a card and drag to move it, or drag any edge or corner handle to resize. The opposite edge stays fixed, and a readout shows dimensions during the drag. Focus a handle to resize its edge with arrow keys. Arrow keys nudge one document pixel; Shift moves ten. Numeric fields commit on Enter or when you leave the field. Invalid values leave the document unchanged. Escape cancels an unfinished drag or field edit.
+
+Double-click a clock label, time or date to select it directly. Its outline shows the exact target; drag it or use arrow keys to adjust its offsets without moving the card. These hit targets also work over the panel renderer preview. Hidden text cannot be selected.
+
+A toolbar beside the selection offers Duplicate, Delete and Edit details. Select several cards to reveal alignment actions. Edit details opens the Inspector. On phones the toolbar sits below the canvas, with larger touch targets. When a card is too small on screen for eight distinct handles, Resize opens precise edge controls and the canvas keeps a single corner handle.
+
+Choose what **Arrows move** below the canvas. Clocks support Label, Time and Date targets; Enter on a clock selects Time, and Escape returns to Card. Element nudges change offsets without moving the card. Hidden elements must be shown in Design first. The arrow buttons also work by touch, and geometry fields accept Up/Down for one pixel or Shift for ten. Layer rows support arrow nudges too. Alignment and size tools appear when several cards are selected.
 
 Shift-click to select several cards. Ctrl+A selects all outside text fields. Move groups, align or distribute cards, change their layers, or match the selected reference card's width, height or size. Matching leaves the selection unchanged if it would put any card outside the canvas.
 
@@ -41,6 +49,12 @@ Snapping helps align edges, centers and 24-pixel gutters. Numeric fields and key
 Undo and Redo cover committed edits, including canvas resizing. Use Ctrl+Z and Ctrl+Shift+Z or Ctrl+Y outside text fields. A completed drag counts as one edit. Opening a layout starts a new history of up to 100 edits.
 
 Open Design in the inspector to adjust clock text alignment, offsets, font sizes, palette colors and visibility. Save as custom widget keeps a reusable copy. Add widget lists these under Custom widgets; Manage custom widgets supports rename, replacement, removal and import/export. Offline copies are saved in this browser.
+
+Use **Import…** in Widgets or drop files on the canvas. Review Studio layout cards, widget packs, single widget JSON or pasted JSON before adding selected copies. Adding is one undo step and keeps the current palette. Save custom widgets keeps reusable copies; Open as layout retains the source geometry and uses the existing unsaved-changes prompt.
+
+PNG, JPEG and WebP images import as embedded PNG widgets. Choose Fill canvas behind widgets for a background. Image fit and opacity remain editable, and image pixels survive JSON export, draft recovery and PIL rendering. Source images must be under 4 MB, at most 4096 pixels per side and 16 million pixels. Each embedded PNG URI is limited to 512 KiB; the complete layout must fit 1 MiB. Custom widget packs still have a 256 KiB limit. Resize or compress large images before importing.
+
+Select a Turing Smart Screen Python `theme.yaml` and its images together to convert supported image, text and sensor elements. Review conversion notes before use; source typography and all sensor types do not transfer. AIDA64 `.sensorpanel` and `.rslcd` exports need manual recreation with an exported background image and Studio sensor widgets. See [external theme imports](docs/external-imports.md) for mappings and limitations.
 
 Export JSON saves your draft at its chosen canvas size. Open layout reopens it with the same geometry and settings. Invalid imports preserve your draft. Export keeps the unsaved warning until you reopen the file because the browser cannot tell whether you cancelled the download.
 

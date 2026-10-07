@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://turzx-studio.local/layout.schema.json",
   "title": "TURZX Studio layout v1",
-  "description": "Runtime validation also enforces unique IDs, nonblank names and IDs, canvas bounds, and gauge min < max with min <= value <= max. Panel layouts must be 1280 by 800.",
+  "description": "Runtime validation also enforces unique IDs, nonblank names and IDs, canvas bounds, and gauge min < max with min <= value <= max. Panel layouts must be 1280 by 800. Image data must be a static embedded PNG with valid chunk checksums and dimensions of at most 4096 per side and 16 million pixels; Python additionally verifies and decodes pixels with Pillow. Serialized layouts are limited to 1 MiB.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -652,6 +652,81 @@
                     }
                   }
                 ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "type",
+              "x",
+              "y",
+              "width",
+              "height",
+              "settings"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "const": "image"
+              },
+              "x": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "settings": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "label",
+                  "data",
+                  "fit",
+                  "opacity"
+                ],
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "type": "string",
+                    "maxLength": 524288,
+                    "pattern": "^data:image/png;base64,[A-Za-z0-9+/]+={0,2}$",
+                    "description": "Canonical base64 of a complete static PNG; no URLs, SVG, paths, animation or trailing bytes. Both URI and decoded PNG are limited to 512 KiB. Runtime validation checks PNG structure, checksums and dimensions."
+                  },
+                  "fit": {
+                    "enum": [
+                      "contain",
+                      "cover",
+                      "stretch"
+                    ]
+                  },
+                  "opacity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                }
               }
             }
           }

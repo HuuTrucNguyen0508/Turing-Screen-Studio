@@ -8,7 +8,7 @@ Version 1 is a JSON document with these required fields. Unknown fields are reje
 | `name` | Nonempty layout name. |
 | `canvas.width`, `canvas.height` | Positive safe integers up to 16384. The sample is 1280 by 800. |
 | `palette` | A name and eight preview color roles, each a six-digit `#rrggbb` string. |
-| `widgets` | Array of metric, weather, clock, text, gauge or storage cards. Array order is paint order, and overlaps are allowed. |
+| `widgets` | Array of metric, weather, clock, text, gauge, storage or image widgets. Array order is paint order, and overlaps are allowed. |
 
 Every widget has a unique nonempty `id`, a `type`, integer `x`, `y`, `width`, `height`, and type-specific `settings`. Positions are nonnegative, sizes are positive, and `x + width` and `y + height` must fit within the canvas. A one-pixel card is valid even when its content is too small to read.
 
@@ -22,6 +22,7 @@ Widget settings are required unless marked optional. Unknown settings are reject
 | `text` | String `label`, `text`. Newlines are preserved and text wraps inside the card. No live source. |
 | `storage` | String `label`; `style` of `bars` or `table`; optional `source` of `sample` or `mounted-storage`, `grouping` of `drives` or `partitions`, and `mounts` with 1 to 32 unique absolute paths for the partitions view. Readings are transient. |
 | `gauge` | String `label`, `unit`, `detail`; finite numbers `value`, `min`, `max`; optional metric `source` and `style` of `arc`, `ring`, `bar`, `segments`, `thermometer` or `number`. Require `min < max` and `min <= value <= max`. |
+| `image` | String `label`; `data` containing an embedded static PNG data URI; `fit` of `contain`, `cover` or `stretch`; integer `opacity` from 0 to 100. No live source or internal design. |
 
 A gauge without `style` keeps the original arc. The editor can switch styles while retaining geometry, settings, source and range. The renderer uses the same clamped progress for arcs, rings, bars, segments and thermometers. The number style shows the reading without a chart. Explicit style fields remain present after export/reopen; omitted fields stay omitted.
 
@@ -38,6 +39,8 @@ Palette roles are `background`, `surface`, `surfaceRaised`, `text`, `muted`, `pr
 The independent module in `src/domain/layout.ts` validates unknown input, returns detached documents, serializes in canonical key order with two-space indentation and a trailing newline, and applies immutable geometry edits. Numeric fields reject invalid integers or out-of-bounds values. Pointer operations round displacement from the start of each gesture and clamp edits at the canvas boundaries. They never accumulate rounded deltas.
 
 The UI limits imported files to 1 MB. A failed import leaves the current document unchanged. Offline exports request a download; reopening confirms the saved file. With the local server, Save to panel persists atomically with a revision precondition and clears the saved snapshot's unsaved warning. Every changed save archives the exact previous document in `~/.local/share/turzx-studio/older-config/` first; an archive failure prevents replacement. Opening resets transient field drafts and gestures. A download request alone cannot confirm that a file reached disk.
+
+Each image data URI is at most 512 KiB and must use canonical PNG base64. PNG dimensions are at most 4096 per side and 16 million pixels. Structure checks reject malformed chunks, checksums and animation; Pillow additionally verifies decoded pixels. Images contain no external paths or URLs. The UI normalizes selected PNG, JPEG and WebP files to PNG. Contain centers the complete image; cover crops to fill; stretch changes its aspect ratio. Transparent pixels and opacity preserve underlying layers. Browser and PIL exports enforce the complete 1 MiB JSON limit. The PIL decode cache holds at most four images and 16 MiB of pixels.
 
 [layout.schema.json](../public/layout.schema.json) describes the machine-readable structure. [widget-catalog.json](../public/widget-catalog.json) supplies 112 deterministic widget choices with catalog-only families, groups and descriptions, and [layout-presets.json](../public/layout-presets.json) contains complete designed layouts. See [the agent workflow](ai-layouts.md) for generation, previews and restore commands.
 

@@ -3,8 +3,9 @@ import { createSampleLayout, serializeLayout, validateLayout } from './layout';
 import type { LayoutDocument } from './layout';
 import {
   alignSelection, canvasWarnings, distributeSelection, matchSelectionSize, moveSelection,
-  reorderSelection, selectionBounds, selectionIds, snapResize, snapSelection,
+  reorderSelection, resizeFromHandle, selectionBounds, selectionIds, snapResize, snapSelection,
 } from './canvas';
+import type { ResizeHandle } from './canvas';
 
 type Card = readonly [id: string, x: number, y: number, width: number, height: number];
 function scene(cards: readonly Card[], width = 1000, height = 600): LayoutDocument {
@@ -435,6 +436,123 @@ describe('resize snapping', () => {
     }
     expect(() => snapResize(doc, 'missing', 80, 60)).toThrow('was not found');
     expect(serializeLayout(doc)).toBe(before);
+  });
+});
+
+describe('directional resizing', () => {
+  const handles: readonly ResizeHandle[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
+
+  it.each([
+    ['n', 100, 170, 200, 140], ['ne', 100, 170, 210, 140],
+    ['e', 100, 150, 210, 160], ['se', 100, 150, 210, 180],
+    ['s', 100, 150, 200, 180], ['sw', 110, 150, 190, 180],
+    ['w', 110, 150, 190, 160], ['nw', 110, 170, 190, 140],
+  ] as const)('moves only the active edges for %s', (handle, x, y, width, height) => {
+    const doc = scene([['a', 100, 150, 200, 160]]);
+    expect(resizeFromHandle(doc, 'a', handle, 10, 20)).toEqual({ x, y, width, height, guides: [] });
+    expect(resizeFromHandle(doc, 'a', handle, 0, 0, true)).toEqual({ x: 100, y: 150, width: 200, height: 160, guides: [] });
+  });
+
+  it('clamps every handle at the canvas and at one pixel without flipping or moving its anchor', () => {
+    const doc = scene([['a', 100, 150, 200, 160]]);
+    const before = serializeLayout(doc);
+    freezeDeep(doc);
+    for (const handle of handles) {
+      for (const dx of [-Number.MAX_SAFE_INTEGER, -201, 0, 201, Number.MAX_SAFE_INTEGER]) {
+        for (const dy of [-Number.MAX_SAFE_INTEGER, -161, 0, 161, Number.MAX_SAFE_INTEGER]) {
+          for (const snapping of [false, true]) {
+            const geometry = resizeFromHandle(doc, 'a', handle, dx, dy, snapping);
+            const { x, y, width, height, guides } = geometry;
+            expect([x, y, width, height].every(Number.isSafeInteger)).toBe(true);
+            expect(width).toBeGreaterThanOrEqual(1);
+            expect(height).toBeGreaterThanOrEqual(1);
+            expect(x).toBeGreaterThanOrEqual(0);
+            expect(y).toBeGreaterThanOrEqual(0);
+            expect(x + width).toBeLessThanOrEqual(1000);
+            expect(y + height).toBeLessThanOrEqual(600);
+            if (handle.includes('w')) expect(x + width).toBe(300);
+            else expect(x).toBe(100);
+            if (handle.includes('n')) expect(y + height).toBe(310);
+            else expect(y).toBe(150);
+            if (!handle.includes('w') && !handle.includes('e')) expect(width).toBe(200);
+            if (!handle.includes('n') && !handle.includes('s')) expect(height).toBe(160);
+            for (const guide of guides) {
+              expect(guide.position).toBe(guide.axis === 'x'
+                ? handle.includes('w') ? x : x + width
+                : handle.includes('n') ? y : y + height);
+            }
+            expect(validateLayout({ ...doc, widgets: [{ ...doc.widgets[0], x, y, width, height }] }).widgets[0])
+              .toMatchObject({ x, y, width, height });
+          }
+        }
+      }
+    }
+    expect(resizeFromHandle(doc, 'a', 'nw', 999, 999)).toEqual({ x: 299, y: 309, width: 1, height: 1, guides: [] });
+    expect(resizeFromHandle(doc, 'a', 'nw', -999, -999)).toEqual({ x: 0, y: 0, width: 300, height: 310, guides: [] });
+    expect(serializeLayout(doc)).toBe(before);
+  });
+
+  it.each([
+    [-76, -106, 220, 200, 280, 270],
+    [-52, -82, 244, 224, 256, 246],
+    [84, 64, 380, 370, 120, 100],
+  ])('snaps west/north edges to card edges, gutters and matching dimensions', (dx, dy, x, y, width, height) => {
+    const doc = scene([['a', 300, 310, 200, 160], ['other', 100, 100, 120, 100]]);
+    freezeDeep(doc);
+    expect(resizeFromHandle(doc, 'a', 'nw', dx, dy, true)).toEqual({ x, y, width, height,
+      guides: [{ axis: 'x', position: x }, { axis: 'y', position: y }] });
+    expect(resizeFromHandle(doc, 'a', 'nw', dx, dy)).toEqual({
+      x: 300 + dx, y: 310 + dy, width: 200 - dx, height: 160 - dy, guides: [],
+    });
+    expect(resizeFromHandle(doc, 'a', 'w', dx, dy, true)).toEqual({ x, y: 310, width, height: 160,
+      guides: [{ axis: 'x', position: x }] });
+    expect(resizeFromHandle(doc, 'a', 'n', dx, dy, true)).toEqual({ x: 300, y, width: 200, height,
+      guides: [{ axis: 'y', position: y }] });
+  });
+
+  it('snaps north/west canvas edges and gutters only at the inclusive threshold', () => {
+    const doc = scene([['a', 100, 150, 200, 160]]);
+    expect(resizeFromHandle(doc, 'a', 'nw', -94, -144, true)).toEqual({ x: 0, y: 0, width: 300, height: 310,
+      guides: [{ axis: 'x', position: 0 }, { axis: 'y', position: 0 }] });
+    expect(resizeFromHandle(doc, 'a', 'nw', -70, -120, true)).toEqual({ x: 24, y: 24, width: 276, height: 286,
+      guides: [{ axis: 'x', position: 24 }, { axis: 'y', position: 24 }] });
+    expect(resizeFromHandle(doc, 'a', 'nw', -69, -119, true)).toEqual({ x: 31, y: 31, width: 269, height: 279, guides: [] });
+    const nearFarEdge = scene([['a', 900, 500, 100, 100]]);
+    expect(resizeFromHandle(nearFarEdge, 'a', 'nw', 80, 80, true)).toEqual({ x: 976, y: 576, width: 24, height: 24,
+      guides: [{ axis: 'x', position: 976 }, { axis: 'y', position: 576 }] });
+  });
+
+  it('ignores self, stationary and invalid snap candidates and chooses document order for ties', () => {
+    const doc = scene([['a', 100, 100, 100, 100], ['outside', 201, 201, 100, 100]]);
+    expect(resizeFromHandle(doc, 'a', 'nw', 96, 96, true)).toEqual({ x: 196, y: 196, width: 4, height: 4, guides: [] });
+    const self = scene([['a', 100, 100, 100, 100]]);
+    expect(resizeFromHandle(self, 'a', 'nw', 4, 4, true)).toEqual({ x: 104, y: 104, width: 96, height: 96, guides: [] });
+    const atEdge = scene([['a', 0, 0, 100, 100]]);
+    expect(resizeFromHandle(atEdge, 'a', 'nw', -999, -999, true)).toEqual({ x: 0, y: 0, width: 100, height: 100, guides: [] });
+    const tie = scene([['a', 300, 300, 200, 200], ['first', 100, 100, 120, 100], ['second', 100, 100, 128, 108]]);
+    expect(resizeFromHandle(tie, 'a', 'nw', -76, -96, true)).toEqual({ x: 220, y: 200, width: 280, height: 300,
+      guides: [{ axis: 'x', position: 220 }, { axis: 'y', position: 200 }] });
+  });
+
+  it('keeps southeast snapping compatible with absolute snapResize dimensions', () => {
+    const doc = scene([['a', 100, 150, 80, 60], ['other', 300, 310, 120, 100]]);
+    for (const [width, height] of [[196, 156], [170, 130], [116, 104], [80, 60], [900, 450]]) {
+      expect(resizeFromHandle(doc, 'a', 'se', width - 80, height - 60, true))
+        .toEqual({ x: 100, y: 150, ...snapResize(doc, 'a', width, height) });
+    }
+  });
+
+  it('rejects invalid deltas, handles, snapping settings, IDs and documents even for no-ops', () => {
+    const doc = scene([['a', 100, 100, 100, 100]]);
+    for (const value of [0.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => resizeFromHandle(doc, 'missing', 'n', value, 0)).toThrow('dx');
+      expect(() => resizeFromHandle(doc, 'missing', 'e', 0, value)).toThrow('dy');
+    }
+    expect(() => resizeFromHandle(doc, 'a', 'left' as ResizeHandle, 0, 0)).toThrow('handle');
+    expect(() => resizeFromHandle(doc, 'a', 'n', 0, 0, 'true' as unknown as boolean)).toThrow('snapping');
+    expect(() => resizeFromHandle(doc, 'missing', 'n', 0, 0)).toThrow('was not found');
+    const bad = { ...doc, version: 2 } as unknown as LayoutDocument;
+    expect(() => resizeFromHandle(bad, 'a', 'n', 0, 0)).toThrow('$.version');
   });
 });
 

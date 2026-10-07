@@ -56,7 +56,7 @@ function buildSections(entries: readonly LibraryEntry[], groups: readonly Librar
 function Specimen({ widget }: { widget: Widget }) {
   const scale = previewScale(widget);
   return <div className="library-specimen" style={{ width: Math.round(widget.width * scale), height: Math.round(widget.height * scale) }}>
-    <div className="dashboard-card" style={{ left: 0, top: 0, width: widget.width, height: widget.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><CardContent widget={widget} /></div>
+    <div className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ left: 0, top: 0, width: widget.width, height: widget.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><CardContent widget={widget} /></div>
   </div>;
 }
 

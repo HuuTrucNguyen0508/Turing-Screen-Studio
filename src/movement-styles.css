@@ -1,0 +1,13 @@
+.movement-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 16px; border-top: 1px solid var(--outline); background: var(--surface); font-size: 11px; }
+.movement-controls:focus-visible { outline: 2px solid var(--primary); outline-offset: -3px; }
+.movement-targets, .movement-nudges { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.movement-targets > span { color: var(--muted); margin-right: 5px; }
+.movement-targets button { padding: 7px 10px; font-size: 11px; }
+.movement-targets button[aria-pressed='true'] { color: var(--primary); border-color: var(--primary); background: var(--surfaceRaised); }
+.movement-readout { flex: 1 1 160px; color: var(--primary); overflow-wrap: anywhere; }
+.movement-nudges button { min-width: 36px; min-height: 36px; padding: 4px; font-size: 18px; }
+.movement-help { width: 100%; color: var(--muted); line-height: 1.6; }
+.dashboard-card.selected.element-targeted { outline: var(--selection-width) dashed var(--outline); }
+.canvas-viewport.file-hover { outline: 2px dashed var(--secondary); outline-offset: -2px; }
+.file-drop-hint { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; background: var(--surface); opacity: .94; color: var(--secondary); font-size: 15px; pointer-events: none; }
+@media (max-width: 560px) { .movement-controls { padding: 10px; gap: 8px; } .movement-targets button { min-height: 40px; } .movement-nudges button { min-width: 42px; min-height: 42px; } }

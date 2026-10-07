@@ -1,5 +1,5 @@
 import { resolveElements } from './domain/design';
-import { formatClockTime, formatGaugeNumber, gaugeFraction, gaugeGeometry, instrumentGeometry } from './domain/widgets';
+import { formatGaugeNumber, gaugeFraction, gaugeGeometry, instrumentGeometry } from './domain/widgets';
 import type { GaugeWidget, LayoutDocument, MetricWidget, Widget } from './domain/layout';
 import { demoTrendHistory, trendCaption, trendChart, trendUnit } from './domain/trend';
 import './widget-styles.css';
@@ -12,7 +12,7 @@ import { dashboardHeading, isUsageSource } from './domain/usage';
 export function widgetLabel(widget: Widget): string {
   if (widget.type === 'weather') return widget.settings.location || 'Weather';
   if (widget.type === 'text') return widget.settings.label || widget.settings.text.slice(0, 24) || 'Text';
-  return widget.settings.label || (widget.type === 'clock' ? 'Clock' : widget.type === 'gauge' ? 'Gauge' : widget.type === 'storage' ? 'Mounted storage' : 'Metric');
+  return widget.settings.label || (widget.type === 'clock' ? 'Clock' : widget.type === 'gauge' ? 'Gauge' : widget.type === 'storage' ? 'Mounted storage' : widget.type === 'image' ? 'Image' : 'Metric');
 }
 
 function arc(cx: number, cy: number, radius: number, fraction: number): string {
@@ -109,19 +109,9 @@ function DesignedCard({ widget }: { widget: Widget }) {
 }
 
 export function CardContent({ widget }: { widget: Widget }) {
-  if (widget.type === 'clock' && widget.design) return <DesignedCard widget={widget} />;
+  if (widget.type === 'image') return <img className="image-content" src={widget.settings.data} alt={widget.settings.label} draggable={false} style={{ objectFit: widget.settings.fit === 'stretch' ? 'fill' : widget.settings.fit, opacity: widget.settings.opacity / 100 }} />;
+  if (widget.type === 'clock') return <DesignedCard widget={widget} />;
   if (widget.type === 'storage') return <StorageContent widget={widget} />;
-  if (widget.type === 'clock') {
-    const compact = widget.height < 184;
-    const time = formatClockTime(widget.settings.time, widget.settings.format);
-    const [digits, suffix] = time.split(' ');
-    const baseline = compact ? Math.floor(widget.height / 2) + (widget.settings.showDate ? 4 : 15) : 124;
-    return <div className={`clock-content${compact ? ' compact-clock' : ''}`}>
-      {!compact && widget.settings.label && <span className="card-kicker">{widget.settings.label}</span>}
-      <div className="clock-value" style={{ top: baseline - (compact ? 40 : 72) }}>{digits}{suffix && <span>{suffix}</span>}</div>
-      {widget.settings.showDate && <div className="clock-date" style={{ top: compact ? Math.floor(widget.height / 2) + 12 : widget.height - 44 }}>{widget.settings.date}</div>}
-    </div>;
-  }
   if (widget.type === 'text') return <div className="text-content">
     {widget.settings.label && <span className="card-kicker">{widget.settings.label}</span>}
     <p style={{ top: widget.settings.label ? 58 : 27, height: Math.max(0, Math.floor((widget.height - 20 - (widget.settings.label ? 58 : 27)) / 28) * 28) }}>{widget.settings.text}</p>
@@ -175,7 +165,7 @@ export function StaticLayout({ document, maxHeight }: { document: LayoutDocument
   const scale = Math.min(240 / document.canvas.width, (maxHeight ?? Infinity) / document.canvas.height);
   return <div className="preset-thumbnail" aria-hidden="true" style={maxHeight ? { width: document.canvas.width * scale, height: document.canvas.height * scale } : undefined}><div className="static-document" style={{ width: document.canvas.width, height: document.canvas.height, transform: `scale(${scale})` }}>
     {document.chrome !== 'none' && <div className="dashboard-header"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
-    {document.widgets.map((widget) => <div key={widget.id} className="dashboard-card" style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}><CardContent widget={widget} /></div>)}
+    {document.widgets.map((widget) => <div key={widget.id} className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}><CardContent widget={widget} /></div>)}
     {document.chrome !== 'none' && <div className="dashboard-footer"><span>Deterministic preview</span><span>{document.canvas.width} / {document.canvas.height}</span></div>}
   </div></div>;
 }

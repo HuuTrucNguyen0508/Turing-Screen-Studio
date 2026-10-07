@@ -14,12 +14,12 @@ function coordinate(value: number): string {
  * Editor-only overlay in widget-local document coordinates: side padding guides plus a crosshair at the
  * inspected element's anchor and baseline. Root renders it inside the selected card, never in exports.
  */
-export default function DesignMarker({ widget, element }: { widget: Widget; element: string | null }) {
+export default function DesignMarker({ widget, element, active = false }: { widget: Widget; element: string | null; active?: boolean }) {
   if (!elementSpecs(widget).length) return null;
   const padding = widget.design?.padding ?? DEFAULT_PADDING;
   const target = element === null ? undefined : resolveElements(widget).find((item) => item.id === element);
   const { width, height } = widget;
-  return <svg className="design-marker" aria-hidden="true" focusable="false"
+  return <svg className={`design-marker${active ? ' active' : ''}`} aria-hidden="true" focusable="false"
     width={width} height={height} viewBox={`0 0 ${width} ${height}`} overflow="visible">
     <line className="design-marker-padding" x1={padding} y1={0} x2={padding} y2={height} />
     <line className="design-marker-padding" x1={width - padding} y1={0} x2={width - padding} y2={height} />

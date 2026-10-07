@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { elementSpecs, resolveElements, updateWidgetDesign, validateWidgetDesign } from './design';
+import { elementSpecs, nudgeWidgetElement, resolveElements, updateWidgetDesign, validateWidgetDesign } from './design';
 import type { ClockWidget, LayoutDocument } from './layout';
 import { createSampleLayout, moveWidget, pointerDeltaToDocument, serializeLayout, updateGeometry, validateLayout } from './layout';
 import { updateWidgetSettings } from './widgets';
@@ -10,6 +10,17 @@ const clock = (): ClockWidget => ({ id: 'clock', type: 'clock', x: 946, y: 40, w
 const document = (): LayoutDocument => ({ ...createSampleLayout(), widgets: [clock()] });
 
 describe('clock element placement', () => {
+  it('nudges a visible element without moving the card, clamps offsets and ignores hidden elements', () => {
+    const original = document();
+    const moved = nudgeWidgetElement(original, 'clock', 'time', 1, -10);
+    expect(moved.widgets[0]).toMatchObject({ x: 946, y: 40, width: 270, height: 80, design: { elements: { time: { dx: 1, dy: -10 } } } });
+    expect(original.widgets[0].design).toBeUndefined();
+    expect(nudgeWidgetElement(original, 'clock', 'label', 1, 0)).toBe(original);
+    const limit = nudgeWidgetElement(moved, 'clock', 'time', 1000, -1000);
+    expect(limit.widgets[0].design?.elements?.time).toMatchObject({ dx: 512, dy: -512 });
+    expect(nudgeWidgetElement(limit, 'clock', 'time', 1, -1)).toBe(limit);
+    expect(() => nudgeWidgetElement(original, 'clock', 'time', .5, 0)).toThrow('whole pixels');
+  });
   it('resolves measured compact baselines, all horizontal anchors, and odd widths', () => {
     const widget = clock();
     expect(elementSpecs(widget).map(({ id, name }) => [id, name])).toEqual([['label', 'Label'], ['time', 'Time'], ['date', 'Date']]);

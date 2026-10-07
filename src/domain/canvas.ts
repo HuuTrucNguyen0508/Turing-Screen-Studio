@@ -5,9 +5,11 @@ export type Alignment = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom
 export type DistributionAxis = 'horizontal' | 'vertical';
 export type LayerDirection = 'front' | 'back' | 'forward' | 'backward';
 export type SizeMatch = 'width' | 'height' | 'both';
+export type ResizeHandle = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 export interface CanvasGuide { axis: 'x' | 'y'; position: number }
 export interface SnapResult { dx: number; dy: number; guides: readonly CanvasGuide[] }
 export interface ResizeSnapResult { width: number; height: number; guides: CanvasGuide[] }
+export interface HandleResizeResult extends Geometry { guides: CanvasGuide[] }
 export interface CanvasWarning { kind: 'overlap' | 'small'; ids: string[]; message: string }
 
 function integer(value: number, name: string, nonnegative = false): void {
@@ -246,16 +248,19 @@ export function snapSelection(
 
 function snapResizeAxis(
   doc: LayoutDocument, widget: Widget, axis: 'x' | 'y', raw: number, threshold: number, gutter: number,
+  fromStart = false,
 ): SnapCandidate | null {
   const size = axis === 'x' ? 'width' : 'height';
   // A stationary handle axis must not acquire a new size or display a guide.
   if (raw === widget[size]) return null;
   const start = widget[axis], limit = doc.canvas[size];
+  const anchor = fromStart ? start + widget[size] : start;
+  const maximum = fromStart ? anchor : limit - anchor;
   let best: SnapCandidate | null = null;
   function consider(position: number): void {
-    const dimension = position - start;
+    const dimension = fromStart ? anchor - position : position - anchor;
     const distance = Math.abs(dimension - raw);
-    if (!Number.isSafeInteger(dimension) || dimension < 1 || dimension > limit - start || distance > threshold) return;
+    if (!Number.isSafeInteger(dimension) || dimension < 1 || dimension > maximum || distance > threshold) return;
     if (!best || distance < best.distance) best = { delta: dimension, position, distance };
   }
   // Canvas wins ties, followed by widgets in document paint order.
@@ -270,7 +275,7 @@ function snapResizeAxis(
     consider(otherEnd);
     consider(otherStart - gutter);
     consider(otherEnd + gutter);
-    consider(start + other[size]);
+    consider(fromStart ? anchor - other[size] : anchor + other[size]);
   }
   return best;
 }
@@ -295,6 +300,41 @@ export function snapResize(
   if (x) guides.push({ axis: 'x', position: x.position });
   if (y) guides.push({ axis: 'y', position: y.position });
   return { width: x?.delta ?? rawWidth, height: y?.delta ?? rawHeight, guides };
+}
+
+/** Integer pointer deltas move only the handle's edges, keeping opposite edges anchored. */
+export function resizeFromHandle(
+  doc: LayoutDocument, id: string, handle: ResizeHandle, dx: number, dy: number, snapping = false,
+): HandleResizeResult {
+  choice(handle, ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'], 'handle');
+  integer(dx, 'dx');
+  integer(dy, 'dy');
+  if (typeof snapping !== 'boolean') throw new Error('snapping: expected a boolean');
+  const checked = validateLayout(doc);
+  const widget = checked.widgets.find((candidate) => candidate.id === id);
+  if (!widget) throw new Error(`Widget ID "${id}" was not found.`);
+  const west = handle.includes('w'), east = handle.includes('e');
+  const north = handle.includes('n'), south = handle.includes('s');
+  // Clamp deltas before arithmetic so even extreme safe integers cannot overflow.
+  const rawWidth = west
+    ? widget.width - clamp(dx, -widget.x, widget.width - 1)
+    : east ? widget.width + clamp(dx, 1 - widget.width, checked.canvas.width - widget.x - widget.width)
+      : widget.width;
+  const rawHeight = north
+    ? widget.height - clamp(dy, -widget.y, widget.height - 1)
+    : south ? widget.height + clamp(dy, 1 - widget.height, checked.canvas.height - widget.y - widget.height)
+      : widget.height;
+  const xSnap = snapping && (west || east) ? snapResizeAxis(checked, widget, 'x', rawWidth, 6, 24, west) : null;
+  const ySnap = snapping && (north || south) ? snapResizeAxis(checked, widget, 'y', rawHeight, 6, 24, north) : null;
+  const width = xSnap?.delta ?? rawWidth, height = ySnap?.delta ?? rawHeight;
+  const guides: CanvasGuide[] = [];
+  if (xSnap) guides.push({ axis: 'x', position: xSnap.position });
+  if (ySnap) guides.push({ axis: 'y', position: ySnap.position });
+  return {
+    x: west ? widget.x + widget.width - width : widget.x,
+    y: north ? widget.y + widget.height - height : widget.y,
+    width, height, guides,
+  };
 }
 
 /** Informational only: touching edges are allowed, and warnings never change a document. */

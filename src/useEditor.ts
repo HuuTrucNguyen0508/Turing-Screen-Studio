@@ -25,6 +25,7 @@ export default function useEditor() {
       update(selectEditor(editor, ids, id));
     },
     selectAll() { update(selectEditor(current.current, current.current.document.widgets.map((widget) => widget.id), current.current.selectedId)); },
+    selectMany(ids: readonly string[]) { update(selectEditor(current.current, ids, ids.at(-1) ?? null)); },
     replace(document: LayoutDocument, options?: EditorOptions) { update(replaceEditor(current.current, document, options)); },
     saved(document: LayoutDocument, revision: string | null, target?: DraftTarget) { update({ ...current.current, baseline: serializeLayout(document), baseRevision: revision, target: target ?? current.current.target }); },
     target(target: DraftTarget) { update({ ...current.current, target: Object.freeze(parseDraftTarget(target)) }); },

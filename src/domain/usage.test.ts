@@ -11,10 +11,10 @@ describe('usage sources and designed layouts', () => {
     expect(isUsageSource(undefined)).toBe(false);
   });
   it('preserves source and sample settings through export and reopen', () => {
-    for (const entry of widgetCatalog.filter(({ widget }) => widget.type !== 'text' && isUsageSource(widget.settings.source))) {
+    for (const entry of widgetCatalog.filter(({ widget }) => widget.type !== 'text' && widget.type !== 'image' && isUsageSource(widget.settings.source))) {
       const document = validateLayout({ ...createSampleLayout(), widgets: [entry.widget] });
       expect(parseLayout(serializeLayout(document))).toEqual(document);
-      expect(dashboardHeading(document)).toBe(entry.widget.type !== 'text' && entry.widget.settings.source === 'storage' ? 'Storage overview' : 'AI usage');
+      expect(dashboardHeading(document)).toBe(entry.widget.type !== 'text' && entry.widget.type !== 'image' && entry.widget.settings.source === 'storage' ? 'Storage overview' : 'AI usage');
     }
   });
 });

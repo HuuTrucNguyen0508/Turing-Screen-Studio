@@ -3,6 +3,7 @@ import type { Widget } from './layout';
 
 export const MAX_CUSTOM_WIDGETS = 64;
 export const MAX_CUSTOM_BYTES = 256 * 1024;
+export const MAX_WIDGET_IMPORT_BYTES = 1024 * 1024;
 export type TemplateWidget = Omit<Widget, 'id' | 'x' | 'y'>;
 export type CustomWidget = { id: string; name: string; widget: TemplateWidget };
 export type CustomWidgets = { version: 1; widgets: CustomWidget[] };
@@ -22,6 +23,10 @@ function utf8Size(text: string): number {
 }
 
 export function templateWidget(widget: Widget): TemplateWidget {
+  // Keep copies compatible with the existing browser and Python template store.
+  if (widget.width > 1280 || widget.height > 800) {
+    throw new Error(`Card "${widget.id}" is ${widget.width} × ${widget.height}. Custom widgets must fit within 1280 × 800. Resize this card before importing or saving it as a custom widget.`);
+  }
   const { id: _id, x: _x, y: _y, ...copy } = validateLayout({ ...createSampleLayout(), widgets: [{ ...widget, x: 0, y: 0 }] }).widgets[0];
   return copy;
 }
@@ -55,6 +60,66 @@ export function serializeCustomWidgets(raw: CustomWidgets): string { return JSON
 export function parseCustomWidgets(text: string): CustomWidgets {
   if (utf8Size(text) > MAX_CUSTOM_BYTES) throw new Error('Choose a widget file smaller than 256 KB.');
   return validateCustomWidgets(JSON.parse(text));
+}
+
+const SUPPORTED_WIDGET_IMPORTS = 'Supported formats: Studio widget pack, Studio layout, single placed Studio widget, or Studio template JSON. Executable files and other formats are not supported.';
+
+function importedCards(widgets: Widget[]): CustomWidgets {
+  if (widgets.length > MAX_CUSTOM_WIDGETS) {
+    throw new Error(`This layout has ${widgets.length} cards. Import at most ${MAX_CUSTOM_WIDGETS} cards at a time by splitting it into smaller layouts.`);
+  }
+  const entries: CustomWidget[] = [];
+  for (const widget of widgets) {
+    const label = 'label' in widget.settings ? widget.settings.label.trim() : '';
+    const base = (label || widget.type).slice(0, 60).trim();
+    let name = base, count = 2;
+    while (entries.some((entry) => entry.name.toLowerCase() === name.toLowerCase())) {
+      const suffix = ` (${count++})`;
+      name = base.slice(0, 60 - suffix.length) + suffix;
+    }
+    entries.push({ id: uniqueTemplateId(widget.id, entries), name, widget: templateWidget(widget) });
+  }
+  return validateCustomWidgets({ version: 1, widgets: entries });
+}
+
+/** File imports are broader than the strict widget-pack parser used by storage. */
+export function parseWidgetImport(text: string): CustomWidgets {
+  try {
+    const bytes = utf8Size(text);
+    if (bytes > MAX_WIDGET_IMPORT_BYTES) throw new Error('Choose a Studio layout file of at most 1 MB, or a widget file of at most 256 KB.');
+    let raw: unknown;
+    try { raw = JSON.parse(text) as unknown; }
+    catch { throw new Error('Invalid JSON. Export a supported Studio JSON file and try again.'); }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Unsupported widget file.');
+    const value = raw as Record<string, unknown>;
+    // Choose a validator by shape, then validate the entire input. Never fall
+    // back to extracting a valid subset from a malformed document or pack.
+    if (['canvas', 'palette', 'paletteMode', 'chrome'].some((key) => Object.hasOwn(value, key))) {
+      return importedCards(validateLayout(value).widgets);
+    }
+    if (bytes > MAX_CUSTOM_BYTES) throw new Error('Choose a widget file of at most 256 KB. Only Studio layouts may be up to 1 MB.');
+    if (Object.hasOwn(value, 'version') || Object.hasOwn(value, 'widgets')) return validateCustomWidgets(value);
+    if (Object.hasOwn(value, 'widget')) return validateCustomWidgets({ version: 1, widgets: [value] });
+    if (Object.hasOwn(value, 'type')) {
+      let widget: Record<string, unknown>;
+      if (['id', 'x', 'y'].some((key) => Object.hasOwn(value, key))) widget = value;
+      else {
+        const fields = ['type', 'width', 'height', 'settings'];
+        if (Object.hasOwn(value, 'design')) fields.push('design');
+        widget = { id: 'widget', x: 0, y: 0, ...object(value, fields, '$') };
+      }
+      // A standalone placement must be valid at its original coordinates on
+      // a legal Studio canvas before its position is removed.
+      const layout = { ...createSampleLayout(), canvas: { width: 16384, height: 16384 }, widgets: [widget] };
+      return importedCards(validateLayout(layout).widgets);
+    }
+    throw new Error('Unsupported widget file.');
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    const remedy = reason === 'Custom widgets exceed the 256 KB limit.'
+      ? ' Split the import into smaller files or shorten card text.' : '';
+    throw new Error(`${reason}${remedy} ${SUPPORTED_WIDGET_IMPORTS}`);
+  }
 }
 
 export function uniqueTemplateId(base: string, widgets: CustomWidget[]): string {

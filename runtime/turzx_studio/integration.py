@@ -100,7 +100,7 @@ class RuntimeIntegration:
         self.live_identity = process_start(os.getpid())
         self.invalidate_frame(pid=os.getpid(), processStart=process_start(os.getpid()),
                               connected=False, view='stats', error=None,
-                              supportedWidgetTypes=['metric', 'weather', 'clock', 'text', 'gauge', 'storage'],
+                              supportedWidgetTypes=['metric', 'weather', 'clock', 'text', 'gauge', 'storage', 'image'],
                               supportedGaugeStyles=list(GAUGE_STYLES),
                               supportedDesignTypes=['clock'],
                               supportedTrendWidgets=True,

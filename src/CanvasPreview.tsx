@@ -1,13 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent, ReactNode, SetStateAction } from 'react';
-import { fitCanvas, pointerDeltaToDocument, updateGeometry } from './domain/layout';
+import { fitCanvas, pointerDeltaToDocument } from './domain/layout';
 import type { LayoutDocument, Widget } from './domain/layout';
-import { canvasWarnings, moveSelection, snapResize, snapSelection } from './domain/canvas';
-import type { CanvasGuide } from './domain/canvas';
+import { canvasWarnings, moveSelection, resizeFromHandle, snapSelection } from './domain/canvas';
+import type { CanvasGuide, ResizeHandle } from './domain/canvas';
 import CanvasTools from './CanvasTools';
 import DesignMarker from './DesignMarker';
 import { CardContent, widgetLabel } from './WidgetContent';
 import { dashboardHeading } from './domain/usage';
+import { nudgeWidgetElement, resolveElements } from './domain/design';
+import MovementControls from './MovementControls';
+import ElementTargets from './ElementTargets';
+import SelectionToolbar from './SelectionToolbar';
+import CompactResize from './CompactResize';
+import './canvas-interactions.css';
 export { widgetLabel } from './WidgetContent';
 
 type Props = {
@@ -22,9 +28,20 @@ type Props = {
   onGestureEnd: (cancel: boolean) => void;
   onResizeCanvas?: () => void;
   previewControls?: ReactNode;
+  panelControls?: ReactNode;
+  toolsVisible: boolean;
   previewNotice?: string;
   onPreviewRetry?: () => void;
   designElement?: string | null;
+  activeElement?: string | null;
+  onMoveTarget: (element: string | null) => void;
+  onNudge: (dx: number, dy: number) => void;
+  onCardDrag: () => void;
+  onSelectElement: (id: string, element: string) => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onDetails: () => void;
+  onImportWidgets: (files: File[]) => void;
   bitmap?: string | null;
 };
 
@@ -40,8 +57,22 @@ type Gesture = {
   ids: readonly string[];
   widget?: Widget;
   pan: { x: number; y: number };
-  mode: 'move' | 'resize' | 'pan';
+  mode: 'move' | 'resize' | 'pan' | 'element';
+  handle?: ResizeHandle;
+  element?: string;
+  toolbarDocked: boolean;
 };
+
+const handles: { id: ResizeHandle; name: string; x: number; y: number; cursor: string }[] = [
+  { id: 'nw', name: 'top left', x: 0, y: 0, cursor: 'nwse-resize' },
+  { id: 'n', name: 'top', x: .5, y: 0, cursor: 'ns-resize' },
+  { id: 'ne', name: 'top right', x: 1, y: 0, cursor: 'nesw-resize' },
+  { id: 'e', name: 'right', x: 1, y: .5, cursor: 'ew-resize' },
+  { id: 'se', name: 'bottom right', x: 1, y: 1, cursor: 'nwse-resize' },
+  { id: 's', name: 'bottom', x: .5, y: 1, cursor: 'ns-resize' },
+  { id: 'sw', name: 'bottom left', x: 0, y: 1, cursor: 'nesw-resize' },
+  { id: 'w', name: 'left', x: 0, y: .5, cursor: 'ew-resize' },
+];
 
 const SNAP_PREFERENCE = 'turzx-studio:snapping:v1';
 function initialSnapping() {
@@ -49,8 +80,10 @@ function initialSnapping() {
   catch { return true; }
 }
 
-export default function CanvasPreview({ document, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, previewNotice, onPreviewRetry, designElement }: Props) {
+export default function CanvasPreview({ document, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, panelControls, toolsVisible, previewNotice, onPreviewRetry, designElement, activeElement, onMoveTarget, onNudge, onCardDrag, onSelectElement, onDuplicate, onDelete, onDetails, onImportWidgets }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarSize, setToolbarSize] = useState({ width: 320, height: 46 });
   const gestureRef = useRef<Gesture | null>(null);
   const endRef = useRef(onGestureEnd);
   endRef.current = onGestureEnd;
@@ -60,10 +93,13 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
   const [space, setSpace] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [gesturing, setGesturing] = useState(false);
+  const [resizeOpen, setResizeOpen] = useState(false);
+  const [focusedHandle, setFocusedHandle] = useState<ResizeHandle | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [snapping, setSnapping] = useState(initialSnapping);
   const [guides, setGuides] = useState<readonly CanvasGuide[]>([]);
+  const [fileHover, setFileHover] = useState(false);
   const fit = size.width > 0 && size.height > 0
     ? fitCanvas(document.canvas.width, document.canvas.height, size.width, size.height)
     : { scale: 0, offsetX: 0, offsetY: 0 };
@@ -87,9 +123,12 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
     const viewport = viewportRef.current!;
     const bounds = viewport.getBoundingClientRect();
     setSize({ width: bounds.width, height: bounds.height });
-    const observer = new ResizeObserver(([entry]) => {
-      finishRef.current(true);
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+    const observer = new ResizeObserver(() => {
+      // A queued entry can describe the layout before the current gesture began.
+      const bounds = viewport.getBoundingClientRect();
+      const gesture = gestureRef.current;
+      if (gesture && (bounds.width !== gesture.viewportWidth || bounds.height !== gesture.viewportHeight)) finishRef.current(true);
+      setSize({ width: bounds.width, height: bounds.height });
     });
     observer.observe(viewport);
     return () => { observer.disconnect(); finishRef.current(true); };
@@ -110,7 +149,7 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
     return () => { window.removeEventListener('blur', cancel); window.removeEventListener('resize', cancel); window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
 
-  function capture(event: PointerEvent<HTMLElement>, mode: Gesture['mode'], widget?: Widget) {
+  function capture(event: PointerEvent<HTMLElement>, mode: Gesture['mode'], widget?: Widget, handle?: ResizeHandle, element?: string) {
     event.preventDefault(); event.stopPropagation(); finish(true);
     event.currentTarget.focus({ preventScroll: true });
     // Focus commits pending inspector text before taking the original document snapshot.
@@ -120,12 +159,15 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
     if (mode !== 'pan') onGestureStart();
     event.currentTarget.setPointerCapture(event.pointerId);
     const viewport = viewportRef.current!.getBoundingClientRect();
-    gestureRef.current = { viewportWidth: viewport.width, viewportHeight: viewport.height, pointerId: event.pointerId, target: event.currentTarget, startX: event.clientX, startY: event.clientY, scale,
-      document: original, ids: [...ids], widget: currentWidget, mode, pan };
+    // Panel/selection changes may have resized the viewport before its observer runs.
+    const currentScale = fitCanvas(original.canvas.width, original.canvas.height, viewport.width, viewport.height).scale * zoom;
+    setSize({ width: viewport.width, height: viewport.height });
+    gestureRef.current = { viewportWidth: viewport.width, viewportHeight: viewport.height, pointerId: event.pointerId, target: event.currentTarget, startX: event.clientX, startY: event.clientY, scale: currentScale,
+      document: original, ids: [...ids], widget: currentWidget, mode, pan, handle, element, toolbarDocked };
     setGesturing(true);
   }
 
-  function begin(event: PointerEvent<HTMLElement>, widget: Widget, mode: 'move' | 'resize') {
+  function begin(event: PointerEvent<HTMLElement>, widget: Widget, mode: 'move' | 'resize', handle?: ResizeHandle) {
     if (event.button !== 0 || !event.isPrimary || scale <= 0) return;
     event.preventDefault(); event.stopPropagation();
     if (event.shiftKey) {
@@ -134,8 +176,13 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
       return;
     }
     onSelect(widget.id, false, true);
+    const element = (event.target as Element).closest('[data-element-target]')?.getAttribute('data-element-target');
+    if (mode === 'move' && selectedId === widget.id && selectedIds.length === 1 && element === activeElement && element) {
+      capture(event, 'element', widget, undefined, element); return;
+    }
+    onCardDrag();
     if (mode === 'resize' && getSelection().length !== 1) return;
-    capture(event, mode, widget);
+    capture(event, mode, widget, handle);
   }
 
   function move(event: PointerEvent) {
@@ -152,22 +199,92 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
       const snap = snapping ? snapSelection(gesture.document, gesture.ids, delta.x, delta.y) : { dx: delta.x, dy: delta.y, guides: [] };
       setGuides(snap.guides);
       onChange(moveSelection(gesture.document, gesture.ids, snap.dx, snap.dy));
+    } else if (gesture.mode === 'element') {
+      onChange(nudgeWidgetElement(gesture.document, gesture.widget!.id, gesture.element!, delta.x, delta.y));
     } else {
       const widget = gesture.widget!;
-      const width = Math.max(1, Math.min(gesture.document.canvas.width - widget.x, widget.width + delta.x));
-      const height = Math.max(1, Math.min(gesture.document.canvas.height - widget.y, widget.height + delta.y));
-      const next = snapping ? snapResize(gesture.document, widget.id, width, height) : { width, height, guides: [] };
+      const next = resizeFromHandle(gesture.document, widget.id, gesture.handle!, delta.x, delta.y, snapping);
       setGuides(next.guides);
-      onChange(updateGeometry(gesture.document, widget.id, { width: next.width, height: next.height }));
+      onChange({ ...gesture.document, widgets: gesture.document.widgets.map((entry) => entry.id === widget.id
+        ? { ...entry, x: next.x, y: next.y, width: next.width, height: next.height } : entry) });
     }
   }
 
   function view(nextZoom: number, fitView = false) { finish(true); setZoom(Math.max(.25, Math.min(4, nextZoom))); if (fitView) setPan({ x: 0, y: 0 }); }
   const selected = document.widgets.find((widget) => widget.id === selectedId);
+  const movingElement = selected && activeElement ? resolveElements(selected).find((element) => element.id === activeElement) : null;
+  const hasSelection = Boolean(selected);
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const measure = () => {
+      const { width, height } = toolbar.getBoundingClientRect();
+      setToolbarSize((current) => current.width === width && current.height === height ? current : { width, height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure); observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, [hasSelection]);
+  function toolbarPosition(): { style: CSSProperties; docked: boolean } {
+    if (!selected) return { style: {}, docked: false };
+    // Decide docking against the full stage, independent of the toolbar's current
+    // docked height. Otherwise docking can repeatedly change its own fit result.
+    const stage = viewportRef.current?.parentElement?.getBoundingClientRect();
+    const availableWidth = stage?.width ?? size.width, availableHeight = stage?.height ?? size.height;
+    const placementScale = availableWidth > 0 && availableHeight > 0
+      ? fitCanvas(document.canvas.width, document.canvas.height, availableWidth, availableHeight).scale * zoom : scale;
+    const placementX = (availableWidth - document.canvas.width * placementScale) / 2 + pan.x;
+    const placementY = (availableHeight - document.canvas.height * placementScale) / 2 + pan.y;
+    const cards = document.widgets.filter((widget) => selectedIds.includes(widget.id));
+    const left = placementX + Math.min(...cards.map((widget) => widget.x)) * placementScale;
+    const top = placementY + Math.min(...cards.map((widget) => widget.y)) * placementScale;
+    const right = placementX + Math.max(...cards.map((widget) => widget.x + widget.width)) * placementScale;
+    const bottom = placementY + Math.max(...cards.map((widget) => widget.y + widget.height)) * placementScale;
+    const { width, height } = toolbarSize;
+    const candidates = [
+      { x: left, y: top - height - 14 }, { x: left - width - 14, y: top },
+      { x: right + 14, y: top }, { x: left, y: bottom + 14 },
+      { x: 4, y: 4 }, { x: availableWidth - width - 4, y: 4 },
+      { x: 4, y: availableHeight - height - 4 }, { x: availableWidth - width - 4, y: availableHeight - height - 4 },
+    ];
+    for (const candidate of candidates) {
+      const x = Math.max(4, Math.min(candidate.x, availableWidth - width - 4));
+      const y = Math.max(4, Math.min(candidate.y, availableHeight - height - 4));
+      if (document.widgets.some((widget) => {
+        const wx = placementX + widget.x * placementScale, wy = placementY + widget.y * placementScale;
+        return x < wx + widget.width * placementScale + 2 && x + width > wx - 2 && y < wy + widget.height * placementScale + 2 && y + height > wy - 2;
+      })) continue;
+      return { style: { left: x, top: y }, docked: false };
+    }
+    return { style: {}, docked: true };
+  }
+  const toolbarPlacement = toolbarPosition();
+  // Keep the viewport size stable throughout a drag, even if free space changes.
+  const toolbarDocked = gestureRef.current?.toolbarDocked ?? toolbarPlacement.docked;
+  useLayoutEffect(() => {
+    // Selection and optional tools can change the available height in this commit.
+    // Update the letterbox before paint so cards do not jump on the next pointer event.
+    const bounds = viewportRef.current!.getBoundingClientRect();
+    if (bounds.width !== size.width || bounds.height !== size.height) setSize({ width: bounds.width, height: bounds.height });
+  });
+  const hitSize = size.width <= 560 ? 44 : 24;
+  function handleInset(widget: Widget, handle: typeof handles[number]) {
+    return {
+      x: handle.x === 0 && widget.x === 0 ? hitSize / 2 + 1 : handle.x === 1 && widget.x + widget.width === document.canvas.width ? -hitSize / 2 - 1 : 0,
+      y: handle.y === 0 && widget.y === 0 ? hitSize / 2 + 1 : handle.y === 1 && widget.y + widget.height === document.canvas.height ? -hitSize / 2 - 1 : 0,
+    };
+  }
+  const handleCenters = selected ? handles.map((handle) => {
+    const inset = handleInset(selected, handle);
+    return { x: handle.x * selected.width * scale + inset.x, y: handle.y * selected.height * scale + inset.y };
+  }) : [];
+  const compactResize = handleCenters.some((center, index) => handleCenters.slice(index + 1).some((other) =>
+    Math.abs(center.x - other.x) < hitSize + 4 && Math.abs(center.y - other.y) < hitSize + 4));
   return <section className="preview-panel" aria-label="Layout preview">
-    <div className="panel-heading"><div><span className="eyebrow">{document.canvas.width === document.canvas.height ? 'Square canvas' : document.canvas.width > document.canvas.height ? 'Landscape canvas' : 'Portrait canvas'}</span><h2>Canvas</h2></div><button className="mono" disabled={gesturing} onClick={onResizeCanvas} aria-label="Change canvas size">{document.canvas.width} × {document.canvas.height} px · Change</button></div>
-    {previewControls}
-    <CanvasTools document={document} selectedIds={selectedIds} selectedId={selectedId} busy={gesturing} onChange={onChange} />
+    <div className="panel-heading"><div><span className="eyebrow">{document.canvas.width === document.canvas.height ? 'Square canvas' : document.canvas.width > document.canvas.height ? 'Landscape canvas' : 'Portrait canvas'}</span><h2>Canvas</h2></div><div className="canvas-heading-actions">{panelControls}<button className="mono" disabled={gesturing} onClick={onResizeCanvas} aria-label="Change canvas size">{document.canvas.width} × {document.canvas.height} px · Change</button></div></div>
+    <div id="canvas-extra-tools" className="canvas-extra-tools" hidden={!toolsVisible}>{previewControls}
+      <CanvasTools document={document} selectedIds={selectedIds} selectedId={selectedId} busy={gesturing} onChange={onChange} />
+    </div>
     <div className="canvas-view-tools" aria-label="Canvas view">
       <label><input type="checkbox" aria-label="Snapping" checked={snapping} onChange={(event) => {
         finish(true); setSnapping(event.target.checked);
@@ -176,7 +293,11 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
       <div><button aria-label="Zoom out" disabled={zoom <= .25} onClick={() => view(zoom / 1.25)}>−</button><span aria-label="Canvas zoom">{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" disabled={zoom >= 4} onClick={() => view(zoom * 1.25)}>+</button><button onClick={() => view(1, true)}>Fit</button></div>
     </div>
     <div className="preview-instructions"><span>{previewNotice || 'Shift-click to select cards together.'}{onPreviewRetry && <button className="text-button" onClick={onPreviewRetry}>Retry preview</button>}</span><span className="mono">Scale {Math.round(scale * 100)}%</span></div>
-    <div className={`canvas-viewport${gesturing ? ' gesturing' : ''}${space ? ' pan-ready' : ''}`} ref={viewportRef} tabIndex={0} aria-label="Canvas viewport"
+    <div className="canvas-stage">
+    <div className={`canvas-viewport${gesturing ? ' gesturing' : ''}${space ? ' pan-ready' : ''}${fileHover ? ' file-hover' : ''}`} ref={viewportRef} tabIndex={0} aria-label="Canvas viewport"
+      onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = gesturing ? 'none' : 'copy'; setFileHover(!gesturing); } }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFileHover(false); }}
+      onDrop={(event) => { event.preventDefault(); setFileHover(false); if (!gesturing && event.dataTransfer.files.length) onImportWidgets([...event.dataTransfer.files]); }}
       onPointerDownCapture={(event) => { if ((event.button === 1 || (event.button === 0 && spaceRef.current)) && event.isPrimary && scale > 0) capture(event, 'pan'); }}
       onPointerMove={move} onPointerUp={(event) => { if (event.pointerId === gestureRef.current?.pointerId) { move(event); finish(); } }}
       onPointerCancel={(event) => { if (event.pointerId === gestureRef.current?.pointerId) finish(true); }}
@@ -186,28 +307,65 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
         {bitmap ? <img className="rendered-frame" src={bitmap} alt={previewNotice?.includes('Live') || previewNotice?.includes('live') ? 'Panel renderer with live readings' : 'Panel renderer with sample data'} draggable={false} /> : document.chrome !== 'none' && <div className="dashboard-header" aria-hidden="true"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
         {document.widgets.map((widget) => <div key={widget.id} tabIndex={0} role="group" aria-label={`${widgetLabel(widget)} card`} aria-roledescription="movable card"
           data-widget-id={widget.id} data-selected={selectedIds.includes(widget.id)} data-primary={selectedId === widget.id}
-          className={`dashboard-card ${selectedIds.includes(widget.id) ? 'selected' : ''}`}
+          className={`dashboard-card ${selectedIds.includes(widget.id) ? 'selected' : ''}${widget.type === 'image' ? ' image-card' : ''}${selectedId === widget.id && activeElement ? ' element-targeted' : ''}`}
           onFocus={() => { if (!suppressFocus.current) onSelect(widget.id, false, true); }} onPointerDown={(event) => begin(event, widget, 'move')}
+          onDoubleClick={(event) => {
+            // Pointer capture retargets clicks to the card; resolve the text under the pointer too.
+            const element = [...event.currentTarget.querySelectorAll<SVGRectElement>('[data-element-target]')].reverse().find((target) => {
+              const box = target.getBoundingClientRect();
+              return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
+            })?.dataset.elementTarget;
+            if (element && !event.shiftKey && !spaceRef.current) { event.preventDefault(); event.stopPropagation(); onSelectElement(widget.id, element); }
+          }}
           style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height, '--selection-width': `${2 / (scale || 1)}px` } as CSSProperties}>
           {!bitmap && <CardContent widget={widget} />}
-          {selectedId === widget.id && designElement && <DesignMarker widget={widget} element={designElement} />}
+          <ElementTargets widget={widget} active={selectedId === widget.id ? activeElement ?? null : null} scale={scale} />
+          {selectedId === widget.id && designElement && <DesignMarker widget={widget} element={designElement} active={Boolean(activeElement)} />}
           {selectedId === widget.id && selectedIds.length === 1 && <>
-            <span className="selection-label" aria-hidden="true">{widget.width} × {widget.height}</span>
-            <button className="resize-handle" type="button" aria-label={`Resize ${widgetLabel(widget)}`} title="Drag to resize, or use arrow keys when focused"
-              style={{ width: 14 / (scale || 1), height: 14 / (scale || 1) }} onPointerDown={(event) => begin(event, widget, 'resize')}
+            <span className="selection-label" aria-hidden="true">{movingElement ? `${movingElement.name} / X offset ${widget.design?.elements?.[activeElement!]?.dx ?? 0} / Y offset ${widget.design?.elements?.[activeElement!]?.dy ?? 0}` : `${widget.width} × ${widget.height}`}</span>
+            {!activeElement && (compactResize ? handles.filter((handle) => handle.id === (focusedHandle ?? gestureRef.current?.handle ?? 'se')) : handles).map((handle) => <button key={handle.id} className="resize-handle directional" data-resize-handle={handle.id} type="button"
+              aria-label={handle.id === 'se' ? `Resize ${widgetLabel(widget)}` : `Resize ${widgetLabel(widget)} ${handle.name}`}
+              title={`Resize ${handle.name}. Arrows 1 px, Shift 10 px.`}
+              style={{
+                left: `calc(${handle.x * 100}% + ${handleInset(widget, handle).x / (scale || 1)}px)`,
+                top: `calc(${handle.y * 100}% + ${handleInset(widget, handle).y / (scale || 1)}px)`,
+                cursor: handle.cursor, width: hitSize / (scale || 1), height: hitSize / (scale || 1), '--handle-visual': `${10 / (scale || 1)}px`,
+              } as CSSProperties}
+              onFocus={() => setFocusedHandle(handle.id)} onBlur={() => setFocusedHandle(null)}
+              onPointerDown={(event) => begin(event, widget, 'resize', handle.id)}
               onKeyDown={(event) => {
-                if (event.altKey || event.ctrlKey || event.metaKey) return;
+                if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing || gestureRef.current) return;
                 const step = event.shiftKey ? 10 : 1;
-                const directions: Record<string, { width?: number; height?: number }> = { ArrowRight: { width: widget.width + step }, ArrowLeft: { width: widget.width - step }, ArrowDown: { height: widget.height + step }, ArrowUp: { height: widget.height - step } };
-                if (directions[event.key]) { event.preventDefault(); event.stopPropagation(); onChange((current) => updateGeometry(current, widget.id, directions[event.key])); }
-              }} />
+                const directions: Record<string, [number, number]> = { ArrowRight: [step, 0], ArrowLeft: [-step, 0], ArrowDown: [0, step], ArrowUp: [0, -step] };
+                if (directions[event.key]) {
+                  event.preventDefault(); event.stopPropagation();
+                  onChange((current) => {
+                    const [dx, dy] = directions[event.key];
+                    const { x, y, width, height } = resizeFromHandle(current, widget.id, handle.id, dx, dy);
+                    return { ...current, widgets: current.widgets.map((entry) => entry.id === widget.id ? { ...entry, x, y, width, height } : entry) };
+                  });
+                }
+              }} />)}
           </>}
         </div>)}
         {guides.map((guide) => <div key={`${guide.axis}:${guide.position}`} className={`snap-guide ${guide.axis}`} data-testid="snap-guide" aria-hidden="true" style={{ [guide.axis === 'x' ? 'left' : 'top']: guide.position, '--guide-width': `${1 / (scale || 1)}px` } as CSSProperties} />)}
         {document.chrome !== 'none' && <div className="dashboard-footer" aria-hidden="true"><span>{bitmap && previewNotice?.includes('Live readings') ? 'Live readings' : 'Deterministic preview'}</span><span>{document.canvas.width} / {document.canvas.height}</span></div>}
       </div>
+      {fileHover && <div className="file-drop-hint">Drop a layout or widget JSON file to review its widgets</div>}
+      {gesturing && selected && gestureRef.current?.mode !== 'pan' && <div className="gesture-readout mono" data-testid="gesture-readout">
+        {movingElement ? `${movingElement.name} / X offset ${selected.design?.elements?.[activeElement!]?.dx ?? 0} / Y offset ${selected.design?.elements?.[activeElement!]?.dy ?? 0}`
+          : `${selected.width} × ${selected.height} px / X ${selected.x} / Y ${selected.y}`}
+      </div>}
     </div>
-    <div className="preview-footer"><span className="mono">{selected ? `X ${selected.x} / Y ${selected.y}` : 'Select a card to edit'}</span><span>Arrows 1 px · Shift 10 px · Space-drag to pan</span></div>
+    {selected && <SelectionToolbar toolbarRef={toolbarRef} document={document} widget={selected} ids={selectedIds} style={toolbarPlacement.style} docked={toolbarDocked} busy={gesturing}
+      compactResize={compactResize} onResize={() => { onCardDrag(); setResizeOpen(true); }}
+      onChange={onChange} onDuplicate={onDuplicate} onDelete={onDelete} onDetails={onDetails} />}
+    </div>
+    {resizeOpen && selected && <CompactResize key={selected.id} document={document} widget={selected} onChange={onChange} onClose={() => {
+      setResizeOpen(false);
+      requestAnimationFrame(() => viewportRef.current?.querySelector<HTMLElement>('[data-primary="true"]')?.focus({ preventScroll: true }));
+    }} />}
+    <MovementControls widget={selected} count={selectedIds.length} element={activeElement ?? null} onTarget={onMoveTarget} onNudge={onNudge} busy={gesturing} />
     <details className="canvas-warnings"><summary>{warnings.length === 100 ? '100+' : warnings.length} layout notes</summary><div className="canvas-warning-content"><p>Informational. You can still export and save this layout.</p><ul>{warnings.slice(0, 8).map((warning, index) => <li key={index}>{warning.message}</li>)}</ul>{warnings.length > 8 && <p>{warnings.length - 8} more notes. Review overlapping or small cards.</p>}</div></details>
   </section>;
 }

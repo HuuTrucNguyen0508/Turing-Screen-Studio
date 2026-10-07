@@ -25,8 +25,8 @@ test('drag, save, and wait for the exact panel revision without losing newer edi
   const card = page.getByRole('group', { name: 'CPU load card' });
   const bounds = await card.boundingBox();
   if (!bounds) throw new Error('Card missing');
-  await page.mouse.move(bounds.x + 40, bounds.y + 50);
-  await page.mouse.down(); await page.mouse.move(bounds.x + 60, bounds.y + 50); await page.mouse.up();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width / 2 + 20, bounds.y + bounds.height / 2); await page.mouse.up();
   await page.getByRole('button', { name: 'Save to panel' }).click();
   await expect.poll(() => saved.widgets[0].x).toBeGreaterThan(layout.widgets[0].x);
   await expect(page.getByRole('button', { name: 'Open panel dashboard' })).toBeDisabled();

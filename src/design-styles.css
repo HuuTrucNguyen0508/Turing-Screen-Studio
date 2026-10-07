@@ -62,6 +62,7 @@
 .design-link:hover:not(:disabled) { background: transparent; color: var(--primary); text-decoration-color: currentColor; }
 .design-link:disabled { text-decoration: none; }
 .design-reset { margin-top: 14px; }
+.design-move { grid-column: 1 / -1; font-size: 11px; }
 
 /* Canvas: baseline marker, drawn in widget-local document pixels over the card's border box */
 .design-marker { position: absolute; left: -1px; top: -1px; overflow: visible; pointer-events: none; z-index: 2; }
@@ -73,6 +74,9 @@
 .design-marker-anchor.hidden line { stroke-dasharray: 3 3; }
 .design-marker-anchor.hidden circle { fill: var(--background); stroke: var(--primary); }
 .design-marker-caption { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 14px; fill: var(--primary); }
+.design-marker:not(.active) .design-marker-anchor line { stroke: var(--muted); }
+.design-marker:not(.active) .design-marker-anchor circle { fill: var(--muted); }
+.design-marker:not(.active) .design-marker-caption { fill: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) {
   .design-section > summary::before, .design-chevron { transition: none; }

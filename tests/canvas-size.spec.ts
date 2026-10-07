@@ -17,7 +17,7 @@ test('portrait resizing exports integer cards and one Undo restores the complete
   await expect(dialog.getByRole('radio', { name: /^Keep positions/ })).toBeDisabled();
   await dialog.getByRole('checkbox', { name: 'Show header and footer', exact: true }).uncheck();
   await dialog.getByRole('button', { name: 'Resize canvas', exact: true }).click();
-  await expect(page.getByText('Portrait canvas', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Change canvas size' })).toContainText('320 × 480');
   const next = await exported(page);
   expect(next.canvas).toEqual({ width: 320, height: 480 });
   expect(next.chrome).toBe('none');

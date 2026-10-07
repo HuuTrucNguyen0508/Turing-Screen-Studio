@@ -73,7 +73,7 @@ describe('widget editing', () => {
     expect(sharedCatalog.metricSources).toEqual(metricSources);
     for (const { widget, group } of widgetCatalog) {
       expect(widgetGroups.some(({ id }) => id === group)).toBe(true);
-      if (widget.type !== 'text') expect(widgetSources(widget)).toContain(widget.settings.source);
+      if (widget.type !== 'text' && widget.type !== 'image') expect(widgetSources(widget)).toContain(widget.settings.source);
       if (widget.type === 'gauge') {
         expect(widget.settings.min).toBeLessThan(widget.settings.max);
         expect(widget.settings.value).toBeGreaterThanOrEqual(widget.settings.min);

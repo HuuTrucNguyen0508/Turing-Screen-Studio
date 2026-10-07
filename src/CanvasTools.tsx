@@ -34,7 +34,7 @@ export default function CanvasTools({ document, selectedIds, selectedId, busy, o
     try { onChange(operation()); setError(''); }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'These cards do not fit.'); }
   }
-  return <div className="canvas-tools">
+  return <div className={`canvas-tools${count < 2 ? ' single-selection' : ''}`}>
     <span className="selection-count" aria-live="polite">{count} selected</span>
     <fieldset disabled={busy || count < 2}><legend>Align</legend><div>
       {(['left', 'center', 'right', 'top', 'middle', 'bottom'] as Alignment[]).map((mode) => <button key={mode} aria-label={`Align ${mode}`} title={`Align ${mode} within selection`} onClick={() => run(() => alignSelection(document, selectedIds, mode))}><AlignmentIcon mode={mode} /></button>)}

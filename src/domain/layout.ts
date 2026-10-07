@@ -59,6 +59,18 @@ export interface TextWidget extends Geometry, WidgetPresentation {
   settings: { label: string; text: string };
 }
 
+/** Limits apply to the complete ASCII data URI and to decoded PNG bytes. */
+export const MAX_IMAGE_DATA_BYTES = 512 * 1024;
+export const MAX_IMAGE_DIMENSION = 4096;
+export const MAX_IMAGE_PIXELS = 16_000_000;
+export const imageFits = ['contain', 'cover', 'stretch'] as const;
+export type ImageFit = typeof imageFits[number];
+export interface ImageWidget extends Geometry, WidgetPresentation {
+  id: string;
+  type: 'image';
+  settings: { label: string; data: string; fit: ImageFit; opacity: number };
+}
+
 export const gaugeStyles = ['arc', 'ring', 'bar', 'segments', 'thermometer', 'number'] as const;
 export type GaugeStyle = typeof gaugeStyles[number];
 
@@ -75,7 +87,7 @@ export interface StorageWidget extends Geometry, WidgetPresentation {
   settings: { label: string; style: typeof storageStyles[number]; source?: 'sample' | 'mounted-storage'; grouping?: 'drives' | 'partitions'; mounts?: string[] };
 }
 
-export type Widget = MetricWidget | WeatherWidget | ClockWidget | TextWidget | GaugeWidget | StorageWidget;
+export type Widget = MetricWidget | WeatherWidget | ClockWidget | TextWidget | GaugeWidget | StorageWidget | ImageWidget;
 
 export interface LayoutDocument {
   version: 1;
@@ -88,6 +100,7 @@ export interface LayoutDocument {
 }
 
 const MAX_CANVAS_SIZE = 16384;
+const MAX_LAYOUT_BYTES = 1024 * 1024;
 const PALETTE_COLORS = [
   'background', 'surface', 'surfaceRaised', 'text', 'muted', 'primary', 'secondary', 'outline',
 ] as const;
@@ -150,6 +163,68 @@ function color(input: unknown, path: string): string {
   return value;
 }
 
+/** Synchronous, platform-independent PNG structure validation. Pillow also verifies pixels at runtime. */
+function imageData(input: unknown, path: string): string {
+  const data = string(input, path);
+  if (data.length > MAX_IMAGE_DATA_BYTES) fail(path, 'image exceeds the 512 KiB limit; resize or compress it before importing');
+  const prefix = 'data:image/png;base64,';
+  if (!data.startsWith(prefix)) fail(path, 'expected an embedded PNG data URI; import an image to convert it to PNG');
+  const encoded = data.slice(prefix.length);
+  if (!encoded || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) fail(path, 'invalid PNG base64');
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0;
+  if ((padding === 2 && (alphabet.indexOf(encoded.at(-3)!) & 15) !== 0) ||
+      (padding === 1 && (alphabet.indexOf(encoded.at(-2)!) & 3) !== 0)) fail(path, 'invalid PNG base64 padding');
+  const bytes = new Uint8Array(encoded.length / 4 * 3 - padding);
+  if (bytes.length > MAX_IMAGE_DATA_BYTES) fail(path, 'decoded PNG exceeds the 512 KiB limit');
+  for (let i = 0, offset = 0; i < encoded.length; i += 4) {
+    const word = (alphabet.indexOf(encoded[i]) << 18) | (alphabet.indexOf(encoded[i + 1]) << 12) |
+      (Math.max(0, alphabet.indexOf(encoded[i + 2])) << 6) | Math.max(0, alphabet.indexOf(encoded[i + 3]));
+    for (const shift of [16, 8, 0]) if (offset < bytes.length) bytes[offset++] = (word >>> shift) & 255;
+  }
+  const invalid = (): never => fail(path, 'invalid or unsupported PNG image');
+  if (bytes.length < 57 || [137, 80, 78, 71, 13, 10, 26, 10].some((byte, i) => bytes[i] !== byte)) invalid();
+  const view = new DataView(bytes.buffer);
+  let offset = 8, hasData = false, ended = false, hasPalette = false, dataEnded = false;
+  while (offset + 12 <= bytes.length) {
+    const length = view.getUint32(offset);
+    const end = offset + 12 + length;
+    if (end > bytes.length) invalid();
+    const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+    if (!/^[A-Za-z]{4}$/.test(type) || type[2] !== type[2].toUpperCase()) invalid();
+    let crc = 0xffffffff;
+    for (let i = offset + 4; i < end - 4; i++) {
+      crc ^= bytes[i];
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+    if (((crc ^ 0xffffffff) >>> 0) !== view.getUint32(end - 4)) invalid();
+    if (offset === 8) {
+      if (type !== 'IHDR' || length !== 13) invalid();
+      const width = view.getUint32(offset + 8), height = view.getUint32(offset + 12);
+      if (!width || !height || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || width * height > MAX_IMAGE_PIXELS) fail(path, 'PNG dimensions must be at most 4096 per side and 16 million pixels');
+      const depth = bytes[offset + 16], color = bytes[offset + 17];
+      const depths: Record<number, readonly number[]> = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] };
+      if (!depths[color]?.includes(depth) || bytes[offset + 18] !== 0 || bytes[offset + 19] !== 0 || bytes[offset + 20] > 1) invalid();
+    } else if (type === 'IHDR' || ['acTL', 'fcTL', 'fdAT'].includes(type)) invalid();
+    else if (type === 'PLTE') {
+      if (hasPalette || hasData || !length || length > 768 || length % 3) invalid();
+      hasPalette = true;
+    } else if (type === 'IDAT') {
+      if (dataEnded || (bytes[25] === 3 && !hasPalette)) invalid();
+      hasData = true;
+    } else if (type === 'IEND') {
+      if (length !== 0 || !hasData || end !== bytes.length) invalid();
+      ended = true;
+    } else {
+      if (type[0] === type[0].toUpperCase()) invalid();
+      if (hasData) dataEnded = true;
+    }
+    offset = end;
+  }
+  if (!ended || offset !== bytes.length) invalid();
+  return data;
+}
+
 function palette(input: unknown, path: string): Palette {
   const value = object(input, path);
   exactKeys(value, ['name', ...PALETTE_COLORS], path);
@@ -170,8 +245,8 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
   const value = object(input, path);
   exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path, ['design']);
   const id = string(value.id, `${path}.id`, true);
-  if (typeof value.type !== 'string' || !['metric', 'weather', 'clock', 'text', 'gauge', 'storage'].includes(value.type)) {
-    fail(`${path}.type`, 'unsupported widget type; expected metric, weather, clock, text, gauge, storage');
+  if (typeof value.type !== 'string' || !['metric', 'weather', 'clock', 'text', 'gauge', 'storage', 'image'].includes(value.type)) {
+    fail(`${path}.type`, 'unsupported widget type; expected metric, weather, clock, text, gauge, storage, image');
   }
   const geometry: Geometry = {
     x: integer(value.x, `${path}.x`, 0),
@@ -187,6 +262,15 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
   }
   const settings = object(value.settings, `${path}.settings`);
   const settingsPath = `${path}.settings`;
+  if (value.type === 'image') {
+    exactKeys(settings, ['label', 'data', 'fit', 'opacity'], settingsPath);
+    return { id, type: 'image', ...geometry, settings: {
+      label: string(settings.label, `${settingsPath}.label`),
+      data: imageData(settings.data, `${settingsPath}.data`),
+      fit: optionalChoice(settings, 'fit', settingsPath, imageFits)!,
+      opacity: integer(settings.opacity, `${settingsPath}.opacity`, 0, 100),
+    } };
+  }
   if (value.type === 'storage') {
     exactKeys(settings, ['label', 'style'], settingsPath, ['source', 'grouping', 'mounts']);
     const style = optionalChoice(settings, 'style', settingsPath, storageStyles)!;
@@ -320,11 +404,23 @@ function parseJson(text: string): unknown {
 }
 
 export function parseLayout(text: string): LayoutDocument {
+  layoutSize(text);
   return validateLayout(parseJson(text));
 }
 
 export function serializeLayout(doc: LayoutDocument): string {
-  return `${JSON.stringify(validateLayout(doc), null, 2)}\n`;
+  const text = `${JSON.stringify(validateLayout(doc), null, 2)}\n`;
+  layoutSize(text);
+  return text;
+}
+
+function layoutSize(text: string): void {
+  let bytes = 0;
+  for (const char of text) {
+    const point = char.codePointAt(0)!;
+    bytes += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
+    if (bytes > MAX_LAYOUT_BYTES) fail('$', 'layout exceeds the 1 MiB limit; resize or remove embedded images, or shorten text');
+  }
 }
 
 // Snapshot of the live Caelestia scheme. These colors also serve as the offline fallback.

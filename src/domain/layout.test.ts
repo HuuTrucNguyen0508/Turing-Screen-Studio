@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import {
   createSampleLayout,
@@ -10,8 +11,110 @@ import {
   serializeLayout,
   updateGeometry,
   validateLayout,
+  MAX_IMAGE_DATA_BYTES,
 } from './layout';
 import type { LayoutDocument } from './layout';
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const header = Buffer.alloc(4);
+  header.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type), data]);
+  let crc = 0xffffffff;
+  for (const byte of body) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  }
+  const checksum = Buffer.alloc(4);
+  checksum.writeUInt32BE((crc ^ 0xffffffff) >>> 0);
+  return Buffer.concat([header, body, checksum]);
+}
+
+function imagePng(width = 1, height = 1, extra: Buffer[] = []): string {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const bytes = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', header),
+    ...extra, pngChunk('IDAT', deflateSync(Buffer.from([0, 255, 0, 0, 128]))), pngChunk('IEND', Buffer.alloc(0))]);
+  return `data:image/png;base64,${bytes.toString('base64')}`;
+}
+
+function imageLayout(data = imagePng(), overrides: Record<string, unknown> = {}): unknown {
+  return { ...createSampleLayout(), widgets: [{ id: 'image', type: 'image', x: 5, y: 6, width: 80, height: 60,
+    settings: { label: 'Icon', data, fit: 'contain', opacity: 100, ...overrides } }] };
+}
+
+describe('portable embedded PNG widgets', () => {
+  it('round-trips all fit modes and opacity endpoints without dropping embedded pixels', () => {
+    for (const fit of ['contain', 'cover', 'stretch']) for (const opacity of [0, 53, 100]) {
+      const doc = validateLayout(imageLayout(imagePng(), { fit, opacity }));
+      expect(parseLayout(serializeLayout(doc))).toEqual(doc);
+      expect(Object.keys(doc.widgets[0].settings)).toEqual(['label', 'data', 'fit', 'opacity']);
+    }
+  });
+
+  it.each(['https://example.com/icon.png', '/tmp/icon.png', 'file:///icon.png', 'javascript:alert(1)',
+    'data:image/svg+xml;base64,PHN2Zy8+', 'data:image/jpeg;base64,/9j/', 'data:image/png;base64,',
+    'data:image/png;base64,!!!!', 'data:image/png;base64,YQ=', 'data:image/png;base64,YR==',
+    'data:image/png;base64,YQ==\n', 'data:image/png;base64,aGVsbG8='])('rejects nonportable or malformed data %s', (data) => {
+    expect(() => validateLayout(imageLayout(data))).toThrow('$.widgets[0].settings.data');
+  });
+
+  it('rejects bad signatures, checksums, truncated chunks, trailing bytes and animation', () => {
+    const bytes = Buffer.from(imagePng().split(',')[1], 'base64');
+    const badHeader = Buffer.from(bytes); badHeader[0] = 0;
+    const badChecksum = Buffer.from(bytes); badChecksum[32] ^= 1;
+    for (const raw of [badHeader, badChecksum, bytes.subarray(0, bytes.length - 1), Buffer.concat([bytes, Buffer.from('extra')])]) {
+      expect(() => validateLayout(imageLayout(`data:image/png;base64,${raw.toString('base64')}`))).toThrow('invalid or unsupported PNG');
+    }
+    expect(() => validateLayout(imageLayout(imagePng(1, 1, [pngChunk('acTL', Buffer.alloc(8))])))).toThrow('invalid or unsupported PNG');
+  });
+
+  it('bounds dimensions and embedded data before decoding', () => {
+    for (const [width, height] of [[0, 1], [4097, 1], [4096, 4096]]) {
+      expect(() => validateLayout(imageLayout(imagePng(width, height)))).toThrow('PNG dimensions');
+    }
+    expect(() => validateLayout(imageLayout('data:image/png;base64,' + 'A'.repeat(MAX_IMAGE_DATA_BYTES)))).toThrow('512 KiB');
+  });
+
+  it.each([-1, 101, 1.5, '50', true, null, NaN])('rejects invalid opacity %s', (opacity) => {
+    expect(() => validateLayout(imageLayout(imagePng(), { opacity }))).toThrow('$.widgets[0].settings.opacity');
+  });
+
+  it('requires exactly the image settings, rejects other widget content and design', () => {
+    for (const key of ['label', 'data', 'fit', 'opacity']) {
+      const doc = imageLayout() as { widgets: { settings: Record<string, unknown> }[] };
+      delete doc.widgets[0].settings[key];
+      expect(() => validateLayout(doc)).toThrow(`settings.${key}: required field`);
+    }
+    for (const overrides of [{ fit: 'tile' }, { source: 'sample' }, { url: 'https://example.com' }, { text: 'text' }]) {
+      expect(() => validateLayout(imageLayout(imagePng(), overrides))).toThrow('$.widgets[0].settings');
+    }
+    const doc = validateLayout(imageLayout());
+    expect(() => validateLayout({ ...doc, widgets: [{ ...doc.widgets[0], design: {} }] })).toThrow('image cards have no editable elements');
+  });
+
+  it('reports the whole-layout cap when several individually bounded images exceed it', () => {
+    const data = imagePng(1, 1, [pngChunk('tEXt', Buffer.concat([Buffer.from('Note\0'), Buffer.alloc(280_000, 65)]))]);
+    const doc = validateLayout(imageLayout(data));
+    doc.widgets = Array.from({ length: 3 }, (_, i) => ({ ...doc.widgets[0], id: `image-${i}` }));
+    expect(data.length).toBeLessThan(MAX_IMAGE_DATA_BYTES);
+    expect(() => serializeLayout(doc)).toThrow('1 MiB limit; resize or remove embedded images');
+    expect(() => parseLayout(JSON.stringify(doc))).toThrow('1 MiB limit');
+  });
+
+  it('counts UTF-8 bytes for the layout cap and exposes native schema settings', () => {
+    const doc = validateLayout(imageLayout());
+    doc.name = '🌕'.repeat(270_000);
+    expect(() => serializeLayout(doc)).toThrow('1 MiB limit');
+    const schema = JSON.parse(readFileSync(new URL('../../public/layout.schema.json', import.meta.url), 'utf8'));
+    const image = schema.properties.widgets.items.oneOf.find((entry: { properties: { type: { const: string } } }) => entry.properties.type.const === 'image');
+    expect(image.properties.settings.required).toEqual(['label', 'data', 'fit', 'opacity']);
+    expect(image.properties.settings.properties.data.maxLength).toBe(MAX_IMAGE_DATA_BYTES);
+    expect(image.properties.settings.properties.opacity).toEqual({ type: 'integer', minimum: 0, maximum: 100 });
+  });
+});
 
 describe('optional presentation serialization', () => {
   it('omits absent design and orders nested clock overrides canonically without dropping explicit defaults', () => {
