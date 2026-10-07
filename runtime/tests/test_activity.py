@@ -588,6 +588,22 @@ class ActivityTests(unittest.TestCase):
                 self.assert_unknown(value)
                 self.assertIn("query budget", value["note"])
 
+    def test_sqlite_errors_without_python_311_result_constants(self):
+        constants = {name: None for name in ('SQLITE_INTERRUPT', 'SQLITE_BUSY', 'SQLITE_LOCKED')}
+        for i in range(12):
+            self.add_thread(str(i))
+        with patch.multiple(sqlite3, create=True, **constants):
+            with patch.object(activity, 'SQL_STEPS', 0):
+                value = self.reader().snapshot()
+                self.assert_unknown(value)
+                self.assertIn('query budget', value['note'])
+            with closing(sqlite3.connect(self.database)) as lock:
+                lock.execute('BEGIN EXCLUSIVE')
+                value = self.reader().snapshot()
+                self.assert_unknown(value, 'unavailable')
+                self.assertIn('busy', value['note'])
+                lock.rollback()
+
     def test_large_or_invalid_run_metadata_is_unknown(self):
         self.add_thread()
         for raw in ("malformed private token", " " * 8193, '{"activeAttemptId":null}'):

@@ -228,7 +228,7 @@ class UsageTests(unittest.TestCase):
             with self.subTest(elapsed=elapsed):
                 self.now = NOW + elapsed
                 if elapsed:
-                    with patch.object(Path, "open", autospec=True, wraps=Path.open) as opened:
+                    with patch.object(Path, "open", autospec=True, side_effect=Path.open) as opened:
                         value = self.provider()
                         self.assertFalse(any(call.args[0] == path for call in opened.call_args_list))
                 else:
@@ -285,7 +285,7 @@ class UsageTests(unittest.TestCase):
         path = self.quota()
         self.assertEqual(self.provider()["limits"][0]["usedPercent"], 42)
         self.now += 61
-        with patch.object(Path, "open", autospec=True, wraps=Path.open) as opened:
+        with patch.object(Path, "open", autospec=True, side_effect=Path.open) as opened:
             # JSON caches are missing; an unchanged quota file must not be opened.
             self.provider()
             self.assertFalse(any(call.args[0] == path for call in opened.call_args_list))

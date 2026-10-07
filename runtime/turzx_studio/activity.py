@@ -380,9 +380,15 @@ class T3Activity:
                         "threads": items[:MAX_ITEMS], "observedAt": _iso(observed),
                         "note": "Verified T3 execution." if items else "No working T3 threads."}
         except sqlite3.Error as error:
-            if getattr(error, "sqlite_errorcode", None) == sqlite3.SQLITE_INTERRUPT:
+            # Python 3.10 lacks both sqlite_errorcode and the result-code
+            # constants. Match SQLite's fixed diagnostic text on that version.
+            code = getattr(error, "sqlite_errorcode", None)
+            diagnostic = str(error).lower()
+            interrupted = getattr(sqlite3, "SQLITE_INTERRUPT", None)
+            busy_codes = {getattr(sqlite3, "SQLITE_BUSY", None), getattr(sqlite3, "SQLITE_LOCKED", None)} - {None}
+            if (code is not None and code == interrupted) or diagnostic == "interrupted":
                 raise _Unavailable("read_bound", "stale") from None
-            if getattr(error, "sqlite_errorcode", None) in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}:
+            if code in busy_codes or diagnostic in {"database is locked", "database table is locked", "database schema is locked"}:
                 raise _Unavailable("database_busy") from None
             raise _Unavailable("database_unreadable") from None
         except OSError:

@@ -1,3 +1,9 @@
+## Public CI setup fixes, 7 October 2026
+
+The initial GitHub run passed all 92 browser cases and the Python 3.13 suite. It exposed a missing Pillow dependency in the editor job, because one domain test imports the PIL gauge helpers. That job now installs the pinned Python requirement before running domain tests.
+
+Python 3.10 exposed missing SQLite result-code constants in activity error handling and a version-dependent mock wrapper in two usage tests. The reader now preserves unavailable/budget states on older Python by handling SQLite's fixed diagnostics without missing-constant lookups. File-open spies use an explicit real-call side effect. All 62 activity checks and 64 usage checks passed locally, including an older-binding regression.
+
 ## Community release, 7 October 2026
 
 Added a canvas-size dialog with resolution presets, custom dimensions, uniform card fitting, keep-position and empty-canvas modes. Resize maps integer edges with one aspect-preserving scale; one Undo restores the original document. Portrait layouts export without changing the panel. Non-1280 × 800 drafts cannot be saved to the existing panel or its library.
