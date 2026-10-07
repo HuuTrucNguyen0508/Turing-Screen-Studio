@@ -5,6 +5,8 @@ import { demoTrendHistory, trendCaption, trendChart, trendUnit } from './domain/
 import './widget-styles.css';
 import StorageContent from './StorageContent';
 import UsageContent from './UsageContent';
+import DashboardContent from './DashboardContent';
+import { isDashboardSource } from './domain/dashboardData';
 import { dashboardHeading, isUsageSource } from './domain/usage';
 
 export function widgetLabel(widget: Widget): string {
@@ -155,6 +157,7 @@ export function CardContent({ widget }: { widget: Widget }) {
     <div className="weather-range"><span>High {widget.settings.high}°</span><span>Low {widget.settings.low}°</span></div>
     <div className="weather-caption">Sample forecast</div>
   </div>;
+  if (isDashboardSource(widget.settings.source)) return <DashboardContent widget={widget} />;
   if (widget.settings.trend) return <TrendMetric widget={widget} />;
   if (isUsageSource(widget.settings.source)) return <UsageContent widget={widget} />;
   return <div className="metric-content">
@@ -168,10 +171,11 @@ export function CardContent({ widget }: { widget: Widget }) {
   </div>;
 }
 
-export function StaticLayout({ document }: { document: LayoutDocument }) {
-  return <div className="preset-thumbnail" aria-hidden="true"><div className="static-document" style={{ width: document.canvas.width, height: document.canvas.height, transform: `scale(${240 / document.canvas.width})` }}>
-    <div className="dashboard-header"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>
+export function StaticLayout({ document, maxHeight }: { document: LayoutDocument; maxHeight?: number }) {
+  const scale = Math.min(240 / document.canvas.width, (maxHeight ?? Infinity) / document.canvas.height);
+  return <div className="preset-thumbnail" aria-hidden="true" style={maxHeight ? { width: document.canvas.width * scale, height: document.canvas.height * scale } : undefined}><div className="static-document" style={{ width: document.canvas.width, height: document.canvas.height, transform: `scale(${scale})` }}>
+    {document.chrome !== 'none' && <div className="dashboard-header"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
     {document.widgets.map((widget) => <div key={widget.id} className="dashboard-card" style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}><CardContent widget={widget} /></div>)}
-    <div className="dashboard-footer"><span>Deterministic preview</span><span>{document.canvas.width} / {document.canvas.height}</span></div>
+    {document.chrome !== 'none' && <div className="dashboard-footer"><span>Deterministic preview</span><span>{document.canvas.width} / {document.canvas.height}</span></div>}
   </div></div>;
 }

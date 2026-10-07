@@ -1,0 +1,19 @@
+.local-dashboard { display: block; overflow: hidden; text-rendering: geometricPrecision; }
+.game-timers-dialog { width: min(620px, calc(100vw - 32px)); }
+.game-timers-dialog .timer-row { padding: 18px 0; border-top: 1px solid var(--outline); }
+.timer-row h3 { margin: 0 0 4px; font-size: 16px; font-weight: 500; }
+.timer-row p { margin: 6px 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.timer-controls { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.timer-controls label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.timer-controls input { width: 112px; min-height: 44px; padding: 10px; color: var(--text); background: var(--surfaceRaised); border: 1px solid var(--outline); border-radius: 6px; font: inherit; }
+.game-timers-dialog button { min-height: 44px; }
+.game-timers-dialog :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.timer-controls input[aria-invalid=true] { border-color: var(--primary); }
+.timer-error { color: var(--text) !important; }
+.timer-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; }
+@media (max-width: 600px) {
+  .game-timers-dialog { width: calc(100vw - 24px); max-width: none; padding: 18px; }
+  .timer-controls label { flex-basis: 100%; }
+  .timer-controls input { width: 100%; }
+  .timer-controls button { flex: 1; }
+}

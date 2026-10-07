@@ -13,8 +13,8 @@ export { parseLibrary } from './domain/library';
 type Confirmation = { kind: 'replace'; entry: Entry; document: LayoutDocument }
   | { kind: 'remove'; entry: Entry } | { kind: 'rename'; entry: Entry };
 
-export default function SavedLayouts({ available, busy, presets, getDocument, onSwitch, onError, onMessage, onEdit, onTargetUpdated, onLibraryUpdated }: {
-  available: boolean; busy: boolean; presets: LayoutPreset[]; getDocument: () => LayoutDocument;
+export default function SavedLayouts({ available, busy, draftCompatible = true, presets, getDocument, onSwitch, onError, onMessage, onEdit, onTargetUpdated, onLibraryUpdated }: {
+  draftCompatible?: boolean; available: boolean; busy: boolean; presets: LayoutPreset[]; getDocument: () => LayoutDocument;
   onSwitch: (selection: LayoutSelection) => Promise<{ activeId: string } | null>;
   onError: (message: string) => void; onMessage: (message: string) => void;
   onEdit?: (document: LayoutDocument, target: LibraryDraftTarget) => void;
@@ -111,7 +111,7 @@ export default function SavedLayouts({ available, busy, presets, getDocument, on
   }
 
   function addDraft() {
-    if (!library) return;
+    if (!library || !draftCompatible) return;
     const snapshot = parseLayout(serializeLayout(getDocument()));
     void update([...library.entries, { id: `layout-${crypto.randomUUID()}`, name: snapshot.name, document: snapshot }]);
   }
@@ -139,11 +139,12 @@ export default function SavedLayouts({ available, busy, presets, getDocument, on
   }
 
   function confirm(action: Confirmation) {
+    if (action.kind === 'replace' && !draftCompatible) return;
     setError(''); setRename(action.entry.name); setConfirmation(action);
   }
 
   async function commitConfirmation() {
-    if (!confirmation || !library) return;
+    if (!confirmation || !library || (confirmation.kind === 'replace' && !draftCompatible)) return;
     const action = confirmation;
     const entries = action.kind === 'remove' ? library.entries.filter((saved) => saved.id !== action.entry.id)
       : library.entries.map((saved) => saved.id !== action.entry.id ? saved
@@ -175,7 +176,8 @@ export default function SavedLayouts({ available, busy, presets, getDocument, on
       <p className="saved-layouts-lede">Edit a saved layout as a draft, or show it on the panel. Saving the library keeps the panel's current dashboard.</p>
       <div className="rotation-controls"><button disabled={disabled || !library?.entries.length} onClick={() => void switchTo({ direction: 'previous' })}>Previous layout</button><button disabled={disabled || !library?.entries.length} onClick={() => void switchTo({ direction: 'next' })}>Next layout</button><span><kbd>Ctrl</kbd> + <kbd>F9</kbd> / <kbd>F10</kbd> / <kbd>F11</kbd> / <kbd>F12</kbd></span></div>
       {error && !confirmation && <p className="saved-layouts-error" role="alert">{error}</p>}
-      <div className="rotation-add"><button disabled={disabled || !library || full} onClick={addDraft}>Add current draft</button><label>Ready-made layout<select aria-label="Ready-made layout to save" value={presetId} disabled={disabled} onChange={(event) => setPresetId(event.target.value)}><option value="">Choose a preset</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select></label><button disabled={disabled || !library || !presetId || full} onClick={addPreset}>Add preset</button><button disabled={disabled} onClick={() => void show()}>Refresh list</button></div>
+      <div className="rotation-add"><button disabled={!draftCompatible || disabled || !library || full} onClick={addDraft}>Add current draft</button><label>Ready-made layout<select aria-label="Ready-made layout to save" value={presetId} disabled={disabled} onChange={(event) => setPresetId(event.target.value)}><option value="">Choose a preset</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select></label><button disabled={disabled || !library || !presetId || full} onClick={addPreset}>Add preset</button><button disabled={disabled} onClick={() => void show()}>Refresh list</button></div>
+      {!draftCompatible && <p className="panel-note">Panel saves need 1280 × 800. Export JSON to keep this draft.</p>}
       {full && <p className="panel-note">Library holds 12 layouts. Remove an entry before adding another.</p>}
       {library ? <ol className="saved-layout-list">{library.entries.map((entry, index) => <li key={entry.id} className={entry.id === library.activeId ? 'active-layout' : ''}>
         <span className="layout-order" aria-hidden="true">{index + 1}</span><StaticLayout document={entry.document} />
@@ -184,7 +186,7 @@ export default function SavedLayouts({ available, busy, presets, getDocument, on
           <button className="primary-button" disabled={disabled || !onEdit} onClick={() => edit(entry, library)}>Edit as draft</button>
           <button disabled={disabled || full} title={full ? 'Library holds 12 layouts.' : undefined} onClick={() => duplicate(entry, index)}>Duplicate</button>
           <button disabled={disabled} onClick={() => confirm({ kind: 'rename', entry })}>Rename</button>
-          <button disabled={disabled} onClick={() => confirm({ kind: 'replace', entry, document: parseLayout(serializeLayout(getDocument())) })}>Replace with draft…</button>
+          <button disabled={!draftCompatible || disabled} onClick={() => confirm({ kind: 'replace', entry, document: parseLayout(serializeLayout(getDocument())) })}>Replace with draft…</button>
           <button disabled={disabled} aria-label={`Remove ${entry.name} from library`} onClick={() => confirm({ kind: 'remove', entry })}>Remove…</button>
         </div></div>
         <div className="layout-order-controls"><button disabled={disabled || index === 0} aria-label={`Move ${entry.name} earlier`} onClick={() => reorder(index, -1)}>↑</button><button disabled={disabled || index === library.entries.length - 1} aria-label={`Move ${entry.name} later`} onClick={() => reorder(index, 1)}>↓</button></div>

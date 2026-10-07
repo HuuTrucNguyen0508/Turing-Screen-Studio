@@ -24,6 +24,9 @@ from turzx_studio.layout_library import (
 from turzx_studio.widget_templates import WidgetTemplates, validate_templates, templates_revision
 from turzx_studio.usage import UsageCollector
 from turzx_studio.usage_display import USAGE_SOURCES, UsageStats
+from turzx_studio.activity import T3Activity
+from turzx_studio.games import GameResources, GameRevisionConflict, GameStateUnavailable
+from turzx_studio.dashboard_display import DASHBOARD_SOURCES, DashboardStats
 from turzx_studio.live import MAX_AGE, source_diagnostics, snapshot_stats, validate_snapshot
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -134,6 +137,8 @@ class StudioApplication:
         self.palette_lock = threading.Lock()
         self.seed_error: str | None = None
         self.usage = UsageCollector()
+        self.activity = T3Activity()
+        self.games = GameResources(self.paths.state_dir / 'game-timers.json')
         with self.layout_lock:
             # lexists behavior preserves broken symlinks too, rather than seeding over them.
             if self.paths.layout.exists() or self.paths.layout.is_symlink():
@@ -189,6 +194,8 @@ class StudioApplication:
         except (OSError, ValueError, APIError):
             runtime = {}
         if isinstance(runtime, dict) and runtime_is_running(runtime):
+            if 'chrome' in document and runtime.get('supportedChrome') is not True:
+                raise APIError(409, 'The panel runtime needs an update before saving header and footer options. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
             supported = runtime.get('supportedWidgetTypes', ['metric', 'weather'])
             if (not isinstance(supported, list) or
                     any(widget['type'] not in supported for widget in document['widgets'])):
@@ -210,6 +217,11 @@ class StudioApplication:
             if requested_sources and (not isinstance(usage_sources, list) or
                     any(source not in usage_sources for source in requested_sources)):
                 raise APIError(409, 'The panel runtime needs an update before saving usage or storage widgets. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
+            dashboard_sources = runtime.get('supportedDashboardSources', [])
+            if any(widget['settings'].get('source') in DASHBOARD_SOURCES and
+                   (not isinstance(dashboard_sources, list) or widget['settings']['source'] not in dashboard_sources)
+                   for widget in document['widgets']):
+                raise APIError(409, 'The panel runtime needs an update before saving thread or game widgets. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
             requested_styles = [widget['settings']['style'] for widget in document['widgets']
                                 if widget['type'] == 'gauge' and 'style' in widget['settings']]
             if requested_styles and (not isinstance(styles, list) or
@@ -359,6 +371,23 @@ class StudioApplication:
             return {'available': False, 'stale': True, 'sources': [],
                     'error': 'Live readings are unavailable. The runtime needs the current Studio adapter.'}
 
+    def save_game_timer(self, raw: object, if_match: str | None) -> dict:
+        if if_match is None:
+            raise APIError(428, 'Updating game timers requires their current revision in If-Match')
+        if not isinstance(raw, dict) or set(raw) not in ({'game', 'count'}, {'game', 'clear'}):
+            raise APIError(422, 'Choose a game and a whole resource count, or clear its timer')
+        if 'clear' in raw and raw['clear'] is not True:
+            raise APIError(422, 'Clear must be true')
+        expected = if_match.removeprefix('"').removesuffix('"')
+        try:
+            if 'clear' in raw:
+                return self.games.clear(raw['game'], if_match=expected)
+            return self.games.set_timer(raw['game'], raw['count'], if_match=expected)
+        except GameRevisionConflict as error:
+            raise APIError(409, 'Game timers changed. Reload them before updating a count.', revision=self.games.snapshot()['revision']) from error
+        except (GameStateUnavailable, ValueError) as error:
+            raise APIError(422, str(error)) from error
+
     def preview(self, raw: object, *, live: bool = False) -> bytes:
         try:
             document = validate_layout(raw, panel=False)
@@ -376,6 +405,11 @@ class StudioApplication:
                     stats = snapshot_stats(readings)
                     if usage is not None:
                         stats = UsageStats(stats, usage)
+                    sources = {widget['settings'].get('source') for widget in document['widgets']}
+                    if sources.intersection(DASHBOARD_SOURCES):
+                        stats = DashboardStats(stats,
+                            self.activity.snapshot() if 't3-threads' in sources else None,
+                            self.games.snapshot() if 'game-resources' in sources else None)
                 image = self.renderer.render(document, stats=stats, palette=colors)
                 try:
                     output = BytesIO()
@@ -493,6 +527,11 @@ class StudioHandler(BaseHTTPRequestHandler):
                     self._json(200, app.status())
                 elif path == "/api/usage":
                     self._json(200, app.usage.snapshot())
+                elif path == "/api/activity":
+                    self._json(200, app.activity.snapshot())
+                elif path == "/api/games":
+                    result = app.games.snapshot()
+                    self._json(200, result, etag=result['revision'])
                 elif path == "/api/live":
                     self._json(200, app.live())
                 elif path == "/api/history":
@@ -517,15 +556,16 @@ class StudioHandler(BaseHTTPRequestHandler):
                 else:
                     self._static(path)
             elif self.command == "POST":
-                if path not in ("/api/layout", "/api/layouts", "/api/layouts/switch", "/api/widgets", "/api/preview"):
+                if path not in ("/api/layout", "/api/layouts", "/api/layouts/switch", "/api/widgets", "/api/games", "/api/preview"):
                     raise APIError(404, "API endpoint not found")
                 raw = self._body()
-                if path in ("/api/layout", "/api/layouts", "/api/layouts/switch", "/api/widgets"):
+                if path in ("/api/layout", "/api/layouts", "/api/layouts/switch", "/api/widgets", "/api/games"):
                     matches = self.headers.get_all("If-Match", [])
                     if len(matches) > 1:
                         raise APIError(400, "Send only one If-Match header")
                     action = {'/api/layout': app.save, '/api/layouts': app.save_layouts,
-                              '/api/layouts/switch': app.switch_layout, '/api/widgets': app.save_widgets}[path]
+                              '/api/layouts/switch': app.switch_layout, '/api/widgets': app.save_widgets,
+                              '/api/games': app.save_game_timer}[path]
                     result = action(raw, matches[0] if matches else None)
                     self._json(200, result, etag=result["revision"])
                 else:

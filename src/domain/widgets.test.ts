@@ -16,6 +16,28 @@ function pythonValidate(value: unknown): { valid: boolean; document?: unknown; e
 }
 
 describe('widget editing', () => {
+  it('preserves optional header and footer choices across both validators', () => {
+    const classic = empty();
+    expect(validateLayout(classic)).not.toHaveProperty('chrome');
+    for (const chrome of ['none', 'standard'] as const) {
+      const doc = validateLayout({ ...classic, chrome });
+      expect(pythonValidate(doc)).toEqual({ valid: true, document: doc });
+      expect(parseLayout(serializeLayout(doc))).toEqual(doc);
+    }
+    expect(() => validateLayout({ ...classic, chrome: false })).toThrow('$.chrome');
+  });
+  it('round trips aggregate usage cards through both validators and rejects them as gauges', () => {
+    for (const source of ['usage-tokens-30d', 'usage-cost-30d', 'usage-limits']) {
+      const doc = addWidget(empty(), source);
+      expect(parseLayout(serializeLayout(doc))).toEqual(doc);
+      expect(pythonValidate(doc)).toEqual({ valid: true, document: doc });
+      const invalid = { ...doc, widgets: [{ ...doc.widgets[0], type: 'gauge', settings: {
+        label: 'Summary', value: 0, min: 0, max: 100, unit: '', detail: '', source,
+      } }] };
+      expect(() => validateLayout(invalid)).toThrow('summary sources require a metric card');
+      expect(pythonValidate(invalid)).toMatchObject({ valid: false, error: expect.stringContaining('summary sources require a metric card') });
+    }
+  });
   it('copies centered catalog designs and custom templates without linking placed cards', () => {
     const centered = widgetCatalog.find(({ id }) => id === 'clock-centered')!;
     const added = addWidget(empty(), centered.id);
@@ -40,10 +62,10 @@ describe('widget editing', () => {
     expect(widgetCatalog.map(({ widget, ...metadata }) => ({ ...metadata, type: widget.type, width: widget.width, height: widget.height, settings: widget.settings, ...(widget.design ? { design: widget.design } : {}) }))).toEqual(catalog.widgets);
     expect(widgetCatalog.every(({ id, widget }) => widget.id === id && widget.x === 0 && widget.y === 0)).toBe(true);
   });
-  it('keeps all 107 choices, nine unique groups and the original IDs', () => {
-    expect(widgetCatalog).toHaveLength(107);
+  it('keeps all 112 choices, ten unique groups and the original IDs', () => {
+    expect(widgetCatalog).toHaveLength(112);
     expect(new Set(widgetCatalog.map(({ id }) => id)).size).toBe(widgetCatalog.length);
-    expect(widgetGroups.map(({ id }) => id)).toEqual(['system', 'network', 'temperature', 'gauge', 'clock', 'weather', 'text', 'ai-usage', 'storage']);
+    expect(widgetGroups.map(({ id }) => id)).toEqual(['system', 'network', 'temperature', 'gauge', 'clock', 'weather', 'text', 'ai-usage', 'storage', 'games']);
     expect(new Set(widgetGroups.map(({ id }) => id)).size).toBe(widgetGroups.length);
     expect(widgetCatalog.slice(0, 12).map(({ id }) => id)).toEqual([
       'cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature', 'weather', 'clock', 'text', 'gauge',

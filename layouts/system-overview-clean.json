@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "name": "System overview",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "dynamic",
+    "background": "#0a0f0f",
+    "surface": "#131b1b",
+    "surfaceRaised": "#192121",
+    "text": "#dce8e7",
+    "muted": "#a2adad",
+    "primary": "#9bd0d1",
+    "secondary": "#b0cccc",
+    "outline": "#3f4a4a"
+  },
+  "widgets": [
+    {
+      "id": "clock",
+      "type": "clock",
+      "x": 64,
+      "y": 64,
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Local time",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "design": {
+        "elements": {
+          "label": {
+            "hidden": true
+          },
+          "time": {
+            "align": "center",
+            "dy": 48,
+            "size": 72,
+            "color": "text"
+          },
+          "date": {
+            "align": "center",
+            "dy": -73,
+            "size": 18,
+            "color": "muted"
+          }
+        }
+      }
+    },
+    {
+      "id": "cpu",
+      "type": "gauge",
+      "x": 358,
+      "y": 64,
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "CPU load",
+        "value": 24,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu"
+      }
+    },
+    {
+      "id": "gpu",
+      "type": "gauge",
+      "x": 652,
+      "y": 64,
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "GPU load",
+        "value": 18,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "6.2 / 16 GB VRAM",
+        "source": "gpu"
+      }
+    },
+    {
+      "id": "memory",
+      "type": "gauge",
+      "x": 946,
+      "y": 64,
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Memory",
+        "value": 39,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "12.4 / 32 GB",
+        "source": "memory"
+      }
+    },
+    {
+      "id": "weather",
+      "type": "weather",
+      "x": 358,
+      "y": 392,
+      "width": 270,
+      "height": 344,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "\u00b0C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14",
+        "source": "weather"
+      }
+    },
+    {
+      "id": "mounted-storage",
+      "type": "storage",
+      "x": 652,
+      "y": 392,
+      "width": 564,
+      "height": 344,
+      "settings": {
+        "label": "Storage",
+        "style": "bars",
+        "grouping": "drives",
+        "source": "mounted-storage"
+      }
+    },
+    {
+      "id": "game-resources",
+      "type": "metric",
+      "width": 270,
+      "height": 344,
+      "settings": {
+        "label": "Game timers",
+        "value": "",
+        "unit": "",
+        "detail": "{\"note\":\"Sample timer estimates\",\"games\":[{\"name\":\"Genshin\",\"resource\":\"Resin\",\"current\":137,\"capacity\":200,\"status\":\"demo\",\"remaining\":\"8h 24m to full\",\"age\":\"set 2h ago\"},{\"name\":\"Wuthering Waves\",\"resource\":\"Waveplates\",\"current\":240,\"capacity\":240,\"status\":\"demo\",\"remaining\":\"Full\",\"age\":\"set 26h ago\"},{\"name\":\"Zenless\",\"resource\":\"Battery\",\"current\":null,\"capacity\":240,\"status\":\"not-configured\",\"remaining\":\"Set in Game timers\",\"age\":\"\"}]}",
+        "source": "game-resources"
+      },
+      "x": 64,
+      "y": 392
+    }
+  ],
+  "paletteMode": "live",
+  "chrome": "none"
+}

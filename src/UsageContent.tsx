@@ -1,7 +1,10 @@
 import type { MetricWidget } from './domain/layout';
 import './usage-styles.css';
+import UsageSummaryContent from './UsageSummaryContent';
+import { isUsageSummary } from './domain/usage';
 
 export default function UsageContent({ widget }: { widget: MetricWidget }) {
+  if (isUsageSummary(widget.settings.source)) return <UsageSummaryContent widget={widget} />;
   const { label, value, unit, detail, source } = widget.settings;
   const modelLines = detail.split('\n');
   const rows = modelLines.slice(1).filter(line => line.split('\t').length === 3);

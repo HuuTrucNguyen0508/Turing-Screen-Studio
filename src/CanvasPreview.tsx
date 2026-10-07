@@ -20,6 +20,7 @@ type Props = {
   getSelection: () => readonly string[];
   onGestureStart: () => void;
   onGestureEnd: (cancel: boolean) => void;
+  onResizeCanvas?: () => void;
   previewControls?: ReactNode;
   previewNotice?: string;
   onPreviewRetry?: () => void;
@@ -48,7 +49,7 @@ function initialSnapping() {
   catch { return true; }
 }
 
-export default function CanvasPreview({ document, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, previewControls, previewNotice, onPreviewRetry, designElement }: Props) {
+export default function CanvasPreview({ document, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, previewNotice, onPreviewRetry, designElement }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const endRef = useRef(onGestureEnd);
@@ -164,7 +165,7 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
   function view(nextZoom: number, fitView = false) { finish(true); setZoom(Math.max(.25, Math.min(4, nextZoom))); if (fitView) setPan({ x: 0, y: 0 }); }
   const selected = document.widgets.find((widget) => widget.id === selectedId);
   return <section className="preview-panel" aria-label="Layout preview">
-    <div className="panel-heading"><div><span className="eyebrow">Landscape panel</span><h2>Canvas</h2></div><span className="mono">{document.canvas.width} × {document.canvas.height} px</span></div>
+    <div className="panel-heading"><div><span className="eyebrow">{document.canvas.width === document.canvas.height ? 'Square canvas' : document.canvas.width > document.canvas.height ? 'Landscape canvas' : 'Portrait canvas'}</span><h2>Canvas</h2></div><button className="mono" disabled={gesturing} onClick={onResizeCanvas} aria-label="Change canvas size">{document.canvas.width} × {document.canvas.height} px · Change</button></div>
     {previewControls}
     <CanvasTools document={document} selectedIds={selectedIds} selectedId={selectedId} busy={gesturing} onChange={onChange} />
     <div className="canvas-view-tools" aria-label="Canvas view">
@@ -182,7 +183,7 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
       onLostPointerCapture={(event) => { if (event.pointerId === gestureRef.current?.pointerId && event.target === gestureRef.current.target) finish(true); }}
       onKeyDown={(event) => { if (gestureRef.current && event.key !== 'Escape' && event.code !== 'Space') { event.preventDefault(); event.stopPropagation(); } }}>
       <div className={`document-canvas${bitmap ? ' rendered-canvas' : ''}`} data-testid="document-canvas" style={{ width: document.canvas.width, height: document.canvas.height, left: offsetX, top: offsetY, transform: `scale(${scale})` }}>
-        {bitmap ? <img className="rendered-frame" src={bitmap} alt={previewNotice?.includes('Live') || previewNotice?.includes('live') ? 'Panel renderer with live readings' : 'Panel renderer with sample data'} draggable={false} /> : <div className="dashboard-header" aria-hidden="true"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
+        {bitmap ? <img className="rendered-frame" src={bitmap} alt={previewNotice?.includes('Live') || previewNotice?.includes('live') ? 'Panel renderer with live readings' : 'Panel renderer with sample data'} draggable={false} /> : document.chrome !== 'none' && <div className="dashboard-header" aria-hidden="true"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
         {document.widgets.map((widget) => <div key={widget.id} tabIndex={0} role="group" aria-label={`${widgetLabel(widget)} card`} aria-roledescription="movable card"
           data-widget-id={widget.id} data-selected={selectedIds.includes(widget.id)} data-primary={selectedId === widget.id}
           className={`dashboard-card ${selectedIds.includes(widget.id) ? 'selected' : ''}`}
@@ -203,7 +204,7 @@ export default function CanvasPreview({ document, selectedId, selectedIds, onSel
           </>}
         </div>)}
         {guides.map((guide) => <div key={`${guide.axis}:${guide.position}`} className={`snap-guide ${guide.axis}`} data-testid="snap-guide" aria-hidden="true" style={{ [guide.axis === 'x' ? 'left' : 'top']: guide.position, '--guide-width': `${1 / (scale || 1)}px` } as CSSProperties} />)}
-        <div className="dashboard-footer" aria-hidden="true"><span>{bitmap && previewNotice?.includes('Live readings') ? 'Live readings' : 'Deterministic preview'}</span><span>{document.canvas.width} / {document.canvas.height}</span></div>
+        {document.chrome !== 'none' && <div className="dashboard-footer" aria-hidden="true"><span>{bitmap && previewNotice?.includes('Live readings') ? 'Live readings' : 'Deterministic preview'}</span><span>{document.canvas.width} / {document.canvas.height}</span></div>}
       </div>
     </div>
     <div className="preview-footer"><span className="mono">{selected ? `X ${selected.x} / Y ${selected.y}` : 'Select a card to edit'}</span><span>Arrows 1 px · Shift 10 px · Space-drag to pan</span></div>

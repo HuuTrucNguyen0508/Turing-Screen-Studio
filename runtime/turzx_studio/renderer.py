@@ -11,6 +11,8 @@ from PIL import Image, ImageDraw, ImageFont
 from .layout import _palette, validate_layout
 from .design import clock_time, resolve_elements
 from .usage_display import USAGE_SOURCES, usage_content
+from .dashboard_display import (DASHBOARD_SOURCES, dashboard_content, dashboard_rows,
+                                dashboard_geometry, short_dashboard_text)
 from .storage_display import storage_content, storage_geometry, storage_size, storage_short, storage_row_name
 from .trend import widget_trend, trend_unit
 
@@ -87,6 +89,8 @@ def rendered_content(widget: dict, stats: object = None) -> dict:
         return storage_content(widget, getattr(stats, "ai_usage", None), preview=stats is None)
     if stats is None or source == "sample":
         return settings
+    if source in DASHBOARD_SOURCES:
+        return dashboard_content(widget, stats)
     if source in USAGE_SOURCES:
         return usage_content(widget, getattr(stats, 'ai_usage', None))
     if widget["type"] == "clock":
@@ -184,6 +188,8 @@ class LayoutRenderer:
     def _font(self, family: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         key = family, size
         if key not in self._fonts:
+            summary_font = family.startswith("summary-")
+            family = family.removeprefix("summary-")
             candidates = []
             if self.font_dir is not None:
                 relative = {
@@ -191,6 +197,9 @@ class LayoutRenderer:
                     "sans": "roboto/Roboto-Regular.ttf",
                 }[family]
                 candidates.append(self.font_dir / relative)
+            if summary_font:
+                candidates.append(Path(__file__).resolve().parents[2] / 'public/fonts' / (
+                    'JetBrainsMono-Regular.ttf' if family == 'mono' else 'Roboto-Regular.ttf'))
             candidates.append(Path("/usr/share/fonts/truetype/dejavu") / (
                 "DejaVuSansMono.ttf" if family == "mono" else "DejaVuSans.ttf"
             ))
@@ -231,6 +240,9 @@ class LayoutRenderer:
 
     def _metric(self, draw: ImageDraw.ImageDraw, width: int, height: int,
                 settings: dict, palette: dict, stats: object = None) -> None:
+        if settings.get('source') in DASHBOARD_SOURCES:
+            self._dashboard_metric(draw, width, height, settings, palette)
+            return
         if settings.get('trend'):
             self._trend_metric(draw, width, height, settings, palette, stats)
             return
@@ -330,7 +342,76 @@ class LayoutRenderer:
         self._draw_text(draw, (center, max(403, height - 43)),
                         "Live weather" if live else "Sample forecast", palette["muted"], 13, anchor="mt")
 
+    def _dashboard_metric(self, draw, width, height, settings, palette):
+        data = dashboard_rows(settings['detail'])
+        geometry = dashboard_geometry(width, height, settings['source'])
+        p, top, stride, capacity, available = (geometry[key] for key in ('padding', 'top', 'stride', 'capacity', 'available'))
+        short = short_dashboard_text
+        def text(x, y, value, size=13, role='muted', mono=False, end=False):
+            self._draw_text(draw, (x, y), value, palette[role], size,
+                            'summary-mono' if mono else 'summary-sans', 'rs' if end else 'ls')
+        if settings['source'] == 't3-threads':
+            compact = height < 132
+            count = '—' if data['working'] is None else str(data['working'])
+            size = max(12, min(36 if compact else 48, math.floor((available - (0 if data['working'] is None else 88)) / max(1, len(count) * .6))))
+            text(p, 25 if compact else 40, short(settings['label'], available, 15), 15)
+            text(p, 76 if compact else 98, count, size, 'muted' if data['working'] is None else 'primary', True)
+            if data['working'] is not None:
+                text(p + len(count) * size * .6 + 8, 76 if compact else 98, 'working', 20)
+            if not compact:
+                text(p, 124, short(data['note'] or 'Activity unavailable', available, 13))
+            if capacity > 0 and width - p > p:
+                draw.line((p, 140, width - p, 140), fill=palette['outline'])
+            overflow = len(data['threads']) > capacity
+            shown = data['threads'][:max(0, capacity - 1) if overflow else capacity]
+            providers = {'codex-pro': 'Codex Pro', 'codex': 'Codex', 'claudeAgent': 'Claude', 'cursor': 'Cursor'}
+            statuses = {'running': 'Working', 'waiting_approval': 'Needs approval', 'waiting_input': 'Needs input', 'waiting': 'Waiting'}
+            for index, row in enumerate(shown):
+                y = top + index * stride
+                text(p, y, short(row['title'], available, 16), 16, 'text')
+                running = row['status'] == 'running'
+                draw.ellipse((p + 1, y + 11, p + 7, y + 17), outline=palette['primary' if running else 'muted'], fill=palette['primary'] if running else None)
+                text(p + 14, y + 18, statuses.get(row['status'], 'Waiting'))
+                if width >= 230:
+                    text(width - p, y + 18, short(providers.get(row['provider'], row['provider']), 78, 12, True), 12, 'secondary', True, True)
+            if overflow and capacity > 0:
+                text(p, top + len(shown) * stride, 'More threads in T3', 12)
+            if data['working'] == 0 and not data['threads'] and capacity > 0:
+                text(p, top, short('No threads working', available, 14), 14)
+            return
+        text(p, 40, short(settings['label'], max(1, available - 62), 15), 15)
+        if width >= 230:
+            text(width - p, 40, 'Sample' if data['note'].startswith('Sample') else 'Estimated', 13, end=True)
+        if capacity == 0:
+            text(p, 76, short('Enlarge card to show timers', available, 13))
+            return
+        for index, row in enumerate(data['games'][:capacity]):
+            y = top + stride * index
+            count = '—' if row['current'] is None else str(row['current'])
+            cap = '/' + ('—' if row['capacity'] is None else str(row['capacity']))
+            number_x = width - p - len(cap) * 14 * .6 - 2
+            name_width = max(1, number_x - len(count) * 24 * .6 - p - 12)
+            fraction = min(1, row['current'] / row['capacity']) if row['current'] is not None and row['capacity'] is not None and row['capacity'] > 0 else 0
+            full = stride >= 72
+            baseline, bar_y = y + (34 if full else 24), y + (44 if full else 32)
+            text(p, baseline, short(row['name'], name_width, 16), 16, 'text')
+            text(number_x, baseline, count, 24, 'muted' if row['current'] is None else 'secondary', True, True)
+            text(width - p, baseline, cap, 14, mono=True, end=True)
+            draw.rounded_rectangle((p, bar_y, p + available - 1, bar_y + 3), radius=2, fill=palette['outline'])
+            fill = math.floor(available * fraction + .5)
+            if fill > 0:
+                draw.rounded_rectangle((p, bar_y, p + fill - 1, bar_y + 3), radius=2, fill=palette['secondary'])
+            if full:
+                text(p, y + 66, short(row['remaining'] or 'Timer unavailable', available - (80 if row['age'] else 0), 13))
+                if row['age']:
+                    text(width - p, y + 66, row['age'], 12, end=True)
+        if not data['games']:
+            text(p, 92, short('Set counts in Game timers', available, 14), 14)
+
     def _usage_metric(self, draw, width, height, settings, palette):
+        if settings['source'] in ('usage-tokens-30d', 'usage-cost-30d', 'usage-limits'):
+            self._usage_summary(draw, width, height, settings, palette)
+            return
         model_lines = self._safe_text(settings['detail']).split('\n')
         rows = [line.split('\t') for line in model_lines[1:] if len(line.split('\t')) == 3]
         if settings['source'].endswith('-models') and rows:
@@ -362,6 +443,75 @@ class LayoutRenderer:
         lines = re.findall(rf'.{{1,{chars}}}(?:\s|$)|.{{1,{chars}}}', self._safe_text(settings['detail']))[:1 if compact else 2]
         for index, line in enumerate(lines):
             self._draw_text(draw, (29, height - (len(lines) - index - 1) * 19 - 23), line.strip(), palette['muted'], 14, anchor='ls')
+
+    def _usage_summary(self, draw, width, height, settings, palette):
+        lines = self._safe_text(settings['detail']).split('\n')
+        note = lines[0] if lines else ''
+        short = lambda value, available, size: storage_short(value, max(1, math.floor(available / (size * .55))))
+        def text(x, y, value, size=14, role='muted', family='sans', anchor='ls'):
+            self._draw_text(draw, (x, y), value, palette[role], size, 'summary-' + family, anchor)
+        p = 28
+        text(p, 40, settings['label'] + (' · Usage left' if settings['source'] == 'usage-limits' else ''), 15)
+        if settings['source'] == 'usage-limits':
+            rows = [line.split('\t') for line in lines[1:9] if len(line.split('\t')) == 5 and line.split('\t')[0] in ('Codex', 'Claude')][:4]
+            label_x, bar_x, bar_end = math.floor(width * .128), math.floor(width * .222), math.floor(width * .639)
+            value_x, caption_x = math.floor(width * .712), math.floor(width * .75)
+            stride = min(60, max(1, math.floor((height - 100) / 4)))
+            previous = None
+            for index, (provider, window, raw, reset, state) in enumerate(rows):
+                top = 64 + stride * index
+                if provider != previous:
+                    if index:
+                        draw.line((p, top, width - p, top), fill=palette['outline'])
+                    text(p, top + 38, provider, 17, 'text')
+                previous = provider
+                text(label_x, top + 37, window, 15)
+                try:
+                    percent = float(raw)
+                except ValueError:
+                    percent = math.nan
+                known = math.isfinite(percent) and 0 <= percent <= 100 and 'reset time passed' not in reset
+                if known:
+                    percent = 100 - percent
+                if bar_end > bar_x:
+                    draw.rounded_rectangle((bar_x, top + 27, bar_end - 1, top + 34), radius=4, fill=palette['outline'])
+                    fill = math.floor((bar_end - bar_x) * percent / 100 + .5) if known else 0
+                    if fill > 0:
+                        draw.rounded_rectangle((bar_x, top + 27, bar_x + fill - 1, top + 34), radius=4, fill=palette['primary'])
+                text(value_x, top + 40, str(math.floor(percent + .5)) if known else '—', 24, 'primary' if known else 'muted', 'mono', 'rs')
+                if known:
+                    text(value_x + 4, top + 40, '%')
+                text(caption_x, top + 29, short(reset, width - p - caption_x, 14))
+                text(caption_x, top + 47, short(state, width - p - caption_x, 12), 12)
+            text(p, height - 20, short(note + '. Missing data is not zero.', width - p * 2, 12), 12)
+            return
+        rows = [line.split('\t') for line in lines[1:9] if len(line.split('\t')) == 3 and line.split('\t')[0] in ('Codex', 'Claude', 'Cursor')][:3]
+        unit = '' if settings['value'] == '—' else settings['unit']
+        size = max(12, min(56, math.floor((width - p * 2 - len(unit) * 22 * .55 - 8) / max(1, len(settings['value']) * .6))))
+        text(width - p, 40, 'Last 30 days', 15, anchor='rs')
+        text(p, 112, settings['value'], size, 'muted' if settings['value'] == '—' else 'primary', 'mono')
+        text(p + len(settings['value']) * size * .6 + 8, 112, unit, 22)
+        caption = note.replace(' · Last 30 days', '').replace('Last 30 days · ', '').split(' · ')
+        state = caption.pop() if len(caption) > 1 else ''
+        text(p, 138, short(' · '.join(caption), width - p * 2, 12), 12)
+        text(p, 156, short(state, width - p * 2, 12), 12)
+        draw.line((p, 166, width - p, 166), fill=palette['outline'])
+        amounts = []
+        for _, value, _ in rows:
+            match = re.match(r'(\d+(?:\.\d+)?)([KMB]?)', value.replace(',', ''))
+            number = float(match[1]) * {'': 1, 'K': 1e3, 'M': 1e6, 'B': 1e9}[match[2]] if match else 0
+            amounts.append(number if math.isfinite(number) else 0)
+        total = sum(amounts)
+        bar_x, bar_end = 120, max(120, width - 140)
+        for index, (provider, value, _) in enumerate(rows):
+            y = 202 + index * 36
+            text(p, y, provider, 17, 'text')
+            if bar_end > bar_x:
+                draw.rounded_rectangle((bar_x, y - 9, bar_end - 1, y - 6), radius=2, fill=palette['outline'])
+                fill = math.floor((bar_end - bar_x) * amounts[index] / total + .5) if total > 0 else 0
+                if fill > 0:
+                    draw.rounded_rectangle((bar_x, y - 9, bar_x + fill - 1, y - 6), radius=2, fill=palette['secondary'])
+            text(width - p, y, short(value, 112, 18), 18, 'text', 'mono', 'rs')
 
     def _header(self, draw: ImageDraw.ImageDraw, width: int, stats: object, palette: dict,
                 show_clock: bool = True, heading: str = 'System overview') -> None:
@@ -601,8 +751,9 @@ class LayoutRenderer:
         image = Image.new("RGB", (width, height), colors["background"])
         draw = ImageDraw.Draw(image)
         sources = {widget['settings'].get('source') for widget in doc['widgets']}
-        heading = 'AI usage' if any(source and source.startswith(('codex-', 'claude-')) for source in sources) else 'Storage overview' if 'storage' in sources or any(widget['type'] == 'storage' for widget in doc['widgets']) else 'System overview'
-        self._header(draw, width, stats, colors, not any(widget["type"] == "clock" for widget in doc["widgets"]), heading)
+        heading = 'AI usage' if any(source and source.startswith(('codex-', 'claude-', 'usage-')) for source in sources) else 'Storage overview' if 'storage' in sources or any(widget['type'] == 'storage' for widget in doc['widgets']) else 'System overview'
+        if doc.get('chrome') != 'none':
+            self._header(draw, width, stats, colors, not any(widget["type"] == "clock" for widget in doc["widgets"]), heading)
         for widget in doc["widgets"]:
             w, h = widget["width"], widget["height"]
             # The separate layer clips all glyphs and strokes to this card.
@@ -635,9 +786,10 @@ class LayoutRenderer:
                 ImageDraw.Draw(mask).rounded_rectangle(bounds, radius=radius, fill=255)
             image.paste(card, (widget["x"], widget["y"]), mask)
         # Match the preview's paint order: footer appears above cards.
-        self._draw_text(draw, (64, height - 69),
-                        "Deterministic preview" if stats is None else "Live dashboard",
-                        colors["muted"], 13, "mono")
-        self._draw_text(draw, (width - 64, height - 69), f"{width} / {height}",
-                        colors["muted"], 13, "mono", "rt")
+        if doc.get('chrome') != 'none':
+            self._draw_text(draw, (64, height - 69),
+                            "Deterministic preview" if stats is None else "Live dashboard",
+                            colors["muted"], 13, "mono")
+            self._draw_text(draw, (width - 64, height - 69), f"{width} / {height}",
+                            colors["muted"], 13, "mono", "rt")
         return image

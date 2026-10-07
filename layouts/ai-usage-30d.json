@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "name": "AI usage",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "dynamic",
+    "background": "#0a0f0f",
+    "surface": "#131b1b",
+    "surfaceRaised": "#192121",
+    "text": "#dce8e7",
+    "muted": "#a2adad",
+    "primary": "#9bd0d1",
+    "secondary": "#b0cccc",
+    "outline": "#3f4a4a"
+  },
+  "widgets": [
+    {
+      "id": "clock",
+      "type": "clock",
+      "x": 64,
+      "y": 64,
+      "width": 270,
+      "height": 304,
+      "settings": {
+        "label": "Local time",
+        "time": "14:32",
+        "date": "Tuesday, 6 October",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "design": {
+        "elements": {
+          "label": {
+            "hidden": true
+          },
+          "time": {
+            "align": "center",
+            "dy": 48,
+            "size": 72,
+            "color": "text"
+          },
+          "date": {
+            "align": "center",
+            "dy": -73,
+            "size": 18,
+            "color": "muted"
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "settings": {
+        "label": "Tokens",
+        "value": "32.4",
+        "unit": "M tokens",
+        "detail": "Demo, last 30 days\nCodex\t24.8M\tdemo\nClaude\t6.9M\tdemo\nCursor\t700K\tdemo",
+        "source": "usage-tokens-30d"
+      },
+      "id": "usage-tokens",
+      "x": 358,
+      "y": 64,
+      "width": 417,
+      "height": 304
+    },
+    {
+      "type": "metric",
+      "settings": {
+        "label": "API cost",
+        "value": "148.20",
+        "unit": "USD",
+        "detail": "Demo API estimate, last 30 days\nCodex\t105.60\tdemo estimate\nClaude\t38.40\tdemo estimate\nCursor\t4.20\tdemo estimate",
+        "source": "usage-cost-30d"
+      },
+      "id": "usage-cost",
+      "x": 799,
+      "y": 64,
+      "width": 417,
+      "height": 304
+    },
+    {
+      "type": "metric",
+      "settings": {
+        "label": "Usage limits",
+        "value": "",
+        "unit": "",
+        "detail": "Demo quota readings\nCodex\tWeekly\t41\tresets 3d 2h\tdemo\nClaude\t5-hour\t68\tresets 2h 5m\tdemo\nClaude\tWeekly\t32\tresets 4d 1h\tdemo",
+        "source": "usage-limits"
+      },
+      "id": "usage-limits",
+      "x": 358,
+      "y": 392,
+      "width": 858,
+      "height": 344
+    },
+    {
+      "id": "t3-threads",
+      "type": "metric",
+      "width": 270,
+      "height": 344,
+      "settings": {
+        "label": "T3 threads",
+        "value": "2",
+        "unit": "working",
+        "detail": "{\"working\":2,\"note\":\"Sample threads\",\"threads\":[{\"title\":\"Studio improvements and next goal\",\"provider\":\"codex-pro\",\"status\":\"running\"},{\"title\":\"Thread and game widget design\",\"provider\":\"claudeAgent\",\"status\":\"running\"},{\"title\":\"Context compaction stuck\",\"provider\":\"codex-pro\",\"status\":\"waiting_input\"}]}",
+        "source": "t3-threads"
+      },
+      "x": 64,
+      "y": 392
+    }
+  ],
+  "paletteMode": "live",
+  "chrome": "none"
+}

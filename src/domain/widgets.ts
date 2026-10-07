@@ -3,8 +3,13 @@ import sharedCatalog from '../../public/widget-catalog.json';
 import { createSampleLayout, metricSources, validateLayout } from './layout';
 import type { Geometry, LayoutDocument, Widget } from './layout';
 import { trendSources } from './trend';
+import { isUsageSummary } from './usage';
+import { isDashboardSource } from './dashboardData';
 
 export const sourceLabels: Record<string, string> = {
+  't3-threads': 'Working T3 threads', 'game-resources': 'Shared game timers',
+  'usage-tokens-30d': 'Total tokens over the last 30 days', 'usage-cost-30d': 'Total API cost over the last 30 days',
+  'usage-limits': 'Applicable Codex and Claude limits',
   sample: 'Sample values', cpu: 'CPU load', gpu: 'GPU load', memory: 'Memory used',
   disk: 'Disk used', 'network-down': 'Network download', 'network-up': 'Network upload',
   'cpu-temperature': 'CPU temperature', 'gpu-temperature': 'GPU temperature',
@@ -22,6 +27,7 @@ export function widgetSources(widget: Widget): readonly string[] {
   if (widget.type === 'clock') return ['sample', 'clock'];
   if (widget.type === 'weather') return ['sample', 'weather'];
   if (widget.type === 'metric' && widget.settings.trend) return ['sample', ...trendSources];
+  if (widget.type === 'gauge') return metricSources.filter((source) => !isUsageSummary(source) && !isDashboardSource(source));
   return metricSources;
 }
 

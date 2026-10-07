@@ -14,11 +14,11 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.domain.json",
     "test": "vitest run src/domain",
     "test:e2e": "playwright test",
-    "studio": "pnpm build && python runtime/run_studio.py",
-    "panel:install": "python runtime/install_panel.py",
-    "panel:rollback": "python runtime/install_panel.py --rollback",
-    "layout": "python runtime/run_layout_cli.py",
-    "shortcuts:install": "python runtime/install_shortcuts.py"
+    "studio": "pnpm build && python3 runtime/run_studio.py",
+    "panel:install": "python3 runtime/install_panel.py",
+    "panel:rollback": "python3 runtime/install_panel.py --rollback",
+    "layout": "python3 runtime/run_layout_cli.py",
+    "shortcuts:install": "python3 runtime/install_shortcuts.py"
   },
   "dependencies": {
     "react": "^19.3.0",

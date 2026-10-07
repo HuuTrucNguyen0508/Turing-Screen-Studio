@@ -141,6 +141,20 @@ class ArchiveTests(unittest.TestCase):
         result = self.app.save(proposed, revision(self.document))
         self.assertIsNotNone(result['archive'])
 
+    def test_header_and_footer_options_require_runtime_support_before_archiving(self):
+        proposed = {**self.document, 'chrome': 'none'}
+        status = {'pid': os.getpid(), 'processStart': server.process_start(os.getpid())}
+        self.paths.runtime_dir.mkdir()
+        self.paths.status.write_text(json.dumps(status))
+        before = self.paths.layout.read_bytes()
+        with self.assertRaisesRegex(server.APIError, 'header and footer options'):
+            self.app.save(proposed, revision(self.document))
+        self.assertEqual(self.paths.layout.read_bytes(), before)
+        self.assertEqual(list_archives(self.paths), [])
+        status['supportedChrome'] = True
+        self.paths.status.write_text(json.dumps(status))
+        self.assertIsNotNone(self.app.save(proposed, revision(self.document))['archive'])
+
     def test_explicit_arc_also_requires_style_capability(self):
         import layout_cli
         proposed = layout_cli.generate({'widgets': [{'template': 'cpu-gauge', 'settings': {'style': 'arc'}}]})

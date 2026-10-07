@@ -169,6 +169,9 @@
                       "network-up",
                       "cpu-temperature",
                       "gpu-temperature",
+                      "usage-tokens-30d",
+                      "usage-cost-30d",
+                      "usage-limits",
                       "codex-tokens",
                       "codex-cost",
                       "codex-weekly",
@@ -180,13 +183,39 @@
                       "claude-weekly",
                       "claude-reset",
                       "claude-models",
-                      "storage"
+                      "storage",
+                      "t3-threads",
+                      "game-resources"
                     ]
                   },
                   "trend": {
                     "type": "boolean"
                   }
-                }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "t3-threads",
+                            "game-resources"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "source"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "trend": {
+                          "const": false
+                        }
+                      }
+                    }
+                  }
+                ]
               }
             }
           },
@@ -634,6 +663,13 @@
         "saved",
         "live"
       ]
+    },
+    "chrome": {
+      "enum": [
+        "standard",
+        "none"
+      ],
+      "description": "Omit for the original header/footer, or none for a canvas containing only widgets."
     }
   },
   "$defs": {

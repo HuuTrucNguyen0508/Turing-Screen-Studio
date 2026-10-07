@@ -1,4 +1,5 @@
-import { usageSources } from './usage';
+import { isUsageSummary, usageSources } from './usage';
+import { dashboardSources, isDashboardSource } from './dashboardData';
 import { validateWidgetDesign } from './design';
 import type { WidgetDesign } from './design';
 
@@ -29,7 +30,7 @@ export interface MetricWidget extends Geometry, WidgetPresentation {
   settings: { label: string; value: string; unit: string; detail: string; source?: MetricSource; trend?: boolean };
 }
 
-export const metricSources = ['sample', 'cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature', ...usageSources] as const;
+export const metricSources = ['sample', 'cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature', ...usageSources, ...dashboardSources] as const;
 export type MetricSource = typeof metricSources[number];
 
 export interface WeatherWidget extends Geometry, WidgetPresentation {
@@ -83,6 +84,7 @@ export interface LayoutDocument {
   palette: Palette;
   widgets: Widget[];
   paletteMode?: 'saved' | 'live';
+  chrome?: 'standard' | 'none';
 }
 
 const MAX_CANVAS_SIZE = 16384;
@@ -229,6 +231,7 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
     if (max <= min) fail(`${settingsPath}.max`, 'must be greater than min');
     if (valueNumber < min || valueNumber > max) fail(`${settingsPath}.value`, 'must be between min and max');
     const source = optionalChoice(settings, 'source', settingsPath, metricSources);
+    if (isUsageSummary(source) || isDashboardSource(source)) fail(`${settingsPath}.source`, 'summary sources require a metric card');
     return { id, type: 'gauge', ...geometry, settings: {
       label: string(settings.label, `${settingsPath}.label`), value: valueNumber, min, max,
       unit: string(settings.unit, `${settingsPath}.unit`), detail: string(settings.detail, `${settingsPath}.detail`),
@@ -242,6 +245,7 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
     if (Object.hasOwn(settings, 'trend') && typeof settings.trend !== 'boolean') {
       fail(`${path}.settings.trend`, 'expected a boolean');
     }
+    if (isDashboardSource(source) && settings.trend === true) fail(`${path}.settings.trend`, 'summary sources do not support a trend');
     return {
       id, type: 'metric', ...geometry,
       settings: {
@@ -283,8 +287,9 @@ export function validateLayout(input: unknown): LayoutDocument {
   const value = object(input, '$');
   if (!Object.hasOwn(value, 'version')) fail('$.version', 'required field is missing; choose a TURZX layout JSON file');
   if (value.version !== 1) fail('$.version', 'unsupported layout version; expected 1');
-  exactKeys(value, ['version', 'name', 'canvas', 'palette', 'widgets'], '$', ['paletteMode']);
+  exactKeys(value, ['version', 'name', 'canvas', 'palette', 'widgets'], '$', ['paletteMode', 'chrome']);
   const paletteMode = optionalChoice(value, 'paletteMode', '$', ['saved', 'live'] as const);
+  const chrome = optionalChoice(value, 'chrome', '$', ['standard', 'none'] as const);
   const name = string(value.name, '$.name', true);
   const canvasValue = object(value.canvas, '$.canvas');
   exactKeys(canvasValue, ['width', 'height'], '$.canvas');
@@ -303,7 +308,7 @@ export function validateLayout(input: unknown): LayoutDocument {
     ids.add(validated.id);
     return validated;
   });
-  return { version: 1, name, canvas, palette: validatedPalette, widgets, ...(paletteMode === undefined ? {} : { paletteMode }) };
+  return { version: 1, name, canvas, palette: validatedPalette, widgets, ...(paletteMode === undefined ? {} : { paletteMode }), ...(chrome === undefined ? {} : { chrome }) };
 }
 
 function parseJson(text: string): unknown {

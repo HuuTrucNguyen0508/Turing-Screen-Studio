@@ -53,6 +53,23 @@ class IntegrationTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_thread_and_timer_source_failures_do_not_interrupt_dirty_or_render(self):
+        root = Path(__file__).parents[2]
+        thread = next(card for card in json.loads((root / 'layouts/ai-usage-30d.json').read_text())['widgets'] if card['id'] == 't3-threads')
+        game = next(card for card in json.loads((root / 'layouts/system-overview-clean.json').read_text())['widgets'] if card['id'] == 'game-resources')
+        atomic_write(self.paths.layout, serialize_layout({**self.doc, 'widgets': [thread, game]}).encode())
+        self.owner.activity.snapshot = Mock(side_effect=RuntimeError('unexpected source failure'))
+        self.owner.games.snapshot = Mock(side_effect=RuntimeError('unexpected source failure'))
+        self.dashboard.logical_dirty_key(view='stats')
+        self.assertIsNone(self.owner.activity_snapshot)
+        self.assertIsNone(self.owner.games_snapshot)
+        self.owner.activity.snapshot.assert_called_once()
+        self.owner.games.snapshot.assert_called_once()
+        frame = self.renderer.render(SimpleNamespace())
+        self.assertTrue(self.owner.rendered_layout)
+        self.assertEqual(frame.size, (1280, 800))
+        frame.close()
+
     def send(self):
         self.dashboard.logical_dirty_key(view='stats')
         frame = self.renderer.render(None)

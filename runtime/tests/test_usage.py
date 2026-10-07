@@ -215,10 +215,10 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(value["limits"][0]["remainingPercent"], 58)
         self.assertEqual(value["limits"][0]["label"], "Weekly")
 
-    def test_pro_session_window_is_not_published(self):
+    def test_explicit_reported_five_hour_window_overrides_pro_default(self):
         self.quota([self.event(duration=300, secondary={"used_percent": 42, "window_minutes": 10080, "resets_at": NOW + 3600})])
         limits = self.provider()["limits"]
-        self.assertEqual([limit["id"] for limit in limits], ["secondary"])
+        self.assertEqual([limit["id"] for limit in limits], ["primary", "secondary"])
 
     def test_newest_quota_timestamp_wins_across_chunks_cold_cached_and_unchanged(self):
         tool = {"timestamp": usage._iso(NOW), "type": "response_item",
@@ -559,6 +559,330 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(self.provider()["limits"], [])
         self.now += 61
         self.assertEqual(self.provider()["limits"][0]["usedPercent"], 99)
+
+    def period(self):
+        return self.collector.snapshot()["periods"]["last30days"]
+
+    def provider_cache(self, provider="codex", windows=None, *, stamp=NOW, unavailable=None, **overrides):
+        instance, driver = ("codex-pro", "codex") if provider == "codex" else ("claudeAgent", "claudeAgent")
+        document = {"instanceId": instance, "driver": driver, "enabled": True, "installed": True,
+                    "status": "ready", "checkedAt": usage._iso(stamp),
+                    "usageLimits": {"checkedAt": usage._iso(stamp), "windows": windows or []}}
+        if unavailable is not None:
+            document["usageLimits"]["unavailable"] = {"reason": unavailable}
+        document.update(overrides)
+        root = self.home / ".t3/caches"
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / (instance + ".json")
+        path.write_text(json.dumps(document))
+        return path
+
+    @staticmethod
+    def window(key="primary", duration=10080, used=0, reset=NOW + 3600, kind="weekly"):
+        return {"id": key, "kind": kind, "label": "Weekly" if kind == "weekly" else "Session",
+                "usedPercent": used, "windowDurationMins": duration, "resetsAt": usage._iso(reset)}
+
+    def test_rolling_boundary_future_exclusion_daily_unchanged_single_decode_and_price(self):
+        start = NOW - usage.LAST30_SECONDS
+        self.cache({"one": {"p": "codex", "r": [self.row(stamp=start - .001), self.row(stamp=start),
+                    self.row(stamp=NOW - 86400), self.row(), self.row(stamp=NOW + .001)], "t": []}})
+        self.rates()
+        with patch.object(usage, "_read_json", wraps=usage._read_json) as read, \
+                patch.object(usage, "_decode_row", wraps=usage._decode_row) as decode, \
+                patch.object(usage, "_price", wraps=usage._price) as price:
+            snapshot = self.collector.snapshot()
+        self.assertEqual(decode.call_count, 5)
+        self.assertEqual(price.call_count, 3)
+        self.assertEqual(sum(call.args[0].name == "usage-scan-cache-v5.json" for call in read.call_args_list), 1)
+        self.assertEqual(snapshot["providers"]["codex"]["total"], 100)
+        self.assertEqual(set(snapshot["providers"]), {"codex", "claude"})
+        period = snapshot["periods"]["last30days"]
+        self.assertEqual((period["scope"]["startsAt"], period["scope"]["endsAt"], period["scope"]["timeZone"]),
+                         (usage._iso(start), usage._iso(NOW), "UTC"))
+        self.assertEqual(period["providers"]["codex"]["total"], 300)
+        self.assertEqual(period["providers"]["codex"]["records"], 3)
+        self.assertAlmostEqual(period["providers"]["codex"]["costUSD"], 3 * 1.295)
+        self.assertIsNone(period["providers"]["cursor"]["total"])
+        self.assertIsNone(period["providers"]["cursor"]["knownCostUSD"])
+
+    def test_rolling_cursor_provider_attribution_dedup_and_partial_pricing(self):
+        row = self.row(key="cursor-one", cost=0, stamp=NOW - 86400)
+        unknown = self.row(model=1, key="cursor-two")
+        self.cache({"one": {"p": "cursor", "r": [row], "t": [unknown]},
+                    "copy": {"p": "cursor", "r": [row], "t": [unknown]},
+                    "claude": {"p": "claude", "r": [self.row(key="cursor-one", cost=5)], "t": []}},
+                   models=["claude-through-cursor", "unknown"])
+        value = self.period()["providers"]["cursor"]
+        self.assertEqual((value["total"], value["records"], value["duplicatesDropped"]), (200, 2, 2))
+        self.assertEqual((value["knownCostUSD"], value["reportedRecords"], value["unpricedRecords"]), (0, 1, 1))
+        self.assertIsNone(value["costUSD"])
+        self.assertEqual(value["costKind"], "unavailable")
+        self.assertEqual(self.period()["providers"]["claude"]["total"], 100)
+
+    def test_rolling_copied_codex_occurrences_and_claude_share_daily_dedup(self):
+        rows = [self.row(stamp=NOW - 86400), self.row(), self.row()]
+        self.cache({"one": {"p": "codex", "r": rows, "t": []},
+                    "copy": {"p": "codex", "r": rows, "t": []}})
+        snapshot = self.collector.snapshot()
+        daily = snapshot["providers"]["codex"]
+        rolling = snapshot["periods"]["last30days"]["providers"]["codex"]
+        self.assertEqual((daily["records"], rolling["records"]), (2, 3))
+        self.assertEqual((daily["duplicatesDropped"], rolling["duplicatesDropped"]), (3, 3))
+
+    def test_rolling_refresh_expires_records_even_when_file_unchanged(self):
+        self.cache({"one": {"p": "codex", "r": [self.row(stamp=NOW - usage.LAST30_SECONDS + 30)], "t": []}})
+        before = self.period()
+        self.assertEqual(before["providers"]["codex"]["total"], 100)
+        self.now += 59
+        self.assertEqual(self.period()["scope"], before["scope"])
+        self.now += 1
+        after = self.period()
+        self.assertEqual(after["providers"]["codex"]["total"], 0)
+        self.assertIsNone(after["providers"]["codex"]["costUSD"])
+        self.assertEqual(after["providers"]["codex"]["endsAt"], usage._iso(self.now))
+        self.assertNotIn("observedScope", after["providers"]["codex"])
+
+    def test_rolling_corrupt_retention_keeps_original_bounds_across_shift_and_rollback(self):
+        self.cache()
+        before = self.period()
+        (self.base / "usage-scan-cache-v5.json").write_text("corrupt")
+        for now in (NOW + 61, NOW + 86400, NOW - 100):
+            with self.subTest(now=now):
+                self.now = now
+                after = self.period()
+                value = after["providers"]["codex"]
+                self.assertEqual(value["total"], 100)
+                self.assertEqual(value["observedScope"], before["scope"])
+                self.assertEqual(value["startsAt"], before["scope"]["startsAt"])
+                self.assertEqual(value["endsAt"], usage._iso(NOW))
+                self.assertEqual(after["scope"]["endsAt"], usage._iso(now))
+                self.assertTrue(value["freshness"]["tokens"]["stale"])
+                self.assertEqual(value["freshness"]["tokens"]["observedAt"], before["providers"]["codex"]["freshness"]["tokens"]["observedAt"])
+
+    def test_rolling_clock_rollback_refolds_future_records_and_snapshot_is_detached(self):
+        self.cache()
+        self.assertEqual(self.period()["providers"]["codex"]["total"], 100)
+        self.now -= 10
+        period = self.period()
+        self.assertEqual(period["providers"]["codex"]["total"], 0)
+        period["scope"]["endsAt"] = "changed"
+        period["providers"]["codex"]["total"] = -1
+        self.assertEqual(self.period()["providers"]["codex"]["total"], 0)
+        self.assertEqual(self.period()["scope"]["endsAt"], usage._iso(self.now))
+
+    def test_rolling_bounds_and_invalid_old_rows_reject_entire_scan(self):
+        for bound, replacement in (("MAX_ROWS", 1), ("MAX_FILES", 0), ("MAX_JSON_BYTES", 10),
+                                   ("MAX_MODELS", 0), ("MAX_SESSIONS", 0)):
+            with self.subTest(bound=bound):
+                self.cache({"one": {"p": "cursor", "r": [self.row(), self.row()], "t": []}})
+                with patch.object(usage, bound, replacement):
+                    snapshot = usage.UsageCollector(self.home, lambda: self.now).snapshot()
+                self.assertIsNone(snapshot["periods"]["last30days"]["providers"]["cursor"]["total"])
+        self.cache({"one": {"p": "codex", "r": [self.row(), self.row(tokens=(1, 2, 3, 4, 5), stamp=NOW - usage.LAST30_SECONDS - 1)], "t": []}})
+        self.assertIsNone(self.period()["providers"]["codex"]["total"])
+
+    def test_pro_account_has_no_five_hour_even_when_evidence_expires(self):
+        self.quota()
+        self.assertEqual(self.provider()["quotaWindows"], {"five_hour": "unsupported", "weekly": "supported"})
+        self.now = NOW + usage.STALE_SECONDS - 10
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+        self.now += 11
+        self.assertTrue(self.collector.snapshot()["cached"])
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+        self.assertEqual(self.provider()["limits"][0]["usedPercent"], 42)
+
+    def test_missing_incomplete_invalid_and_source_failure_do_not_prove_inapplicable(self):
+        event = self.event()
+        del event["payload"]["rate_limits"]["secondary"]
+        path = self.quota([event])
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+        self.now += 61
+        path.write_text(json.dumps(self.event(stamp=self.now)) + "\n")
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+        self.now += 61
+        with path.open("a") as handle:
+            handle.write(json.dumps(self.event(101, self.now)) + "\n")
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+        self.assertTrue(self.provider()["limits"][0]["stale"])
+
+    def test_structured_pro_weekly_and_claude_actual_windows_without_fallback_reads(self):
+        self.provider_cache(windows=[self.window()])
+        self.provider_cache("claude", [self.window("five_hour", 300, 10, kind="session"),
+                                       self.window("seven_day", used=45)])
+        with patch.object(self.collector, "_codex_limits", side_effect=AssertionError("unexpected scan")), \
+                patch.object(self.collector, "_claude_limits", side_effect=AssertionError("unexpected database")):
+            snapshot = self.collector.snapshot()
+        codex, claude = snapshot["providers"]["codex"], snapshot["providers"]["claude"]
+        self.assertEqual(codex["quotaWindows"], {"five_hour": "unsupported", "weekly": "supported"})
+        self.assertEqual(codex["limits"][0]["usedPercent"], 0)
+        self.assertFalse(codex["limits"][0]["stale"])
+        self.assertEqual(claude["quotaWindows"], {"five_hour": "supported", "weekly": "supported"})
+        self.assertEqual([limit["usedPercent"] for limit in claude["limits"]], [10, 45])
+        self.assertTrue(all(limit["source"] == "t3_provider_usage_limits" for limit in claude["limits"]))
+        self.assertTrue(all(not limit["stale"] for limit in claude["limits"]))
+
+    def test_newest_first_sparse_transcript_keeps_actual_session_but_full_inventory_wins(self):
+        older = self.event(stamp=NOW - 60, duration=300,
+                           secondary={'used_percent': 40, 'window_minutes': 10080})
+        newer = self.event(stamp=NOW)
+        del newer['payload']['rate_limits']['secondary']
+        path = self.quota([older, newer])
+        self.assertEqual(self.provider()['quotaWindows']['five_hour'], 'supported')
+        self.now += 61
+        path.write_text(json.dumps(older) + '\n' + json.dumps(self.event(stamp=self.now)) + '\n')
+        self.assertEqual(self.provider()['quotaWindows']['five_hour'], 'unsupported')
+
+    def test_sparse_weekly_cannot_refresh_old_unsupported_claude_session(self):
+        self.provider_cache('claude', unavailable='unsupported')
+        self.assertEqual(self.provider('claude')['quotaWindows']['five_hour'], 'unsupported')
+        self.now += usage.STALE_SECONDS + 1
+        self.provider_cache('claude', [self.window('seven_day', used=40)], stamp=self.now)
+        windows = self.provider('claude')['quotaWindows']
+        self.assertEqual(windows, {'five_hour': 'unknown', 'weekly': 'supported'})
+
+    def test_structured_actual_session_survives_sparse_refresh_and_idle(self):
+        self.provider_cache(windows=[self.window('primary', 300, 20, kind='session'), self.window('secondary', used=40)])
+        value = self.provider()
+        self.assertEqual(value['quotaWindows']['five_hour'], 'supported')
+        self.assertEqual([limit['windowMinutes'] for limit in value['limits']], [300, 10080])
+        self.now += 61
+        self.provider_cache(windows=[self.window('secondary', used=41)], stamp=self.now,
+                            checkedAt=usage._iso(self.now - 5))
+        self.assertEqual(self.provider()['quotaWindows']['five_hour'], 'supported')
+        self.now += usage.STALE_SECONDS + 1
+        self.assertEqual(self.provider()['quotaWindows']['five_hour'], 'supported')
+        self.assertTrue(self.provider()['limits'][0]['stale'])
+
+    def test_pro_five_hour_stays_inapplicable_across_sparse_idle_and_failed_refresh(self):
+        self.provider_cache(windows=[self.window()], checkedAt=usage._iso(NOW - 60))
+        self.assertEqual(self.provider()['quotaWindows']['five_hour'], 'unsupported')
+        self.now += usage.STALE_SECONDS + 1
+        self.assertEqual(self.provider()['quotaWindows']['five_hour'], 'unsupported')
+        self.provider_cache(unavailable='probeFailed', stamp=self.now)
+        self.now += 61
+        self.assertEqual(self.provider()['quotaWindows']['five_hour'], 'unsupported')
+        self.assertTrue(self.provider()['limits'][0]['stale'])
+
+    def test_structured_failure_retains_stale_windows_never_zeros_or_unsupported(self):
+        self.provider_cache(windows=[self.window(used=42)])
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+        self.now += 61
+        self.provider_cache(windows=[], stamp=self.now, unavailable="probeFailed")
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 42)
+        self.assertTrue(value["limits"][0]["stale"])
+        self.assertEqual(value["quotaWindows"]["five_hour"], "unsupported")
+        self.assertIn("provider_quota_probe_failed", value["errors"])
+
+    def test_structured_claude_sparse_unknown_weekly_and_notice_fallback_is_stale(self):
+        self.notices()
+        fallback = self.provider("claude")
+        self.assertEqual(fallback["quotaWindows"], {"five_hour": "supported", "weekly": "unknown"})
+        self.assertTrue(fallback["limits"][0]["stale"])
+        self.assertEqual(fallback["limits"][0]["resetKind"], "notice_relative_estimate")
+        self.now += 61
+        self.provider_cache("claude", [self.window("five_hour", 300, 10, kind="session"), self.window("seven_day", used=45)], stamp=self.now)
+        self.provider("claude")
+        self.now += 61
+        self.provider_cache("claude", [self.window("five_hour", 300, 11, kind="session")], stamp=self.now)
+        value = self.provider("claude")
+        self.assertEqual(len(value["limits"]), 2)
+        weekly = next(limit for limit in value["limits"] if limit["id"] == "seven_day")
+        self.assertEqual(weekly["usedPercent"], 45)
+        self.assertEqual(weekly["observedAt"], usage._iso(self.now - 61))
+        self.assertEqual(value["quotaWindows"]["weekly"], "supported")
+
+    def test_structured_unsupported_reporting_expires_and_does_not_use_notice(self):
+        self.notices()
+        self.provider_cache("claude", unavailable="unsupported")
+        with patch.object(self.collector, "_claude_limits", side_effect=AssertionError("unexpected fallback")):
+            value = self.provider("claude")
+        self.assertEqual(value["limits"], [])
+        self.assertEqual(value["quotaWindows"], {"five_hour": "unsupported", "weekly": "unsupported"})
+        self.now += usage.STALE_SECONDS + 1
+        self.assertEqual(self.provider("claude")["quotaWindows"]["weekly"], "unknown")
+
+    def test_structured_identity_bounds_invalid_values_and_future_data_are_unknown(self):
+        variants = [{"instanceId": "codex"}, {"driver": "claudeAgent"}, {"status": "failed"}]
+        for override in variants:
+            with self.subTest(override=override):
+                self.provider_cache(windows=[self.window()], **override)
+                snapshot = usage.UsageCollector(self.home, lambda: self.now).snapshot()
+                self.assertEqual(snapshot["providers"]["codex"]["quotaWindows"]["five_hour"], "unsupported")
+        for window in (self.window(used=101), self.window(duration=-1), self.window(key="x" * 129)):
+            self.provider_cache(windows=[window])
+            value = usage.UsageCollector(self.home, lambda: self.now).snapshot()["providers"]["codex"]
+            self.assertEqual(value["limits"], [])
+            self.assertEqual(value["quotaWindows"]["five_hour"], "unsupported")
+        self.provider_cache(windows=[self.window()], stamp=self.now + 60)
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+        self.provider_cache(windows=[self.window()])
+        for bound in ("MAX_PROVIDER_BYTES", "MAX_WINDOWS"):
+            with patch.object(usage, bound, 0):
+                value = usage.UsageCollector(self.home, lambda: self.now).snapshot()["providers"]["codex"]
+            self.assertEqual(value["limits"], [])
+            self.assertIn("unknown", value["quotaWindows"].values())
+
+    def test_structured_quota_expiry_changes_inside_cache_without_invented_reset(self):
+        self.provider_cache(windows=[self.window(used=100, reset=NOW + 20)])
+        value = self.provider()
+        self.assertFalse(value["limits"][0]["stale"])
+        self.now += 21
+        snapshot = self.collector.snapshot()
+        value = snapshot["providers"]["codex"]
+        self.assertTrue(snapshot["cached"])
+        self.assertTrue(value["limits"][0]["stale"])
+        self.assertEqual((value["limits"][0]["usedPercent"], value["limits"][0]["remainingPercent"]), (100, 0))
+        self.now = NOW + usage.STALE_SECONDS - 10
+        self.provider()
+        self.now += 11
+        self.assertTrue(self.collector.snapshot()["cached"])
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+
+    def test_structured_older_snapshot_does_not_replace_fresher_fallback(self):
+        self.quota([self.event(54)])
+        self.assertEqual(self.provider()["limits"][0]["usedPercent"], 54)
+        self.now += 61
+        self.provider_cache(windows=[self.window(used=99)], stamp=NOW - 60)
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 54)
+        self.assertEqual(value["limits"][0]["observedAt"], usage._iso(NOW))
+        self.now = NOW + 400
+        self.quota([self.event(55, stamp=self.now)])
+        value = self.provider()
+        self.assertEqual(value["limits"][0]["usedPercent"], 55)
+        self.assertFalse(value["limits"][0]["stale"])
+
+    def test_structured_window_retention_is_bounded_and_invalid_snapshot_is_atomic(self):
+        self.provider_cache("claude", [self.window("seven_day", used=45)])
+        self.assertEqual(self.provider("claude")["limits"][0]["usedPercent"], 45)
+        self.now += 61
+        self.provider_cache("claude", [self.window("seven_day", used=46), self.window("invalid", used=101)], stamp=self.now)
+        value = self.provider("claude")
+        self.assertEqual(len(value["limits"]), 1)
+        self.assertEqual(value["limits"][0]["usedPercent"], 45)
+        self.assertTrue(value["limits"][0]["stale"])
+        self.now += 61
+        self.provider_cache("claude", [self.window("new-window", used=47)], stamp=self.now)
+        with patch.object(usage, "MAX_WINDOWS", 1):
+            value = self.provider("claude")
+        self.assertEqual(len(value["limits"]), 1)
+        self.assertIn("provider_quota_cache_invalid", value["errors"])
+
+    def test_failed_auth_empty_inventory_and_atomic_event_cannot_prove_unsupported(self):
+        self.provider_cache(unavailable="unsupported", status="failed")
+        self.assertEqual(self.provider()["quotaWindows"]["five_hour"], "unsupported")
+        self.now += 61
+        self.provider_cache(windows=[])
+        value = self.provider()
+        self.assertEqual(value["quotaWindows"]["five_hour"], "unsupported")
+        self.assertIn("provider_quota_windows_unavailable", value["errors"])
+        self.now += 61
+        (self.home / ".t3/caches/codex-pro.json").unlink()
+        self.quota([self.event(54, stamp=self.now, secondary={"used_percent": 101, "window_minutes": 10080})])
+        value = self.provider()
+        self.assertEqual(value["limits"], [])
+        self.assertEqual(value["quotaWindows"], {"five_hour": "unsupported", "weekly": "unknown"})
 
     def test_root_storage_uses_available_free_and_used_over_total(self):
         disk = type("Disk", (), {"total": 100 * 1024**3, "used": 40 * 1024**3, "free": 55 * 1024**3})()

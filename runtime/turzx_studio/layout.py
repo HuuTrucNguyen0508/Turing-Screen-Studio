@@ -7,6 +7,7 @@ import json
 import math
 import re
 from .usage_display import USAGE_SOURCES
+from .dashboard_display import DASHBOARD_SOURCES
 from .design import validate_widget_design
 
 MAX_CANVAS_SIZE = 16384
@@ -20,7 +21,7 @@ METRIC_SETTINGS = ("label", "value", "unit", "detail")
 WEATHER_SETTINGS = ("location", "temperature", "unit", "condition", "high", "low")
 METRIC_SOURCES = (
     "sample", "cpu", "gpu", "memory", "disk", "network-down", "network-up",
-    "cpu-temperature", "gpu-temperature", *USAGE_SOURCES,
+    "cpu-temperature", "gpu-temperature", *USAGE_SOURCES, *DASHBOARD_SOURCES,
 )
 _HEX = re.compile(r"#[0-9a-fA-F]{6}\Z")
 
@@ -159,6 +160,10 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
                    ("sample", "clock") if kind == "clock" else ("sample", "weather"))
         if source not in sources:
             _fail(f"{settings_path}.source", f"expected one of {', '.join(sources)}")
+        if kind == 'gauge' and source in ('usage-tokens-30d', 'usage-cost-30d', 'usage-limits', *DASHBOARD_SOURCES):
+            _fail(f"{settings_path}.source", 'summary sources require a metric card')
+        if kind == 'metric' and source in DASHBOARD_SOURCES and settings.get('trend') is True:
+            _fail(f"{settings_path}.trend", 'summary sources do not support a trend')
         result["source"] = source
     if kind == "metric" and "trend" in settings:
         if type(settings["trend"]) is not bool:
@@ -181,7 +186,7 @@ def validate_layout(input: object, panel: bool = False) -> dict:
         _fail("$.version", "required field is missing; choose a TURZX layout JSON file")
     if type(value["version"]) not in (int, float) or value["version"] != 1:
         _fail("$.version", "unsupported layout version; expected 1")
-    _keys(value, ("version", "name", "canvas", "palette", "widgets"), "$", ("paletteMode",))
+    _keys(value, ("version", "name", "canvas", "palette", "widgets"), "$", ("paletteMode", "chrome"))
     name = _string(value["name"], "$.name", nonempty=True)
     canvas_value = _object(value["canvas"], "$.canvas")
     _keys(canvas_value, ("width", "height"), "$.canvas")
@@ -208,6 +213,10 @@ def validate_layout(input: object, panel: bool = False) -> dict:
         if mode not in ("saved", "live"):
             _fail("$.paletteMode", 'expected "saved" or "live"')
         result["paletteMode"] = mode
+    if 'chrome' in value:
+        if value['chrome'] not in ('standard', 'none'):
+            _fail('$.chrome', 'expected "standard" or "none"')
+        result['chrome'] = value['chrome']
     return result
 
 

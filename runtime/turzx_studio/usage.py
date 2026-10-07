@@ -40,6 +40,10 @@ MAX_DB_ROWS = 256
 MAX_DB_PAYLOAD_BYTES = 16 * 1024
 MAX_DB_SECONDS = 0.25
 PROVIDERS = ("codex", "claude")
+TOKEN_PROVIDERS = (*PROVIDERS, "cursor")
+LAST30_SECONDS = 30 * 86400
+MAX_PROVIDER_BYTES = 256 * 1024
+MAX_WINDOWS = 32
 TOKEN_FIELDS = ("input", "cacheRead", "cacheWrite", "output", "reasoning")
 UNPRICEABLE = {"<synthetic>", "synthetic", "opus", "sonnet", "haiku", "fable"}
 QUOTA_HEADER = re.compile(
@@ -101,12 +105,14 @@ def _freshness(source: str, observed: float | None, now: float, errors: list[str
             "errors": list(errors)}
 
 
-def _read_json(path: Path) -> tuple[dict, float]:
+def _read_json(path: Path, max_bytes: int = MAX_JSON_BYTES) -> tuple[dict, float]:
     with path.open("rb") as handle:
-        if os.fstat(handle.fileno()).st_size > MAX_JSON_BYTES:
+        # Keep the global bound effective when tests or deployments lower it.
+        max_bytes = min(max_bytes, MAX_JSON_BYTES)
+        if os.fstat(handle.fileno()).st_size > max_bytes:
             raise ValueError("size")
-        raw = handle.read(MAX_JSON_BYTES + 1)
-        if len(raw) > MAX_JSON_BYTES:
+        raw = handle.read(max_bytes + 1)
+        if len(raw) > max_bytes:
             raise ValueError("size")
         observed = os.fstat(handle.fileno()).st_mtime
     document = json.loads(raw)
@@ -228,9 +234,9 @@ def _finish(totals: dict) -> dict:
 class UsageCollector:
     """Reuse one instance; snapshot returns a detached JSON-safe dictionary.
 
-    clock returns Unix seconds. All token totals describe the current UTC day
-    in T3's saved local scan cache, including both Codex homes. Quota describes
-    only .codex-pro and cached Claude notices, not a live account probe.
+    clock returns Unix seconds. Daily and rolling 30-day totals share one
+    bounded T3 cache decode, including both Codex homes. Codex quota uses only
+    Pro observations. Collection never probes an account.
     """
 
     def __init__(self, home: Path | None = None, clock: Callable[[], float] = time.time, *,
@@ -245,6 +251,8 @@ class UsageCollector:
         self._refreshed = None
         self._token_previous = {}
         self._limits = {provider: {} for provider in PROVIDERS}
+        self._quota_evidence = {}
+        self._quota_window_stamps = {}
         self._tails = {}
 
     def snapshot(self) -> dict:
@@ -260,20 +268,37 @@ class UsageCollector:
             result["servedAt"] = _iso(now)
             result["cached"] = cached
             # Staleness and elapsed resets can change during the 60-second cache.
-            for provider in PROVIDERS:
-                for component, fresh in result["providers"][provider]["freshness"].items():
+            rows = list(result["providers"].values()) + list(result["periods"]["last30days"]["providers"].values())
+            for value in rows:
+                for component, fresh in value["freshness"].items():
                     observed = _timestamp(fresh["observedAt"])
                     age = 86400 if component == "pricing" else STALE_SECONDS
                     fresh["stale"] |= observed is None or observed > now or now - observed > age
                     if fresh["stale"] and observed is not None:
                         fresh["status"] = "stale"
-                for limit in result["providers"][provider]["limits"]:
+                if "endsAt" in value and _timestamp(value["endsAt"]) > now:
+                    value["freshness"]["tokens"].update(stale=True, status="stale")
+                for limit in value.get("limits", []):
                     observed, reset = _timestamp(limit["observedAt"]), _timestamp(limit["resetsAt"])
                     limit["stale"] = (observed is None or observed > now or now - observed > STALE_SECONDS
                                       or reset is not None and now >= reset
-                                      or result["providers"][provider]["freshness"]["limits"]["stale"])
-                if any(limit["stale"] for limit in result["providers"][provider]["limits"]):
-                    result["providers"][provider]["freshness"]["limits"].update(stale=True, status="stale")
+                                      or limit["source"] == "t3_claude_system_notice"
+                                      or value["freshness"]["limits"]["stale"])
+                if any(limit["stale"] for limit in value.get("limits", [])):
+                    value["freshness"]["limits"].update(stale=True, status="stale")
+            for provider in PROVIDERS:
+                value = result["providers"][provider]
+                fresh = value["freshness"]["limits"]
+                for key, state in value['quotaWindows'].items():
+                    stamp = self._quota_window_stamps.get(provider, {}).get(key)
+                    valid = stamp is not None and 0 <= now - stamp <= STALE_SECONDS and not fresh['errors']
+                    if state == 'unsupported' and not valid:
+                        value['quotaWindows'][key] = 'unknown'
+            # This collector is configured for the user's Pro account.
+            # Applicability is an account constraint, independent of telemetry age.
+            evidence = self._quota_evidence.get("codex")
+            result["providers"]["codex"]["quotaWindows"]["five_hour"] = (
+                "supported" if evidence and evidence[1]["five_hour"] == "supported" else "unsupported")
             return result
 
     def _collect(self, now: float, day: str) -> dict:
@@ -292,34 +317,59 @@ class UsageCollector:
         except (OSError, ValueError, RecursionError):
             rate_errors.append("pricing_cache_unavailable")
             rates_at = None
-        totals, token_freshness = self._tokens(base, rates, now, day)
-        codex_errors = self._codex_limits(now)
-        claude_errors = self._claude_limits(base / "statev2.sqlite", now)
+        token_periods = self._tokens(base, rates, now, day)
+        totals, token_freshness = token_periods["today"]
+        limit_errors = {}
+        for name in PROVIDERS:
+            errors, usable = self._provider_limits(name, now)
+            if not usable:
+                fallback = self._codex_limits(now) if name == "codex" else self._claude_limits(base / "statev2.sqlite", now)
+                errors = sorted(set(errors + fallback))
+            limit_errors[name] = errors
         providers = {}
-        for name, limit_errors in (("codex", codex_errors), ("claude", claude_errors)):
+        for name in PROVIDERS:
             limits = sorted(self._limits[name].values(), key=lambda limit: limit["label"])
             observed = max((_timestamp(limit["observedAt"]) for limit in limits), default=None)
+            evidence = self._quota_evidence.get(name)
+            if observed is None and evidence and "unsupported" in evidence[1].values():
+                observed = evidence[0]
             freshness = {
                 "tokens": token_freshness[name],
                 "pricing": _freshness("t3_cached_litellm_rates", rates_at, now, rate_errors, 86400),
-                "limits": _freshness("codex_pro_token_count" if name == "codex" else "t3_claude_system_notice",
-                                     observed, now, limit_errors),
+                "limits": _freshness(limits[-1]["source"] if limits else "t3_provider_usage_limits",
+                                     observed, now, limit_errors[name]),
             }
+            windows = dict(evidence[1]) if evidence else dict.fromkeys(("five_hour", "weekly"), "unknown")
             providers[name] = {**totals[name], "limits": copy.deepcopy(limits), "freshness": freshness,
+                               "quotaWindows": windows,
                                "source": "t3_usage_scan_cache_v5",
                                "errors": sorted(set(itertools.chain.from_iterable(part["errors"] for part in freshness.values())))}
+        rolling_totals, rolling_freshness = token_periods["last30days"]
+        rolling = {name: {**rolling_totals[name], "source": "t3_usage_scan_cache_v5",
+                         "freshness": {"tokens": rolling_freshness[name],
+                                       "pricing": _freshness("t3_cached_litellm_rates", rates_at, now, rate_errors, 86400)},
+                         "errors": sorted(set(rolling_freshness[name]["errors"] + rate_errors))}
+                   for name in TOKEN_PROVIDERS}
         return {"contractVersion": 1, "readAt": _iso(now), "scope": {"period": "today", "day": day,
                 "timeZone": "UTC", "accounts": "all_local_t3_cached_sources", "quotaAccount": "codex-pro"},
-                "providers": providers, "storage": self._storage(now),
+                "providers": providers, "periods": {"last30days": {"scope": self._rolling_scope(now), "providers": rolling}},
+                "storage": self._storage(now),
                 "mountedStorage": collect_mounted_storage(now, self.mountinfo_path, self.disk_usage)}
 
-    def _tokens(self, base: Path, rates: dict, now: float, day: str) -> tuple[dict, dict]:
+    @staticmethod
+    def _rolling_scope(now: float) -> dict:
+        return {"period": "last30days", "startsAt": _iso(now - LAST30_SECONDS), "endsAt": _iso(now),
+                "timeZone": "UTC", "windowKind": "rolling", "durationSeconds": LAST30_SECONDS,
+                "bounds": "inclusive", "accounts": "all_local_t3_cached_sources"}
+
+    def _tokens(self, base: Path, rates: dict, now: float, day: str) -> dict:
         errors, observed = [], None
         available = set()
-        totals = {name: _empty_totals() for name in PROVIDERS}
-        models = {name: {} for name in PROVIDERS}
-        latest = {name: None for name in PROVIDERS}
-        duplicates = {name: 0 for name in PROVIDERS}
+        periods = ("today", "last30days")
+        totals = {period: {name: _empty_totals() for name in TOKEN_PROVIDERS} for period in periods}
+        models = {period: {name: {} for name in TOKEN_PROVIDERS} for period in periods}
+        latest = {period: dict.fromkeys(TOKEN_PROVIDERS) for period in periods}
+        duplicates = dict.fromkeys(TOKEN_PROVIDERS, 0)
         try:
             raw, observed = _read_json(base / "usage-scan-cache-v5.json")
             names, sessions, files = raw.get("models"), raw.get("sessions"), raw.get("files")
@@ -329,7 +379,7 @@ class UsageCollector:
                 raise ValueError("cache_schema")
             seen, count = set(), 0
             for entry in files.values():
-                if not isinstance(entry, dict) or entry.get("p") not in PROVIDERS:
+                if not isinstance(entry, dict) or entry.get("p") not in TOKEN_PROVIDERS:
                     continue
                 provider = entry["p"]
                 if not isinstance(entry.get("r"), list) or not isinstance(entry.get("t", []), list):
@@ -358,43 +408,153 @@ class UsageCollector:
                             duplicates[provider] += 1
                             continue
                         seen.add(key)
-                    if datetime.fromtimestamp(stamp, timezone.utc).date().isoformat() != day or stamp > now:
+                    selected = []
+                    if stamp <= now and datetime.fromtimestamp(stamp, timezone.utc).date().isoformat() == day:
+                        selected.append("today")
+                    if now - LAST30_SECONDS <= stamp <= now:
+                        selected.append("last30days")
+                    if not selected:
                         continue
-                    latest[provider] = max(latest[provider] or stamp, stamp)
-                    bucket = models[provider].setdefault(model, _empty_totals())
                     cost, kind = _price(row, rates)
-                    _add(totals[provider], row, cost, kind)
-                    _add(bucket, row, cost, kind)
+                    for period in selected:
+                        latest[period][provider] = max(latest[period][provider] or stamp, stamp)
+                        bucket = models[period][provider].setdefault(model, _empty_totals())
+                        _add(totals[period][provider], row, cost, kind)
+                        _add(bucket, row, cost, kind)
         except (OSError, ValueError, RecursionError):
             errors.append("usage_cache_unavailable_or_bound_exceeded")
             available.clear()
         errors = sorted(set(errors))
-        freshness = {}
-        for name in PROVIDERS:
-            if name in available:
-                value = {**_finish(totals[name]), "perModel": [{"model": model, **_finish(bucket)} for model, bucket in sorted(models[name].items())],
-                         "latestRecordAt": _iso(latest[name]), "duplicatesDropped": duplicates[name]}
-                self._token_previous[name] = (day, copy.deepcopy(value), observed)
-            else:
-                prior = self._token_previous.get(name)
-                if prior and prior[0] == day:
-                    value, observed_provider = copy.deepcopy(prior[1]), prior[2]
+        result = {}
+        for period in periods:
+            freshness = {}
+            scope = self._rolling_scope(now) if period == "last30days" else {"day": day}
+            for name in TOKEN_PROVIDERS:
+                observed_provider = observed
+                provider_errors = errors
+                if name in available:
+                    value = {**_finish(totals[period][name]),
+                             "perModel": [{"model": model, **_finish(bucket)} for model, bucket in sorted(models[period][name].items())],
+                             "latestRecordAt": _iso(latest[period][name]), "duplicatesDropped": duplicates[name]}
+                    if period == "last30days":
+                        value.update(startsAt=scope["startsAt"], endsAt=scope["endsAt"])
+                    self._token_previous[period, name] = (copy.deepcopy(scope), copy.deepcopy(value), observed)
                 else:
-                    value = {field: None for field in _empty_totals()}
-                    value.update(costKind="unavailable", perModel=[], latestRecordAt=None, duplicatesDropped=0)
-                    observed_provider = None
-                totals[name] = value
-                freshness[name] = _freshness("t3_usage_scan_cache_v5", observed_provider, now,
-                                             errors or ["usage_cache_provider_missing"])
-                continue
-            totals[name] = value
-            freshness[name] = _freshness("t3_usage_scan_cache_v5", observed, now, errors)
-        return totals, freshness
+                    prior = self._token_previous.get((period, name))
+                    if prior and (period == "last30days" or prior[0] == scope):
+                        value, observed_provider = copy.deepcopy(prior[1]), prior[2]
+                        if period == "last30days":
+                            value["observedScope"] = copy.deepcopy(prior[0])
+                    else:
+                        value = {field: None for field in _empty_totals()}
+                        value.update(costKind="unavailable", perModel=[], latestRecordAt=None, duplicatesDropped=0)
+                        observed_provider = None
+                    provider_errors = errors or ["usage_cache_provider_missing"]
+                totals[period][name] = value
+                freshness[name] = _freshness("t3_usage_scan_cache_v5", observed_provider, now, provider_errors)
+            result[period] = totals[period], freshness
+        return result
 
     def _remember(self, provider: str, key: str, limit: dict) -> None:
         previous = self._limits[provider].get(key)
         if previous is None or limit["observedAt"] > previous["observedAt"]:
             self._limits[provider][key] = limit
+
+    def _remember_windows(self, provider: str, stamp: float, windows: dict) -> None:
+        # Each known window has its own observation time. Sparse probes and
+        # newest-first scans cannot renew or erase another window's evidence.
+        previous = self._quota_evidence.get(provider)
+        merged = dict(previous[1]) if previous else dict.fromkeys(('five_hour', 'weekly'), 'unknown')
+        stamps = self._quota_window_stamps.setdefault(provider, {})
+        for key, state in windows.items():
+            if state != 'unknown' and stamp >= stamps.get(key, -math.inf):
+                merged[key] = state
+                stamps[key] = stamp
+        self._quota_evidence[provider] = max(stamp, previous[0] if previous else stamp), merged
+
+    def _provider_limits(self, provider: str, now: float) -> tuple[list[str], bool]:
+        """Read T3's normalized snapshot, never invoke its authenticated probe."""
+        instance, driver = ("codex-pro", "codex") if provider == "codex" else ("claudeAgent", "claudeAgent")
+        path = self.home / ".t3/caches" / (instance + ".json")
+        try:
+            raw, _ = _read_json(path, MAX_PROVIDER_BYTES)
+        except FileNotFoundError:
+            return [], False
+        except (OSError, ValueError, RecursionError):
+            return ["provider_quota_cache_unavailable_or_bound_exceeded"], False
+        try:
+            if raw.get("instanceId") != instance or raw.get("driver") != driver:
+                raise ValueError("identity")
+            quota = raw.get("usageLimits")
+            if not isinstance(quota, dict):
+                raise ValueError("schema")
+            stamp = _timestamp(quota.get("checkedAt"))
+            if stamp is None or stamp > now:
+                raise ValueError("observation")
+            unavailable = quota.get("unavailable")
+            if unavailable is not None:
+                reason = unavailable.get("reason") if isinstance(unavailable, dict) else None
+                if reason != "unsupported":
+                    return ["provider_quota_probe_failed"], False
+                if (raw.get("status") != "ready" or raw.get("enabled") is not True
+                        or raw.get("installed") is not True):
+                    return ["provider_quota_probe_failed"], False
+                if now - stamp > STALE_SECONDS:
+                    return ["provider_quota_evidence_expired"], False
+                previous = self._quota_evidence.get(provider)
+                if previous is None or stamp >= previous[0]:
+                    self._limits[provider].clear()
+                    self._remember_windows(provider, stamp, dict.fromkeys(("five_hour", "weekly"), "unsupported"))
+                return [], True
+            windows = quota.get("windows")
+            if not isinstance(windows, list) or len(windows) > MAX_WINDOWS:
+                raise ValueError("windows")
+            normalized, ids = [], set()
+            states = dict.fromkeys(("five_hour", "weekly"), "unknown")
+            for window in windows:
+                if not isinstance(window, dict):
+                    raise ValueError("window")
+                key, label, kind = window.get("id"), window.get("label"), window.get("kind")
+                duration, used = window.get("windowDurationMins"), window.get("usedPercent")
+                reset = window.get("resetsAt")
+                if (not isinstance(key, str) or not 0 < len(key) <= 128 or key in ids
+                        or not isinstance(label, str) or not 0 < len(label) <= 128
+                        or kind not in ("session", "weekly", "monthly", "other")
+                        or not _number(duration) or duration <= 0
+                        or not _number(used) or used > 100
+                        or reset is not None and _timestamp(reset) is None):
+                    raise ValueError("window_fields")
+                ids.add(key)
+                # Keep an explicitly reported five-hour window if the account changes.
+                if provider == "codex" and duration < 10080 and duration != 300:
+                    continue
+                account_weekly = duration == 10080 and kind == "weekly" and key in ("primary", "secondary", "weekly", "seven_day")
+                if duration == 300:
+                    states["five_hour"] = "supported"
+                if account_weekly:
+                    states["weekly"] = "supported"
+                normalized.append({"id": key, "kind": kind, "label": "5-hour" if duration == 300 else label,
+                                   "usedPercent": used, "remainingPercent": 100 - used,
+                                   "resetsAt": reset, "resetKind": "reported", "observedAt": _iso(stamp),
+                                   "stale": True, "source": "t3_provider_usage_limits", "windowMinutes": duration,
+                                   "quotaAccount": instance, "accountWeekly": account_weekly})
+            # Only the user's verified Pro account plus a successful, current
+            # weekly inventory proves this omission; Claude omissions stay unknown.
+            if (provider == "codex" and states["weekly"] == "supported"
+                    and all(window["windowDurationMins"] == 10080 for window in windows)
+                    and raw.get("status") == "ready" and raw.get("enabled") is True
+                    and raw.get("installed") is True and raw.get("checkedAt") == quota.get("checkedAt")):
+                states["five_hour"] = "unsupported"
+            if len(set(self._limits[provider]) | ids) > MAX_WINDOWS:
+                raise ValueError("retained_window_bound")
+            if not normalized:
+                return ["provider_quota_windows_unavailable"], False
+            for limit in normalized:
+                self._remember(provider, limit["id"], limit)
+            self._remember_windows(provider, stamp, states)
+            return [], bool(normalized) and now - stamp <= STALE_SECONDS
+        except (ValueError, RecursionError):
+            return ["provider_quota_cache_invalid"], False
 
     def _quota_files(self) -> tuple[list, list[str]]:
         root = self.home / ".codex-pro/sessions"
@@ -448,7 +608,8 @@ class UsageCollector:
             if stamp > now:
                 state["retryAt"] = min(stamp, state.get("retryAt", stamp))
                 return False
-            supported = False
+            supported, normalized = False, []
+            states = dict.fromkeys(("five_hour", "weekly"), "unknown")
             for key in ("primary", "secondary"):
                 window = limits.get(key)
                 if window is None:
@@ -456,20 +617,34 @@ class UsageCollector:
                 if not isinstance(window, dict):
                     raise ValueError("window")
                 used, duration, reset = window.get("used_percent"), window.get("window_minutes"), window.get("resets_at")
-                if not _number(duration):
+                if not _number(duration) or duration <= 0:
                     raise ValueError("duration")
-                # This source is Pro only. Never manufacture a session bar.
-                if duration < 10080:
-                    continue
                 if not _number(used) or used > 100:
                     raise ValueError("percent")
                 reset = reset if _number(reset) and _iso(reset) is not None else None
-                self._remember("codex", key, {"id": key, "label": "Weekly" if duration == 10080 else f"{duration:g}-minute window",
+                # Only explicit five-hour telemetry overrides the known Pro default.
+                if duration < 10080 and duration != 300:
+                    continue
+                if duration == 10080:
+                    states["weekly"] = "supported"
+                if duration == 300:
+                    states["five_hour"] = "supported"
+                normalized.append({"id": key, "kind": "weekly" if duration == 10080 else "session" if duration == 300 else "other",
+                               "label": "Weekly" if duration == 10080 else f"{duration:g}-minute window",
                                "usedPercent": used, "remainingPercent": 100 - used,
                                "resetsAt": _iso(reset), "resetKind": "reported", "observedAt": _iso(stamp),
-                               "stale": True, "source": "codex_pro_token_count", "windowMinutes": duration})
-                state["latestSupportedAt"] = max(stamp, state.get("latestSupportedAt", stamp))
+                               "stale": True, "source": "codex_pro_token_count", "windowMinutes": duration,
+                               "quotaAccount": "codex-pro", "accountWeekly": duration == 10080})
                 supported = True
+            if (states["weekly"] == "supported" and "primary" in limits and "secondary" in limits
+                    and limits["secondary"] is None and isinstance(limits["primary"], dict)
+                    and limits["primary"].get("window_minutes") == 10080):
+                states["five_hour"] = "unsupported"
+            for limit in normalized:
+                self._remember("codex", limit["id"], limit)
+            if supported:
+                state["latestSupportedAt"] = max(stamp, state.get("latestSupportedAt", stamp))
+                self._remember_windows("codex", stamp, states)
             return supported
         except (ValueError, RecursionError):
             state["errors"].append("codex_quota_invalid_event")
@@ -608,6 +783,7 @@ class UsageCollector:
                                        "resetsAt": _iso(stamp + minutes * 60), "resetKind": "notice_relative_estimate",
                                        "observedAt": _iso(stamp), "stale": True,
                                        "source": "t3_claude_system_notice", "windowMinutes": 300})
+                        self._remember_windows("claude", stamp, {"five_hour": "supported", "weekly": "unknown"})
                     except (ValueError, RecursionError):
                         errors.append("claude_notice_invalid")
         except (OSError, ValueError, sqlite3.Error):

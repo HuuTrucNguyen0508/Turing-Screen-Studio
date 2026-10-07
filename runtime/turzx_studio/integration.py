@@ -16,10 +16,21 @@ from .watch import LayoutWatcher
 from .storage import Paths, PaletteWatcher, atomic_write
 from .usage import UsageCollector
 from .usage_display import USAGE_SOURCES, UsageStats
+from .activity import T3Activity
+from .games import GameResources
+from .dashboard_display import DASHBOARD_SOURCES, DashboardStats, dashboard_content
 from .live import LiveHistory, HistoryStats
 from .usb_ownership import open_claimed_device
 
 MAX_RESPONSE_BYTES = 64
+
+
+def dashboard_snapshot(collector):
+    """A display-only source failure must not interrupt the panel loop."""
+    try:
+        return collector.snapshot()
+    except Exception:
+        return None
 
 
 def process_start(pid: int) -> str:
@@ -79,6 +90,10 @@ class RuntimeIntegration:
         self.status = {}
         self.usage = UsageCollector()
         self.usage_snapshot = None
+        self.activity = T3Activity()
+        self.games = GameResources(self.paths.state_dir / 'game-timers.json')
+        self.activity_snapshot = None
+        self.games_snapshot = None
         self.usb_device = None
         self.live = LiveHistory()
         self.last_live_publish = 0.0
@@ -89,8 +104,10 @@ class RuntimeIntegration:
                               supportedGaugeStyles=list(GAUGE_STYLES),
                               supportedDesignTypes=['clock'],
                               supportedTrendWidgets=True,
+                              supportedChrome=True,
                               supportedStorageViews=['drives', 'partitions'],
                               supportedUsageSources=list(USAGE_SOURCES),
+                              supportedDashboardSources=list(DASHBOARD_SOURCES),
                               responseHex=None, responseBytes=None, responseTruncated=False)
 
     def invalidate_frame(self, **changes):
@@ -181,6 +198,8 @@ class RuntimeIntegration:
                         display_stats = HistoryStats(stats, owner.live.histories) if stats is not None else None
                         if owner.usage_snapshot is not None:
                             display_stats = UsageStats(display_stats, owner.usage_snapshot)
+                        if owner.activity_snapshot is not None or owner.games_snapshot is not None:
+                            display_stats = DashboardStats(display_stats, owner.activity_snapshot, owner.games_snapshot)
                         frame = self.layout.render(owner.document, stats=display_stats, palette=owner.palette)
                         owner.rendered_layout = True
                         owner.rendered_revision = rendered_revision
@@ -219,6 +238,14 @@ class RuntimeIntegration:
                           error=owner.render_error or owner.transport_error or owner.layouts.error or owner.scheme.error)
             palette_key = hashlib.sha256(json.dumps(owner.palette, sort_keys=True).encode()).hexdigest()
             key = (legacy_dirty(*args, **kwargs), owner.frame_revision, palette_key)
+            sources = {widget['settings'].get('source') for widget in owner.document['widgets']} if owner.document else set()
+            owner.activity_snapshot = dashboard_snapshot(owner.activity) if 't3-threads' in sources else None
+            owner.games_snapshot = dashboard_snapshot(owner.games) if 'game-resources' in sources else None
+            if sources.intersection(DASHBOARD_SOURCES):
+                transient = DashboardStats(None, owner.activity_snapshot, owner.games_snapshot)
+                displayed = [dashboard_content(widget, transient) for widget in owner.document['widgets']
+                             if widget['settings'].get('source') in DASHBOARD_SOURCES]
+                key = (*key, hashlib.sha256(json.dumps(displayed, sort_keys=True).encode()).hexdigest())
             if owner.document and any(widget['settings'].get('trend') for widget in owner.document['widgets']):
                 key = (*key, owner.live.observed_at)
             if owner.document and any(widget['settings'].get('source') in USAGE_SOURCES or (widget['type'] == 'storage' and widget['settings'].get('source') == 'mounted-storage') for widget in owner.document['widgets']):

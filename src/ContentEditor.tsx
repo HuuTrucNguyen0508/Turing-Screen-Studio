@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Widget } from './domain/layout';
 import { gaugeStyles, storageStyles } from './domain/layout';
 import { sourceLabels } from './domain/widgets';
+import { isDashboardSource } from './domain/dashboardData';
 
 const fieldLabels: Record<string, string> = {
   label: 'Label', value: 'Value', unit: 'Unit', detail: 'Detail', location: 'Location',
@@ -48,11 +49,11 @@ export default function ContentEditor({ widget, onCommit }: { widget: Widget; on
       {widget.settings.grouping !== 'drives' && <><ContentField label="Mount paths" value={widget.settings.mounts?.join('\n') ?? ''} multiline onCommit={(value) => { const mounts = String(value).split('\n').map((path) => path.trim()).filter(Boolean); onCommit({ mounts: mounts.length ? mounts : undefined }); }} /><p className="panel-note">One absolute mount path per line, in display order. Leave blank to show all mounted partitions.</p></>}
     </>}
     {widget.type === 'gauge'  && <label className="source-field">Display style<select aria-label="Display style" value={widget.settings.style ?? 'arc'} onChange={(event) => { if (event.target.value !== (widget.settings.style ?? 'arc')) onCommit({ style: event.target.value }); }}>{gaugeStyles.map((style) => <option key={style} value={style}>{styleLabels[style]}</option>)}</select></label>}
-    {Object.entries(widget.settings).filter(([key]) => !['source', 'format', 'showDate', 'style', 'grouping', 'mounts'].includes(key)).map(([key, value]) =>
+    {Object.entries(widget.settings).filter(([key]) => !['source', 'format', 'showDate', 'style', 'grouping', 'mounts'].includes(key) && (!isDashboardSource(source) || key === 'label')).map(([key, value]) =>
       <ContentField key={key} label={fieldLabels[key]} value={value as string | number} multiline={key === 'text'} onCommit={(next) => onCommit({ [key]: next })} />)}
     {widget.type === 'clock' && <>
       <fieldset className="clock-format"><legend>Time format</legend>{(['24h', '12h'] as const).map((format) => <label key={format}><input type="radio" name="clock-format" checked={widget.settings.format === format} onChange={() => onCommit({ format })} />{format === '24h' ? '24-hour' : '12-hour'}</label>)}</fieldset>
       <label className="theme-choice"><input type="checkbox" checked={widget.settings.showDate} onChange={(event) => onCommit({ showDate: event.target.checked })} />Show date</label>
     </>}
-  </div>{source !== 'sample' && <p className="panel-note">On the panel, {sourceLabels[source]} fills {widget.type === 'storage' ? 'the mounted filesystem list' : widget.type === 'clock' ? 'the time and date' : widget.type === 'weather' ? 'the forecast' : 'the value, unit and detail'}. These sample values appear in the offline preview.</p>}</div>;
+  </div>{isDashboardSource(source) && <p className="panel-note">{source === 'game-resources' ? 'Game timers are shared across dashboards. Set a count after playing to correct the estimate.' : 'T3 threads show local active work. Stale or unavailable activity stays unknown.'}</p>}{source !== 'sample' && !isDashboardSource(source) && <p className="panel-note">On the panel, {sourceLabels[source]} fills {widget.type === 'storage' ? 'the mounted filesystem list' : widget.type === 'clock' ? 'the time and date' : widget.type === 'weather' ? 'the forecast' : 'the value, unit and detail'}. These sample values appear in the offline preview.</p>}</div>;
 }

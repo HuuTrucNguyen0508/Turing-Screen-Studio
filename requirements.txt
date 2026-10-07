@@ -1,0 +1,2 @@
+# Tested Python dependency for offline PIL previews and the Linux Studio API.
+Pillow==12.3.0

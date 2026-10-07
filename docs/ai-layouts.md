@@ -43,7 +43,7 @@ These connected commands use the loopback Studio API. A switch reads the latest 
 
 ## Browse the widget library
 
-Studio’s **Add widget** library supports scrolling, search and category filters. The local catalog contains 107 ready-made choices: standard and wide metric cards, source-specific arc, ring, bar, segmented, thermometer and number designs, standard/compact/large/12-hour clocks, regular/slim weather, and standard/compact/large notes. It is the same catalog used by the editor and the agent commands.
+Studio’s **Add widget** library supports scrolling, search and category filters. The local catalog contains 112 ready-made choices: standard and wide metric cards, source-specific arc, ring, bar, segmented, thermometer and number designs, standard/compact/large/12-hour clocks, regular/slim weather, and standard/compact/large notes. It is the same catalog used by the editor and the agent commands.
 
 Gauge settings can include `style`: `arc`, `ring`, `bar`, `segments`, `thermometer` or `number`. Omitting it preserves the original arc. A style changes the drawing; sources and ranges keep their meaning. Wide and compact variants describe geometry. They are not separate drawing styles.
 
@@ -55,7 +55,7 @@ pnpm layout catalog --group clock
 pnpm layout catalog --search wide --group network
 ```
 
-Groups are `system`, `network`, `temperature`, `gauge`, `clock`, `weather`, `text`, `ai-usage` and `storage`. Combining search and group narrows the result. All browsing works offline. To extend the library using an existing widget type, add a template to `public/widget-catalog.json`, validate it and rebuild the editor. The saved layout contains only the chosen widget’s settings and geometry; catalog descriptions and categories stay outside the layout contract.
+Groups are `system`, `network`, `temperature`, `gauge`, `clock`, `weather`, `text`, `ai-usage`, `storage` and `games`. Combining search and group narrows the result. All browsing works offline. To extend the library using an existing widget type, add a template to `public/widget-catalog.json`, validate it and rebuild the editor. The saved layout contains only the chosen widget’s settings and geometry; catalog descriptions and categories stay outside the layout contract.
 
 ## Short template specs
 
@@ -130,3 +130,5 @@ This discovers local mount paths automatically. Do not hardcode the user's devic
 
 
 To center a compact clock, use template `clock-centered`, or set widget-level `design.elements.time.align` and `design.elements.date.align` to `center`. These change internal placement without moving the card. Offset, font size, visibility and palette-role color overrides are described in [the layout format](layout-format.md). Custom templates use separate `/api/widgets` revision checks and never apply a dashboard.
+
+Templates `t3-threads` and `game-resources` add working local T3 threads and shared game regeneration timers. The clean drafts place these at the bottom left. Timer anchors live outside the layout, so switching dashboards keeps the same counts. The editor shows fixed samples unless Live preview is selected. See [thread and timer data](thread-game-data.md).

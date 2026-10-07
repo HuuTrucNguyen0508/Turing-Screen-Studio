@@ -7,3 +7,20 @@
 .usage-model-name { fill: var(--text); font: 11px 'DejaVu Sans Mono', monospace; }
 .usage-model-number { fill: var(--primary); font: 11px 'DejaVu Sans Mono', monospace; }
 .usage-model-heading { fill: var(--muted); font: 10px 'DejaVu Sans', sans-serif; }
+@font-face { font-family: 'Studio Roboto'; src: url('/fonts/Roboto-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Studio Mono'; src: url('/fonts/JetBrainsMono-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+.usage-summary { display: block; overflow: hidden; font-family: 'Studio Roboto', sans-serif; }
+.summary-label { fill: var(--muted); font-size: 15px; }
+.summary-provider { fill: var(--text); font-size: 17px; }
+.summary-total, .summary-percent, .summary-row-value { font-family: 'Studio Mono', monospace; }
+.summary-total, .summary-percent { fill: var(--primary); }
+.summary-percent { font-size: 24px; }
+.summary-row-value { fill: var(--text); font-size: 18px; }
+.summary-unit { fill: var(--muted); font-size: 22px; }
+.summary-caption { fill: var(--muted); font-size: 14px; }
+.summary-state, .summary-footnote { fill: var(--muted); font-size: 12px; }
+.summary-rule { stroke: var(--outline); stroke-width: 1px; }
+.summary-track { fill: var(--outline); }
+.summary-fill { fill: var(--primary); }
+.summary-share { fill: var(--secondary); }
+.usage-summary .unknown { fill: var(--muted); }

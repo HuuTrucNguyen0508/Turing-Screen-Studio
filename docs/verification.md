@@ -1,4 +1,54 @@
+## Community release, 7 October 2026
+
+Added a canvas-size dialog with resolution presets, custom dimensions, uniform card fitting, keep-position and empty-canvas modes. Resize maps integer edges with one aspect-preserving scale; one Undo restores the original document. Portrait layouts export without changing the panel. Non-1280 × 800 drafts cannot be saved to the existing panel or its library.
+
+`pnpm build` and all 281 domain tests passed. The Python suite passed 452 tests with one skip in an isolated environment containing only the pinned Pillow dependency. An isolated local API started without the legacy dashboard and rendered a 320 × 480 PNG. A clean temporary package installation passed with `pnpm install --frozen-lockfile`.
+
+The full browser run passed 91 cases and caught a locator ambiguity in the new connected-size check. After restricting that locator to the visible message, all four canvas-size cases passed, covering integer export, single-step Undo, empty canvas, mobile layout, cancellation and panel/library write protection. The mobile dialog screenshot was inspected. The collaborative browser opened, but its snapshot timed out; visual evidence comes from the existing project browser tests.
+
+The first public release supports offline design at other canvas sizes. USB output remains limited to the tested 8-inch 1280 × 800 adapter. No live layout, library, service or USB state was changed during release preparation.
+
+## Updated shortcut slots, 7 October 2026
+
+At the user's request, saved the revised AI usage dashboard in slot 1, Ctrl+F9, and revised System overview in slot 2, Ctrl+F10. The library update used its current revision through `/api/layouts`; both replaced documents were archived by the server. Slots 3 and 4 and all existing archive bytes are unchanged. The current physical panel layout was not switched. Readback matches both draft documents. Evidence is in `artifacts/f9-f10-library-before.json` and `artifacts/f9-f10-library-after.json`.
+
+## T3 threads and shared game timers, 7 October 2026
+
+The final independent review found no remaining P1/P2 findings. Reloaded `turzx-studio.service` and `turzx-dashboard.service` after the checks passed. The panel is connected, has accepted its original revision `672a0c01e5007b643ebed5c54191736996041a296a37c39d1d327481e3a30828`, and reports no error with a positive `66c8` reply. All 57 saved configuration/archive files match the pre-reload hashes. The library revision is unchanged. No draft was applied and no game counts were initialized. Activation evidence is `artifacts/thread-game-activation.json`.
+
+The production activity API reports live verified work. All three game rows are not configured. Both draft live previews were rendered through the API and inspected, without saving a layout. They are `artifacts/ai-usage-30d-thread-game-live.png` and `artifacts/system-overview-clean-thread-game-live.png`. After the reload, native browser evaluation also timed out; this does not affect the passed fixture browser checks or API preview captures.
+
+Added `t3-threads` and `game-resources` metric sources, catalog templates and matching SVG/PIL renderers. The clean AI usage draft puts working threads at bottom left; system overview puts shared timers there while retaining weather and storage. Both validate for the panel with no overlaps. Samples remain deterministic, and live values never enter exported layouts.
+
+The metadata-only activity collector follows the installed T3 version-2 thread event journal. It reports verified working totals, separates waiting rows, and hides incomplete or unverifiable evidence. Long silent turns keep their verified state because event timestamps are not heartbeats. Complete idle projections survive a server restart; active evidence from a previous server remains unknown.
+
+Game timers use manual current counts and one revision-checked shared anchor file. Atomic locked writes preserve concurrent edits and invalid state. A future saved time affects only its game and can be reanchored or cleared. Browser checks cover zero counts, clear, typed counts in other rows, conflicts, malformed responses, keyboard focus, clock warnings, offline controls and 360-pixel layouts.
+
+`pnpm build` passed, including both TypeScript checks. All 276 domain tests passed. The final Python suite ran 450 tests with one skip and no failures. The full browser suite passed 86 cases before review fixes; all six focused timer cases passed afterward. The initial full Python failures came from a test selecting the last card rather than the quota card's stable ID. The catalog assertion was updated for the shared summary-source error message. `git diff --check` passed.
+
+Two review rounds checked counts, privacy, timestamp recovery, conflicts and renderer parity. Source timing in this local run was 2.71 ms median and 140.33 ms maximum over five uncached activity reads; cached reads averaged 3.77 microseconds. The game snapshot took 0.098 ms. These are read timings, not a full panel resource comparison. Display-source exceptions cannot interrupt the panel loop. The existing PIL renderer and USB lifecycle are retained.
+
+The sample previews use the current Caelestia palette. The HTML comparison at 360 and 728 pixels has no horizontal overflow, with full-size card details for phone readers. Native T3 DOM inspection works, but its screenshot call timed out. Logs and images use the `artifacts/thread-game-*` prefix, plus `ai-usage-30d-threads-caelestia.png` and `system-overview-game-timers-caelestia.png`. Source behavior and evidence are documented in [thread and timer data](thread-game-data.md).
+
 # Verification
+
+## Quota usage left, 7 October 2026
+
+Changed the new quota ledger's percentages and bars to show remaining allowance, `100 - usedPercent`, with a Usage left heading. Raw collector telemetry and saved demo readings keep their original meaning. Unknown values and expired reset observations remain unavailable. The browser and PIL renderers agree at zero, full and partial usage.
+
+`pnpm build` passed. Three focused domain checks, 44 Python formatter/renderer checks and three browser regressions passed. The browser check also confirms the remaining percentage drives the bar length. Refreshed sample, live and HTML comparison previews show usage left; the 360-pixel HTML preview reports no horizontal overflow. Logs are `artifacts/usage-left-{build,domain,runtime,browser}.log`. Dashboard application still awaits the user's instruction.
+
+## Clean dashboard drafts and rolling usage, 7 October 2026
+
+Added `layouts/system-overview-clean.json` and `layouts/ai-usage-30d.json`. Both validate for the 1280 by 800 panel with no overlaps. The system draft aligns six cards; the usage draft pairs rolling 30-day tokens and API-equivalent cost above account quota rows. These are drafts, awaiting the user's instruction to apply them.
+
+The collector reads identity-checked T3 provider caches for actual Claude and Codex limits. It retains exact rolling interval bounds on failed refreshes. Missing Cursor history remains unavailable and makes totals partial. Codex Pro's five-hour row stays hidden unless an actual 300-minute window is reported. Sparse and newest-first reads preserve each window's observation time without renewing unsupported evidence. Monthly and model-specific windows cannot replace the account weekly row.
+
+`pnpm build` passed, including both TypeScript checks. All 272 domain tests passed; the final catalog check passed 19 tests after catalog ordering changed. The Python suite ran 345 tests with one skip. A subsequent formatter check passed 39 tests after adding a daily model billions regression. All 24 selected browser cases passed across the broad run and corrected catalog rerun. Browser checks include source cards, import/export without applying, expired resets, clean chrome, mobile scrolling, manual editing and absence of Ask AI. Legacy pixel hashes remain unchanged. Three Claude review rounds identified quota applicability, caption, geometry and reverse-read issues; the implementation owner fixed them with regressions.
+
+Sample and captured-live PIL previews are `artifacts/system-overview-clean*.png` and `artifacts/ai-usage-30d*.png`. The interactive comparison is `artifacts/dashboard-redesign.html`; native HTML previews at 360 and 728 pixels report no horizontal overflow. The new summary fonts include their licences and do not alter legacy renderer fallback. Evidence logs are `artifacts/redesign-build.log`, `redesign-domain.log`, `redesign-catalog-domain.log`, `redesign-runtime-full.log`, `redesign-final-formatter.log`, `redesign-browser.log` and `redesign-browser-rerun.log`.
+
+No panel, saved-library, custom-widget or archive writes were made. The active panel and saved library still match `artifacts/redesign-origin.json`, with revisions `672a0c01e5007b643ebed5c54191736996041a296a37c39d1d327481e3a30828` and `3978d22db1d72fe04c2cf3231d25e724459f500b2d6b68d41cfecaf65ab920f4`. No services restarted. T3's Studio tab navigated successfully but its native snapshot timed out; live embedded editor inspection remains unverified. The fixture browser tests and native HTML comparison previews passed independently.
 
 ## Physical drives and custom partitions, 7 October 2026
 

@@ -16,6 +16,8 @@ import { StaticLayout } from './WidgetContent';
 import WidgetLibrary from './WidgetLibrary';
 import SavedLayouts from './SavedLayouts';
 import HistoryDialog from './HistoryDialog';
+import GameTimers from './GameTimers';
+import CanvasSize from './CanvasSize';
 import type { DraftTarget } from './domain/draft';
 import { duplicateEntry, libraryTarget, parseLibrary } from './domain/library';
 import type { Library, LibraryDraftTarget } from './domain/library';
@@ -108,6 +110,9 @@ export default function App() {
   const [customCandidate, setCustomCandidate] = useState<Widget | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [designElement, setDesignElement] = useState<string | null>(null);
+  const [gameTimersOpen, setGameTimersOpen] = useState(false);
+  const [canvasSizeOpen, setCanvasSizeOpen] = useState(false);
+  const panelCompatible = document.canvas.width === 1280 && document.canvas.height === 800;
   const customEntries = custom.document.widgets.map((entry) => ({ id: `custom:${entry.id}`, name: entry.name, group: 'custom', family: entry.id, variant: 'Custom', description: custom.storeLabel, widget: placedTemplate(entry) }));
   const displayPalette = document.paletteMode === 'live' && panel.palette ? panel.palette : document.palette;
   const panelAccepted = Boolean(panel.revision && panel.status.appliedRevision === panel.revision && panel.status.requestedRevision === panel.revision);
@@ -123,6 +128,7 @@ export default function App() {
   }
 
   async function saveToPanel(expectedRevision?: string) {
+    if (documentRef.current.canvas.width !== 1280 || documentRef.current.canvas.height !== 800) { setError('Panel saves need 1280 × 800. Export JSON to keep this draft.'); return false; }
     if (!expectedRevision && !editor.current.current.baseRevision) { await reviewPanelChanges(); return false; }
     const snapshot = parseLayout(serializeLayout(documentRef.current));
     const generation = loadGeneration.current;
@@ -169,6 +175,7 @@ export default function App() {
   }
 
   async function saveToLibrary(confirmed?: Library, asCopy = false) {
+    if (documentRef.current.canvas.width !== 1280 || documentRef.current.canvas.height !== 800) { setLibraryError('Panel saves need 1280 × 800. Export JSON to keep this draft.'); return; }
     if (libraryOperation.current || editor.current.current.target.kind !== 'library') return;
     const target: LibraryDraftTarget = editor.current.current.target;
     const generation = loadGeneration.current;
@@ -392,7 +399,7 @@ export default function App() {
     <header className="app-header">
       <a className="brand" href="#" onClick={(event) => event.preventDefault()} aria-label="TURZX Studio"><span className="brand-symbol" aria-hidden="true">T</span><span>TURZX<span className="brand-light"> Studio</span></span></a>
       <div className="mode-badge"><span className="status-dot" />{panel.available ? 'Panel editor' : 'Offline editor'}</div>
-      <div className="header-actions"><SavedLayouts onEdit={(next, target) => openDraft(next, target)} onLibraryUpdated={libraryUpdated} available={panel.available} busy={panel.saving || panel.openingSaved || panel.switching} presets={presets} getDocument={() => documentRef.current} onSwitch={switchPanelLayout} onError={setError} onMessage={setMessage} /><HistoryDialog available={panel.available} onOpen={openDraft} /><button onClick={() => presetsDialog.current?.showModal()}>Create layout</button><button onClick={() => layoutInput.current?.click()}>Open layout</button><button onClick={exportLayout} className={panel.available ? '' : 'primary-button'}>Export JSON <span aria-hidden="true">↗</span></button>{panel.available && editor.state.target.kind === 'library' && <button disabled={librarySaving || serialized === editor.state.target.entryText} onClick={() => void saveToLibrary()}>Save to library</button>}{panel.available && <button className="primary-button" disabled={panel.saving || panel.openingSaved || panel.switching} onClick={() => void saveToPanel()}>{panel.saving ? 'Saving…' : 'Save to panel'}</button>}</div>
+      <div className="header-actions"><SavedLayouts draftCompatible={panelCompatible} onEdit={(next, target) => openDraft(next, target)} onLibraryUpdated={libraryUpdated} available={panel.available} busy={panel.saving || panel.openingSaved || panel.switching} presets={presets} getDocument={() => documentRef.current} onSwitch={switchPanelLayout} onError={setError} onMessage={setMessage} /><HistoryDialog available={panel.available} onOpen={openDraft} /><button onClick={() => setGameTimersOpen(true)}>Game timers</button><button onClick={() => presetsDialog.current?.showModal()}>Create layout</button><button onClick={() => layoutInput.current?.click()}>Open layout</button><button onClick={exportLayout} className={panel.available ? '' : 'primary-button'}>Export JSON <span aria-hidden="true">↗</span></button>{panel.available && editor.state.target.kind === 'library' && <button disabled={!panelCompatible || librarySaving || serialized === editor.state.target.entryText} onClick={() => void saveToLibrary()}>Save to library</button>}{panel.available && <button className="primary-button" disabled={!panelCompatible || panel.saving || panel.openingSaved || panel.switching} onClick={() => void saveToPanel()}>{panel.saving ? 'Saving…' : 'Save to panel'}</button>}</div>
       <input ref={layoutInput} type="file" accept=".json,application/json" hidden aria-label="Open layout file" onChange={(event) => void importFile(event, 'layout')} />
       <input ref={paletteInput} type="file" accept=".json,application/json" hidden aria-label="Import palette file" onChange={(event) => void importFile(event, 'palette')} />
     </header>
@@ -413,7 +420,7 @@ export default function App() {
         </div><p className="panel-note">{displayPalette.name}<br />{document.paletteMode === 'live' ? 'Following the desktop scheme.' : 'Stored with this layout.'}</p>{panel.available && <label className="theme-choice"><input type="checkbox" checked={document.paletteMode === 'live'} onChange={(event) => change((current) => ({ ...current, paletteMode: event.target.checked ? 'live' : 'saved' }))} /> Follow desktop colours</label>}<button className="text-button" onClick={() => paletteInput.current?.click()}>Import scheme.json <span aria-hidden="true">↗</span></button></div>
         <div className="offline-note"><span className="status-dot" /><div><strong>{panel.available ? 'Panel connection' : 'Preview only'}</strong><p>{panel.available ? panel.status.error || (panelChangedElsewhere ? 'The panel switched outside this editor. Open panel dashboard to view it.' : 'Preview uses the chosen data mode. Save to panel applies this draft.') : panel.connectionError || 'Sample data. No panel connection.'}</p>{panel.available && <><button className="text-button" disabled={panel.saving || panel.openingSaved || panel.switching} onClick={() => void openPanelLayout()}>Open panel dashboard</button><button className="text-button" onClick={() => { setPanelImage(`/api/frame?t=${Date.now()}`); panelDialog.current?.showModal(); }}>View panel frame</button></>}</div></div>
       </aside>
-      <CanvasPreview key={documentGeneration} document={document} selectedId={selectedId} selectedIds={selectedIds} getSelection={() => editor.current.current.selectedIds} onSelect={setSelectedId} onChange={change} getDocument={() => documentRef.current} onGestureStart={editor.begin} onGestureEnd={editor.finish} previewControls={<PreviewSources available={panel.available} mode={panel.previewMode} onMode={panel.setPreviewMode} />} designElement={designElement} bitmap={editor.state.gesture ? null : panel.preview} onPreviewRetry={panel.previewError ? panel.retryPreview : undefined} previewNotice={panel.available ? panel.previewError || (panel.previewPending ? panel.previewMode === 'live' ? 'Rendering live preview…' : 'Rendering sample preview…' : panel.previewMode === 'live' ? 'Panel renderer · Live readings' : 'Panel renderer · Sample values') : 'Browser renderer · Sample values'} />
+      <CanvasPreview onResizeCanvas={() => setCanvasSizeOpen(true)} key={documentGeneration} document={document} selectedId={selectedId} selectedIds={selectedIds} getSelection={() => editor.current.current.selectedIds} onSelect={setSelectedId} onChange={change} getDocument={() => documentRef.current} onGestureStart={editor.begin} onGestureEnd={editor.finish} previewControls={<PreviewSources available={panel.available} mode={panel.previewMode} onMode={panel.setPreviewMode} />} designElement={designElement} bitmap={editor.state.gesture ? null : panel.preview} onPreviewRetry={panel.previewError ? panel.retryPreview : undefined} previewNotice={panel.available ? panel.previewError || (panel.previewPending ? panel.previewMode === 'live' ? 'Rendering live preview…' : 'Rendering sample preview…' : panel.previewMode === 'live' ? 'Panel renderer · Live readings' : 'Panel renderer · Sample values') : 'Browser renderer · Sample values'} />
       <aside className="inspector-panel" aria-label="Inspector"><div className="panel-heading"><h2>Inspector</h2><span className="mono">px</span></div>
         {selected ? <div key={`${documentGeneration}:${selected.id}`}>
           <div className="selected-widget"><span className="eyebrow">{selected.type} card</span><h3>{widgetLabel(selected)}</h3><span className="mono widget-id">{selected.id}</span><div className="widget-actions"><button onClick={() => appendWidget()}>Duplicate</button><button className="remove-button" onClick={removeSelected}>Remove</button></div></div>
@@ -424,6 +431,7 @@ export default function App() {
           </div><p className="panel-note">Whole pixels only. Values stay inside the canvas.</p></div>
           {selected.type !== 'text' && <div className="inspector-section"><h4>Panel data</h4><label className="source-field">Source<select aria-label="Panel data source" value={selected.settings.source ?? 'sample'} onChange={(event) => setSource(event.target.value)}>{widgetSources(selected).map((source) => <option key={source} value={source}>{sourceLabels[source]}</option>)}</select></label><p className="panel-note">Choose Sample or Live above the canvas to preview this source. Save to panel applies the layout.{selected.type === 'storage' && <><br />Physical drives combine mounted partition usage against the drive's full capacity. The partitions view can show selected mount paths. Shared filesystems are counted once.</>}{selected.type === 'gauge' && <><br />Memory gauges use %. Network gauges use KB/s.</>}</p></div>}
           <button disabled={custom.loading || custom.working} onClick={() => setCustomCandidate(parseLayout(serializeLayout(editor.current.current.document)).widgets.find((widget) => widget.id === selected.id)!)}>Save as custom widget…</button>
+          {selected.type === 'metric' && selected.settings.source === 'game-resources' && <button onClick={() => setGameTimersOpen(true)}>Set game timers</button>}
           <ContentEditor widget={selected} onCommit={(patch) => change((current) => updateWidgetSettings(current, selected.id, patch))} />
           <DesignEditor widget={selected} onInspect={setDesignElement} onCommit={(patch) => change((current) => updateWidgetDesign(current, selected.id, patch))} />
           <div className="keyboard-note"><span className="eyebrow">Fine adjustments</span><p>Focus a card, then use the arrow keys.</p><div><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><span>1 px</span></div><p>Hold <kbd>Shift</kbd> for 10 px.</p></div>
@@ -433,6 +441,12 @@ export default function App() {
     <footer className="app-footer"><span role="status" aria-live="polite">{message}</span><div className="recovery-status"><span title={recovery.time ? `Backed up ${new Date(recovery.time).toLocaleTimeString()}` : undefined}>{recovery.backedUp ? 'Draft backed up' : recovery.error && dirty ? 'Draft not backed up' : dirty ? 'Backing up draft…' : panel.previewMode === 'live' && panel.preview && !panel.previewError ? 'Layout v1 · Live readings' : 'Layout v1 · Sample data'}</span><button className="text-button" onClick={recovery.refresh}>Recover drafts</button></div></footer>
     {recovery.error && !recovery.pending && <p className="recovery-error" role="alert">{recovery.error}</p>}
     {error && !comparison && !libraryComparison && !recovery.pending && <div className="error-banner" role="alert"><span>{error}</span><button aria-label="Dismiss import error" onClick={() => setError('')}>×</button></div>}
+    {canvasSizeOpen && <CanvasSize document={document} available={panel.available} onClose={() => setCanvasSizeOpen(false)} onResize={next => {
+      change(next); setDocumentGeneration(generation => generation + 1); setError('');
+      setMessage(`Resized canvas to ${next.canvas.width} × ${next.canvas.height}. Undo restores the previous size and cards.`);
+    }} />}
+    {panel.available && !panelCompatible && <p className="panel-note">Panel saves need 1280 × 800. Export JSON to keep this draft.</p>}
+    <GameTimers open={gameTimersOpen} available={panel.available} onClose={() => setGameTimersOpen(false)} onChanged={panel.retryPreview} />
     <dialog ref={recoveryDialog} className="catalog-dialog recovery-dialog" aria-labelledby="recovery-title" onCancel={(event) => { event.preventDefault(); recovery.close(); }}>
       <div className="panel-heading"><h2 id="recovery-title">Recover a draft</h2><button aria-label="Close draft recovery" onClick={recovery.close}>×</button></div>
       <p>Restore an unfinished draft. The panel keeps its current dashboard.</p>

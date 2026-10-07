@@ -1,0 +1,11 @@
+.catalog-dialog.canvas-size-dialog { width: min(560px, calc(100vw - 32px)); box-sizing: border-box; }
+.canvas-size-dialog button, .canvas-size-dialog select, .canvas-size-dialog input:not([type=radio]) { min-height: 44px; }
+.canvas-size-presets { display: grid; gap: 8px; margin-block: 16px; }
+.canvas-dimensions { display: grid; grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr); gap: 12px; align-items: end; }
+.canvas-dimensions input { min-width: 0; width: 100%; }
+.canvas-resize-modes { border: 0; padding: 0; margin-block: 20px; display: grid; gap: 8px; }
+.canvas-resize-modes label { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 44px; }
+.canvas-resize-modes .panel-note { flex-basis: 100%; margin: 0 0 0 26px; }
+.canvas-size-result { display: grid; justify-items: center; gap: 12px; padding: 16px; background: var(--surface); border: 1px solid var(--outline); border-radius: 10px; overflow: hidden; }
+.canvas-size-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+@media (max-width: 480px) { .catalog-dialog.canvas-size-dialog { padding: 16px; } .canvas-dimensions { gap: 8px; } .canvas-size-actions button { flex: 1; } }
