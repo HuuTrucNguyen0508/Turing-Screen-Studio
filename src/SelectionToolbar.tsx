@@ -4,6 +4,7 @@ import { alignSelection } from './domain/canvas';
 import type { Alignment } from './domain/canvas';
 import type { LayoutDocument, Widget } from './domain/layout';
 import { widgetLabel } from './WidgetContent';
+import { AlignmentIcon } from './ToolIcons';
 
 export default function SelectionToolbar({ document, widget, ids, style, docked, busy, toolbarRef, compactResize, onResize, onChange, onDuplicate, onDelete, onDetails }: {
   document: LayoutDocument; widget: Widget; ids: readonly string[]; style: CSSProperties; busy: boolean;
@@ -47,11 +48,11 @@ export default function SelectionToolbar({ document, widget, ids, style, docked,
     {ids.length > 1 && <details ref={align} className="selection-align" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>Align</summary>
       <div ref={menu} style={position} role="group" aria-label="Align selected cards">{(['left', 'center', 'right', 'top', 'middle', 'bottom'] as Alignment[]).map((mode) =>
-        <button key={mode} disabled={busy} aria-label={`Selection align ${mode}`} onClick={(event) => {
+        <button key={mode} disabled={busy} aria-label={`Selection align ${mode}`} title={`Align ${mode}`} onClick={(event) => {
           onChange(alignSelection(document, ids, mode));
           event.currentTarget.closest('details')?.removeAttribute('open');
           event.currentTarget.closest('.canvas-stage')?.querySelector<HTMLElement>('[data-primary="true"]')?.focus({ preventScroll: true });
-        }}>{mode}</button>)}
+        }}><AlignmentIcon mode={mode} /></button>)}
       </div>
     </details>}
     <button disabled={busy} aria-label="Edit selection details" onClick={onDetails}>Edit details</button>
