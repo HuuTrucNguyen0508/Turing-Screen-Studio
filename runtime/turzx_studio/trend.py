@@ -1,5 +1,7 @@
 """Trend geometry mirrored by src/domain/trend.ts. No collectors or I/O."""
 
+from .card_text import card_padding
+
 import math
 
 TREND_CAPACITY = 120
@@ -69,7 +71,7 @@ def trend_state(histories, segments):
 def trend_chart(source, value, width, height):
     history = trend_history(value)
     minimum, maximum = trend_range(source, history)
-    padding = min(29, width // 6)
+    padding = card_padding(width)
     box = {'left': padding, 'right': width - padding, 'top': 120, 'bottom': height - 66}
     segments = trend_segments(history, (minimum, maximum), box)
     return {**box, 'captionY': height - 29, 'showChart': width >= 160 and height >= 216,

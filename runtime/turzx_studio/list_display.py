@@ -4,11 +4,8 @@ import math
 import re
 
 from .trend import format_reading
+from .card_text import SENSOR_SHORT_LABELS, card_kicker, card_padding, shorten_text
 
-SENSOR_SHORT_LABELS = {
-    'cpu': 'CPU', 'gpu': 'GPU', 'memory': 'Memory', 'disk': 'Disk', 'network-down': 'Download',
-    'network-up': 'Upload', 'cpu-temperature': 'CPU temp', 'gpu-temperature': 'GPU temp',
-}
 _NUMBER = re.compile(r' *-?[0-9]+(\.[0-9]+)? *')
 _FIELDS = {'cpu': 'cpu_percent', 'gpu': 'gpu_percent', 'memory': 'ram_percent', 'disk': 'disk_percent',
            'network-down': 'net_down_kbps', 'network-up': 'net_up_kbps',
@@ -27,16 +24,8 @@ def list_bar_role(source):
     return 'secondary' if source.endswith('-temperature') else 'primary'
 
 
-def shorten_text(text, capacity):
-    return text[:max(0, capacity - 1)] + '…' if len(text) > capacity else text
-
-
-def card_kicker(label, width):
-    return shorten_text(label, max(1, math.floor((width - 2 * min(29, width // 6)) / 8)))
-
-
 def list_layout(width, height, label, rows, bars):
-    padding = min(29, width // 6)
+    padding = card_padding(width)
     top = 60 if label else 24
     available = max(0, height - top - 20)
     visible = min(len(rows), available // 24)

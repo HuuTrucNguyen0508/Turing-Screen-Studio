@@ -1,5 +1,5 @@
 import { formatGaugeNumber } from './widgets';
-import { cardKicker, sensorShortLabels } from './list';
+import { cardKicker, cardPadding, sensorShortLabels } from './cardText';
 import { formatReading, trendHistory, trendRange, trendSegments, trendState, trendUnit } from './trend';
 import type { TrendPoint, TrendSource } from './trend';
 
@@ -7,47 +7,46 @@ export const GRAPH_SERIES_ROLES = ['primary', 'secondary'] as const;
 /** Area tint, mixed into the card surface so overlapping series stay opaque in SVG and PIL. */
 export const GRAPH_AREA_MIX = .24;
 
+export function demoGraphHistory(source: TrendSource): number[] {
+  const profiles: Record<TrendSource, [number, number, number]> = {
+    cpu: [24, 12, 0], gpu: [18, 10, 12], memory: [39, 3, 6], disk: [45, 1, 18],
+    'network-down': [640, 450, 0], 'network-up': [90, 65, 12],
+    'cpu-temperature': [42, 4, 0], 'gpu-temperature': [55, 6, 12],
+  };
+  const [base, amplitude, offset] = profiles[source];
+  const anchors = [-3, 1, 5, 2, -2, -4, -3];
+  return Array.from({ length: 120 }, (_, index) => {
+    const slot = (index + offset) % 120;
+    const segment = Math.floor(slot / 20), t = slot % 20;
+    const blend = t * t * (60 - 2 * t) / 8000;
+    const wave = anchors[segment] + (anchors[segment + 1] - anchors[segment]) * blend;
+    return Math.floor((base + amplitude * wave / 10) * 10 + .5) / 10;
+  });
+}
+
+export function graphRange(source: TrendSource, history: readonly (number | null)[]): [number, number] {
+  const numbers = history.filter((value): value is number => value !== null);
+  if (!source.endsWith('-temperature')) return trendRange(source, history);
+  if (!numbers.length) return [0, 100];
+  const min = Math.min(...numbers), max = Math.max(...numbers);
+  const padding = Math.max(2, Math.ceil((max - min) * .15));
+  return [Math.floor(min - padding), Math.ceil(max + padding)];
+}
+
 export function graphGeometry(width: number, height: number) {
-  const padding = Math.min(29, Math.floor(width / 6));
-  const top = 124, bottom = height - 48;
+  const padding = cardPadding(width);
+  const top = 144, bottom = height - 48;
   return { left: padding, right: width - padding, top, bottom, middle: Math.floor((top + bottom) / 2),
-    captionY: height - 20, showChart: width >= 160 && bottom - top >= 32 };
+    rangeY: 130, captionY: height - 20, showChart: width >= 160 && bottom - top >= 32 };
 }
 
 /** Matching units share one axis, so download and upload compare directly. */
 export function graphRanges(sources: readonly TrendSource[], histories: readonly (number | null)[][]): { shared: boolean; ranges: [number, number][] } {
   if (new Set(sources.map(trendUnit)).size === 1) {
-    const range = trendRange(sources[0], histories.flat());
+    const range = graphRange(sources[0], histories.flat());
     return { shared: true, ranges: sources.map(() => range) };
   }
-  return { shared: false, ranges: sources.map((source, index) => trendRange(source, histories[index])) };
-}
-
-/**
- * Split a polyline into dashes measured along its length. Theme palettes often
- * make primary and secondary nearly equal, so the second series needs a shape.
- */
-export function dashedLine(points: readonly TrendPoint[], dash = 8, gap = 5): TrendPoint[][] {
-  const dashes: TrendPoint[][] = [];
-  let current: TrendPoint[] = points.length ? [points[0]] : [];
-  let phase = 0;
-  for (let index = 1; index < points.length; index++) {
-    const a = points[index - 1], b = points[index];
-    const length = Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2);
-    let travelled = 0;
-    while (travelled < length) {
-      const drawing = phase < dash;
-      const boundary = drawing ? dash : dash + gap;
-      const reached = boundary - phase <= length - travelled;
-      if (reached) { travelled += boundary - phase; phase = boundary; } else { phase += length - travelled; travelled = length; }
-      const point = { x: Math.round(a.x + (b.x - a.x) * travelled / length), y: Math.round(a.y + (b.y - a.y) * travelled / length) };
-      if (drawing) current.push(point);
-      if (drawing && reached) { if (current.length > 1) dashes.push(current); current = []; }
-      if (!drawing && reached) { phase = 0; current = [point]; }
-    }
-  }
-  if (current.length > 1) dashes.push(current);
-  return dashes;
+  return { shared: false, ranges: sources.map((source, index) => graphRange(source, histories[index])) };
 }
 
 export interface GraphSeries {
@@ -62,7 +61,7 @@ export function graphChart(label: string, sources: readonly TrendSource[], input
   const { shared, ranges } = graphRanges(sources, histories);
   const series = sources.map((source, index): GraphSeries => {
     const segments = trendSegments(histories[index], ranges[index], geometry);
-    const lastValue = [...histories[index]].reverse().find((value) => value !== null) ?? null;
+    const lastValue = histories[index].at(-1) ?? null;
     const reading = formatReading(source, lastValue);
     const column = Math.floor((geometry.right - geometry.left) / sources.length);
     // One series reads like a trend metric; two share the header as legend columns.
@@ -73,7 +72,7 @@ export function graphChart(label: string, sources: readonly TrendSource[], input
         valueSize: Math.max(12, Math.min(28, Math.floor((column - 8) / Math.max(1, reading.value.length * .64 + reading.unit.length * .3 + .5)))) };
     const primary = index === 0;
     return { source, role: GRAPH_SERIES_ROLES[index], name: sensorShortLabels[source], primary, segments,
-      lines: segments.filter((segment) => segment.length > 1).flatMap((segment) => primary ? [segment] : dashedLine(segment)),
+      lines: segments.filter((segment) => segment.length > 1),
       last: histories[index].at(-1) === null || !segments.length ? null : segments.at(-1)!.at(-1)!,
       reading, legend };
   });

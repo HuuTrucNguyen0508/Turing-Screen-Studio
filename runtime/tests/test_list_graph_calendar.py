@@ -60,7 +60,7 @@ class ListGraphCalendarTests(unittest.TestCase):
         self.assertNotEqual(demo.tobytes(), empty.tobytes())
         self.assertNotEqual(live.tobytes(), empty.tobytes())
         # The newest download reading sits under a primary dot at the right edge.
-        self.assertEqual(live.getpixel((535, 256 - round(300 / 400 * 132))), hex_rgb(self.palette['primary']))
+        self.assertEqual(live.getpixel((535, 256 - round(300 / 400 * 112))), hex_rgb(self.palette['primary']))
         line = self.render({**widget, 'settings': {**widget['settings'], 'style': 'line'}})
         self.assertNotEqual(line.tobytes(), demo.tobytes())
 

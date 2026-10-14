@@ -2,61 +2,53 @@
 
 import math
 
-from .list_display import SENSOR_SHORT_LABELS, card_kicker
-from .trend import (demo_trend_history, format_reading, gauge_number, trend_history, trend_range,
+from .card_text import SENSOR_SHORT_LABELS, card_kicker, card_padding
+from .trend import (format_reading, gauge_number, trend_history, trend_range,
                     trend_segments, trend_state, trend_unit)
 
 GRAPH_SERIES_ROLES = ('primary', 'secondary')
 GRAPH_AREA_MIX = .24
 
 
+def demo_graph_history(source):
+    profiles = {'cpu': (24, 12, 0), 'gpu': (18, 10, 12), 'memory': (39, 3, 6), 'disk': (45, 1, 18),
+                'network-down': (640, 450, 0), 'network-up': (90, 65, 12),
+                'cpu-temperature': (42, 4, 0), 'gpu-temperature': (55, 6, 12)}
+    base, amplitude, offset = profiles[source]
+    anchors = [-3, 1, 5, 2, -2, -4, -3]
+    history = []
+    for index in range(120):
+        slot = (index + offset) % 120
+        segment, t = slot // 20, slot % 20
+        blend = t * t * (60 - 2 * t) / 8000
+        wave = anchors[segment] + (anchors[segment + 1] - anchors[segment]) * blend
+        history.append(math.floor((base + amplitude * wave / 10) * 10 + .5) / 10)
+    return history
+
+
+def graph_range(source, history):
+    numbers = [value for value in history if value is not None]
+    if not source.endswith('-temperature'):
+        return trend_range(source, history)
+    if not numbers:
+        return [0, 100]
+    low, high = min(numbers), max(numbers)
+    padding = max(2, math.ceil((high - low) * .15))
+    return [math.floor(low - padding), math.ceil(high + padding)]
+
+
 def graph_geometry(width, height):
-    padding, top, bottom = min(29, width // 6), 124, height - 48
+    padding, top, bottom = card_padding(width), 144, height - 48
     return {'left': padding, 'right': width - padding, 'top': top, 'bottom': bottom,
-            'middle': (top + bottom) // 2, 'captionY': height - 20,
+            'middle': (top + bottom) // 2, 'rangeY': 130, 'captionY': height - 20,
             'showChart': width >= 160 and bottom - top >= 32}
 
 
 def graph_ranges(sources, histories):
     if len({trend_unit(source) for source in sources}) == 1:
-        value_range = list(trend_range(sources[0], [item for history in histories for item in history]))
+        value_range = list(graph_range(sources[0], [item for history in histories for item in history]))
         return True, [value_range for _ in sources]
-    return False, [list(trend_range(source, history)) for source, history in zip(sources, histories)]
-
-
-def _round(value):
-    return math.floor(value + .5)
-
-
-def dashed_line(points, dash=8, gap=5):
-    dashes, current, phase = [], points[:1], 0
-    for a, b in zip(points, points[1:]):
-        length = math.sqrt((b['x'] - a['x']) ** 2 + (b['y'] - a['y']) ** 2)
-        travelled = 0
-        while travelled < length:
-            drawing = phase < dash
-            boundary = dash if drawing else dash + gap
-            reached = boundary - phase <= length - travelled
-            if reached:
-                travelled += boundary - phase
-                phase = boundary
-            else:
-                phase += length - travelled
-                travelled = length
-            point = {'x': _round(a['x'] + (b['x'] - a['x']) * travelled / length),
-                     'y': _round(a['y'] + (b['y'] - a['y']) * travelled / length)}
-            if drawing:
-                current.append(point)
-            if drawing and reached:
-                if len(current) > 1:
-                    dashes.append(current)
-                current = []
-            if not drawing and reached:
-                phase = 0
-                current = [point]
-    if len(current) > 1:
-        dashes.append(current)
-    return dashes
+    return False, [list(graph_range(source, history)) for source, history in zip(sources, histories)]
 
 
 def graph_chart(label, sources, inputs, width, height):
@@ -67,7 +59,7 @@ def graph_chart(label, sources, inputs, width, height):
     for index, source in enumerate(sources):
         history = histories[index]
         segments = trend_segments(history, ranges[index], geometry)
-        last_value = next((item for item in reversed(history) if item is not None), None)
+        last_value = history[-1] if history else None
         reading = format_reading(source, last_value)
         column = (geometry['right'] - geometry['left']) // len(sources)
         characters = len(reading['value']) * .64 + len(reading['unit']) * .3
@@ -78,8 +70,7 @@ def graph_chart(label, sources, inputs, width, height):
             legend = {'x': geometry['left'] + index * column, 'nameY': 68, 'valueY': 104, 'unitSize': 14,
                       'valueSize': max(12, min(28, math.floor((column - 8) / max(1, characters + .5))))}
         primary = index == 0
-        lines = [line for segment in segments if len(segment) > 1
-                 for line in ([segment] if primary else dashed_line(segment))]
+        lines = [segment for segment in segments if len(segment) > 1]
         series.append({'source': source, 'role': GRAPH_SERIES_ROLES[index], 'name': SENSOR_SHORT_LABELS[source],
                        'primary': primary, 'segments': segments, 'lines': lines,
                        'last': None if not history or history[-1] is None or not segments else segments[-1][-1],
@@ -99,7 +90,7 @@ def graph_area(points, bottom):
 def widget_graph(settings, stats, width, height):
     sources = settings['sources']
     if stats is None:
-        inputs = [demo_trend_history(source) for source in sources]
+        inputs = [demo_graph_history(source) for source in sources]
     else:
         histories = getattr(stats, 'studio_history', {})
         inputs = [histories.get(source, []) if isinstance(histories, dict) else [] for source in sources]

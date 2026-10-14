@@ -1,13 +1,13 @@
 import type { GraphWidget } from './domain/layout';
-import { GRAPH_AREA_MIX, graphArea, graphChart } from './domain/graph';
-import { demoTrendHistory, trendCaption } from './domain/trend';
+import { GRAPH_AREA_MIX, demoGraphHistory, graphArea, graphChart } from './domain/graph';
+import { trendCaption } from './domain/trend';
 import './sensor-card-styles.css';
 
 const points = (list: readonly { x: number; y: number }[]) => list.map(({ x, y }) => `${x},${y}`).join(' ');
 
 export default function GraphContent({ widget }: { widget: GraphWidget }) {
   const { width, height, settings } = widget;
-  const chart = graphChart(settings.label, settings.sources, settings.sources.map((source) => demoTrendHistory(source)), width, height);
+  const chart = graphChart(settings.label, settings.sources, settings.sources.map((source) => demoGraphHistory(source)), width, height);
   const { left, right } = chart;
   return <div className="sensor-card" data-sensor-card="graph" data-graph-style={settings.style}>
     <svg width={width} height={height} role="img" aria-label={`${settings.label || 'History'}: ${chart.series.map((series) => `${series.name} ${series.reading.value} ${series.reading.unit}`).join(', ')}, ${chart.range}, ${trendCaption(true)}`}>
@@ -22,12 +22,12 @@ export default function GraphContent({ widget }: { widget: GraphWidget }) {
           {reading.unit && <tspan className="sensor-unit" dx={6} fontSize={legend.unitSize}>{reading.unit}</tspan>}</text>
       </g>)}
       {chart.showChart && <>
-        <text className="sensor-note" x={right} y={chart.top - 10} textAnchor="end" fontSize={11}>{chart.range}</text>
+        <text className="sensor-note" x={right} y={chart.rangeY} textAnchor="end" fontSize={11}>{chart.range}</text>
         {[chart.top, chart.middle, chart.bottom].map((y) => <line key={y} className="sensor-rule" x1={left} x2={right} y1={y + .5} y2={y + .5} />)}
         {settings.style === 'area' && chart.series[0].segments.filter((segment) => segment.length > 1).map((segment, index) =>
           <polygon key={index} points={points(graphArea(segment, chart.bottom))} style={{ fill: `color-mix(in srgb, var(--${chart.series[0].role}) ${GRAPH_AREA_MIX * 100}%, var(--surface))` }} />)}
-        {chart.series.map(({ source, role, lines, segments }) => <g key={source} stroke={`var(--${role})`} fill={`var(--${role})`}>
-          {lines.map((line, index) => <polyline key={index} points={points(line)} fill="none" strokeWidth={2} strokeLinejoin="round" />)}
+        {chart.series.map(({ source, role, primary, lines, segments }) => <g key={source} stroke={`var(--${role})`} fill={`var(--${role})`}>
+          {lines.map((line, index) => <polyline key={index} points={points(line)} fill="none" strokeWidth={primary ? 2 : 1} strokeLinejoin="round" />)}
           {segments.filter((segment) => segment.length === 1).map(([point], index) => <circle key={`dot-${index}`} cx={point.x} cy={point.y} r={1} stroke="none" />)}
         </g>)}
         {chart.series.map(({ source, role, primary, last }) => last && <g key={source} data-graph-now={source}>

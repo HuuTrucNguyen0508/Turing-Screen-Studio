@@ -5,7 +5,7 @@ import datetime
 import math
 import re
 
-from .list_display import card_kicker
+from .card_text import card_kicker, card_padding
 
 CALENDAR_SAMPLE_DATE = '2026-10-06'
 _MONTHS = ('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
@@ -37,7 +37,7 @@ def calendar_month(date, week_start):
 
 def calendar_geometry(width, height, label, weeks):
     labelled = label != ''
-    padding = min(29, width // 6)
+    padding = card_padding(width)
     title_size = max(16, min(28, width // 14))
     title_y = 50 + title_size if labelled else 24 + title_size
     header_y = title_y + 24

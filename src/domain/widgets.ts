@@ -1,3 +1,4 @@
+import { cardPadding } from './cardText';
 export { formatClockTime } from './design';
 import sharedCatalog from '../../public/widget-catalog.json';
 import { createSampleLayout, metricSources, validateLayout } from './layout';
@@ -171,7 +172,7 @@ export function gaugeFraction(value: number, min: number, max: number): number {
 
 // New instruments share bounded document coordinates; the legacy arc keeps its geometry.
 export function instrumentGeometry(width: number, height: number) {
-  const padding = Math.min(29, Math.floor(width / 6));
+  const padding = cardPadding(width);
   const available = Math.max(1, width - 2 * padding);
   const radius = Math.floor(Math.min((available - 10) / 2, (height - 128) / 2));
   const meterY = Math.floor(63 + Math.max(0, height - 127) * .58);

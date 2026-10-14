@@ -1,4 +1,4 @@
-import { cardKicker } from './list';
+import { cardKicker, cardPadding } from './cardText';
 
 /** Matches the clock sample, "Tuesday, 6 October". */
 export const CALENDAR_SAMPLE_DATE = '2026-10-06';
@@ -35,7 +35,7 @@ export function calendarMonth(date: string, weekStart: CalendarWeekStart): Calen
 
 export function calendarGeometry(width: number, height: number, label: string, weeks: number) {
   const labelled = label !== '';
-  const padding = Math.min(29, Math.floor(width / 6));
+  const padding = cardPadding(width);
   const titleSize = Math.max(16, Math.min(28, Math.floor(width / 14)));
   const titleY = labelled ? 50 + titleSize : 24 + titleSize;
   const headerY = titleY + 24;

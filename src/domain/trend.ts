@@ -1,3 +1,4 @@
+import { cardPadding } from './cardText';
 /** Observation slots, newest last. Nulls retain their slot and break the line. */
 export const TREND_CAPACITY = 120;
 export const trendSources = ['cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature'] as const;
@@ -37,7 +38,7 @@ export function trendUnit(source: string): string {
 }
 
 export function trendGeometry(width: number, height: number) {
-  const padding = Math.min(29, Math.floor(width / 6));
+  const padding = cardPadding(width);
   return { left: padding, right: width - padding, top: 120, bottom: height - 66,
     captionY: height - 29, showChart: width >= 160 && height >= 216 };
 }

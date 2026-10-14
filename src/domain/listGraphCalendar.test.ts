@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { createSampleLayout, parseLayout, serializeLayout, validateLayout } from './layout';
 import type { CalendarWidget, GraphWidget, LayoutDocument, ListRow, ListWidget, Widget } from './layout';
 import { listFraction, listLayout, listSampleRow } from './list';
-import { graphChart } from './graph';
+import { demoGraphHistory, graphChart, graphRange } from './graph';
 import { calendarGeometry, calendarMonth } from './calendar';
-import { demoTrendHistory, formatReading } from './trend';
+import { demoTrendHistory, formatReading, trendSources } from './trend';
 
 const rows = [
   { source: 'cpu', label: 'CPU', value: '24', unit: '%' },
@@ -134,10 +134,39 @@ describe('shared geometry with the PIL renderer', () => {
     expect(python(`import json,sys\nfrom turzx_studio.graph_display import graph_chart\nprint(json.dumps([graph_chart(*case) for case in json.load(sys.stdin)],ensure_ascii=False))`, cases)).toEqual(expected);
     expect(expected[0].range).toBe('0-865 KB/s');
     expect(expected[0].series.map(({ reading, legend }) => [reading.value, legend.x])).toEqual([['820', 29], ['116', 282]]);
-    expect(expected[2].range).toBe('0-100 % · 0-55 °C');
-    expect(expected[2].series.map(({ last }) => last)).toEqual([{ x: 323, y: 203 }, null]);
+    expect(expected[2].range).toBe('0-100 % · 48-57 °C');
+    expect(expected[2].series.map(({ last }) => last)).toEqual([{ x: 323, y: 211 }, null]);
     expect(expected[3].state).toBe('No history yet');
     expect(expected[4].state).toBe('Collecting history');
+  });
+
+  it('uses only the latest observation in graph legends and keeps earlier points', () => {
+    const chart = graphChart('Mixed', ['cpu', 'network-down'], [[12, 25, null], [100, 500, null]], 352, 304);
+    expect(chart.series.map(({ reading }) => reading)).toEqual([{ value: '—', unit: '%' }, { value: '—', unit: 'KB/s' }]);
+    expect(chart.series.every(({ last, lines }) => last === null && lines.length === 1)).toBe(true);
+    expect(chart.rangeY - Math.max(...chart.series.map(({ legend }) => legend.valueY))).toBeGreaterThanOrEqual(24);
+    expect(chart.top - chart.rangeY).toBeGreaterThanOrEqual(14);
+    expect(python(`import json,sys
+from turzx_studio.graph_display import graph_chart
+print(json.dumps(graph_chart(*json.load(sys.stdin)),ensure_ascii=False))`, ['Mixed', ['cpu', 'network-down'], [[12, 25, null], [100, 500, null]], 352, 304])).toEqual(chart);
+  });
+
+  it('uses smooth graph-only demo histories and padded temperature axes in both languages', () => {
+    const histories = trendSources.map(demoGraphHistory);
+    expect(python(`import json,sys
+from turzx_studio.graph_display import demo_graph_history
+print(json.dumps([demo_graph_history(source) for source in json.load(sys.stdin)]))`, trendSources)).toEqual(histories);
+    expect(histories.every((history) => history.length === 120)).toBe(true);
+    for (const index of [0, 1]) {
+      expect(Math.max(...histories[index].slice(1).map((value, slot) => Math.abs(value - histories[index][slot])))).toBeLessThan(1);
+    }
+    expect(histories[0]).not.toEqual(demoTrendHistory('cpu'));
+    const cases = [['cpu-temperature', [42, 46, null]], ['gpu-temperature', [55, 55]], ['cpu-temperature', []], ['cpu', [24, 28]]] as const;
+    const ranges = cases.map(([source, history]) => graphRange(source, history));
+    expect(ranges).toEqual([[40, 48], [53, 57], [0, 100], [0, 100]]);
+    expect(python(`import json,sys
+from turzx_studio.graph_display import graph_range
+print(json.dumps([graph_range(*case) for case in json.load(sys.stdin)]))`, cases)).toEqual(ranges);
   });
 
   it('matches month grids and calendar geometry', () => {

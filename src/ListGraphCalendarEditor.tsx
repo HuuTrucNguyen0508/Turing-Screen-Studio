@@ -1,7 +1,8 @@
 import { ContentField } from './ContentEditor';
 import type { CalendarWidget, GraphWidget, ListRow, ListWidget, SensorSource } from './domain/layout';
 import { graphStyles } from './domain/layout';
-import { LIST_MAX_ROWS, listSampleRow, sensorShortLabels } from './domain/list';
+import { LIST_MAX_ROWS, listSampleRow } from './domain/list';
+import { sensorShortLabels } from './domain/cardText';
 import { trendSources } from './domain/trend';
 import { sourceLabels } from './domain/widgets';
 import './card-editor-styles.css';

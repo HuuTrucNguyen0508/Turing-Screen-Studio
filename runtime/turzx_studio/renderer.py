@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .card_text import card_padding
+
 import math
 from pathlib import Path
 import re
@@ -63,7 +65,7 @@ def gauge_geometry(width: int, height: int) -> dict:
 
 
 def instrument_geometry(width: int, height: int) -> dict:
-    padding = min(29, width // 6)
+    padding = card_padding(width)
     available = max(1, width - 2 * padding)
     radius = math.floor(min((available - 10) / 2, (height - 128) / 2))
     return {"padding": padding, "available": available, "radius": radius,
@@ -801,7 +803,7 @@ class LayoutRenderer:
             self._reading(draw, (legend['x'], legend['valueY']), series['reading']['value'], series['reading']['unit'],
                           color, palette['muted'], legend['valueSize'], legend['unitSize'], 6)
         if chart['showChart']:
-            self._draw_text(draw, (right, chart['top'] - 10), chart['range'], palette['muted'], 11, 'summary-sans', 'rs')
+            self._draw_text(draw, (right, chart['rangeY']), chart['range'], palette['muted'], 11, 'summary-sans', 'rs')
             for y in (chart['top'], chart['middle'], chart['bottom']):
                 draw.line((left, y, right, y), fill=palette['outline'])
             if settings['style'] == 'area':
@@ -813,7 +815,7 @@ class LayoutRenderer:
             for series in chart['series']:
                 color = palette[series['role']]
                 for points in series['lines']:
-                    draw.line([(point['x'], point['y']) for point in points], fill=color, width=2)
+                    draw.line([(point['x'], point['y']) for point in points], fill=color, width=2 if series['primary'] else 1)
                 for points in series['segments']:
                     if len(points) == 1:
                         x, y = points[0]['x'], points[0]['y']

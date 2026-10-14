@@ -1,14 +1,10 @@
+import { cardKicker, cardPadding, sensorShortLabels, shortenText } from './cardText';
 import { demoTrendHistory, formatReading } from './trend';
 import type { TrendSource } from './trend';
 
 export const LIST_MAX_ROWS = 6;
 
-export const sensorShortLabels: Record<TrendSource, string> = {
-  cpu: 'CPU', gpu: 'GPU', memory: 'Memory', disk: 'Disk', 'network-down': 'Download',
-  'network-up': 'Upload', 'cpu-temperature': 'CPU temp', 'gpu-temperature': 'GPU temp',
-};
-
-/** A new row reads like the graph's demo legend, so previews of both cards agree. */
+/** New rows use the trend metric's deterministic samples. */
 export function listSampleRow(source: TrendSource): { source: TrendSource; label: string; value: string; unit: string } {
   return { source, label: sensorShortLabels[source], ...formatReading(source, demoTrendHistory(source).at(-1) ?? null) };
 }
@@ -24,21 +20,11 @@ export function listBarRole(source: TrendSource): 'primary' | 'secondary' {
   return source.endsWith('-temperature') ? 'secondary' : 'primary';
 }
 
-export function shortenText(text: string, capacity: number): string {
-  const characters = [...text];
-  return characters.length > capacity ? `${characters.slice(0, Math.max(0, capacity - 1)).join('')}…` : text;
-}
-
-/** The 15 px card label, shortened like the trend metric's. */
-export function cardKicker(label: string, width: number): string {
-  return shortenText(label, Math.max(1, Math.floor((width - 2 * Math.min(29, Math.floor(width / 6))) / 8)));
-}
-
 export interface ListRowLayout { label: string; value: string; unit: string; baseline: number; barY: number | null; fraction: number | null }
 
 /** Shared row metrics. Rows past the readable capacity are omitted rather than overlapped. */
 export function listLayout(width: number, height: number, label: string, rows: readonly { source: TrendSource; label: string; value: string; unit: string }[], bars: boolean) {
-  const padding = Math.min(29, Math.floor(width / 6));
+  const padding = cardPadding(width);
   const top = label ? 60 : 24;
   const available = Math.max(0, height - top - 20);
   const visible = Math.min(rows.length, Math.floor(available / 24));
