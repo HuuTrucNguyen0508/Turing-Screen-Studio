@@ -15,7 +15,7 @@
 .design-field-label { color: var(--muted); font-size: 10px; }
 .design-input { display: flex; align-items: center; border: 1px solid var(--outline); border-radius: 6px; background: var(--background); padding-right: 7px; min-width: 0; }
 .design-input:focus-within { border-color: var(--primary); }
-.design-input.invalid { border-color: #fa746f; }
+.design-input.invalid { border-color: var(--status-danger); }
 .design-input input { width: 100%; min-width: 0; padding: 7px 6px 7px 8px; color: var(--text); background: transparent; border: 0; border-radius: 6px; font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
 .design-input input:focus-visible { outline: none; }
 .design-input span { font-size: 9px; color: var(--muted); }
@@ -57,7 +57,7 @@
 
 .design-hide { margin: 0; flex-wrap: wrap; }
 .design-hide .mono { margin-left: auto; }
-.design-warning { font-size: 10px; line-height: 1.5; color: #fa746f; }
+.design-warning { font-size: 10px; line-height: 1.5; color: var(--status-danger); }
 .design-link { justify-self: start; padding: 2px 0; border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-decoration-color: var(--outline); text-underline-offset: 3px; }
 .design-link:hover:not(:disabled) { background: transparent; color: var(--primary); text-decoration-color: currentColor; }
 .design-link:disabled { text-decoration: none; }

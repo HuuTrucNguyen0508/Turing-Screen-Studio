@@ -1,0 +1,27 @@
+/* Editor chrome tokens. Palette roles (--background, --primary, …) come from paletteStyles.ts. */
+:root {
+  --radius-sm: 4px;
+  --radius: 7px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-md: 12px;
+  --text-base: 13px;
+  --text-lg: 15px;
+  --text-xl: 20px;
+
+  --font-ui: 'Segoe UI', 'DejaVu Sans', sans-serif;
+  --font-display: 'Trebuchet MS', 'DejaVu Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', 'DejaVu Sans Mono', monospace;
+
+  --status-danger: #fa746f;
+  --status-ok: var(--primary);
+}
