@@ -15,12 +15,13 @@ export interface LibraryEntry {
 }
 
 interface LibraryGroup { id: string; name: string }
-interface Family { id: string; name: string; entries: LibraryEntry[]; stageHeight: number }
+interface Family { id: string; name: string; entries: LibraryEntry[]; stageHeight: number; tileWidth: number }
 interface Section { id: string; name: string; families: Family[]; count: number }
 
 // One scale for every preview, so versions of a widget compare by size at a glance.
-const SCALE = 3 / 8;
-const MAX_WIDTH = 224, MAX_HEIGHT = 210;
+const SCALE = 1 / 2;
+const MAX_WIDTH = 320, MAX_HEIGHT = 240;
+const MIN_TILE_WIDTH = 220, TILE_PADDING = 44;
 const ALL = 'all';
 
 function previewScale(widget: Widget): number {
@@ -48,7 +49,8 @@ function buildSections(entries: readonly LibraryEntry[], groups: readonly Librar
         .sort((a, b) => a.entry.widget.width * a.entry.widget.height - b.entry.widget.width * b.entry.widget.height || a.index - b.index)
         .map(({ entry }) => entry);
       const stageHeight = Math.max(...versions.map((entry) => Math.round(entry.widget.height * previewScale(entry.widget))));
-      return { id, name: familyName(versions), entries: versions, stageHeight };
+      const tileWidth = Math.max(MIN_TILE_WIDTH, ...versions.map((entry) => Math.round(entry.widget.width * previewScale(entry.widget)) + TILE_PADDING));
+      return { id, name: familyName(versions), entries: versions, stageHeight, tileWidth };
     });
     return { id: group.id, name: group.name, families, count: members.length };
   }).filter((section) => section.count > 0);
@@ -61,12 +63,13 @@ function Specimen({ widget, palette }: { widget: Widget; palette: Palette }) {
   </div>;
 }
 
-export default function WidgetLibrary({ entries, groups, palette, onAdd, onClose }: {
+export default function WidgetLibrary({ entries, groups, palette, onAdd, onClose, onManageCustom }: {
   entries: readonly LibraryEntry[];
   palette: Palette;
   groups: readonly LibraryGroup[];
   onAdd: (id: string) => void;
   onClose: () => void;
+  onManageCustom: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [groupId, setGroupId] = useState<string>(ALL);
@@ -102,7 +105,7 @@ export default function WidgetLibrary({ entries, groups, palette, onAdd, onClose
     <header className="library-header">
       <div className="panel-heading">
         <div><h2 id="catalog-title">Add widget</h2><p className="library-lede">{exactScale ? 'Previews share one scale, so sizes compare directly.' : 'Choose a widget to place it on the canvas.'}</p></div>
-        <button className="library-close" aria-label="Close widget catalog" onClick={onClose}>×</button>
+        <div className="library-header-actions"><button className="library-manage" onClick={onManageCustom}>Manage custom widgets</button><button className="library-close" aria-label="Close widget catalog" onClick={onClose}>×</button></div>
       </div>
       <div className="library-search">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5 14 14" /></svg>
@@ -115,13 +118,13 @@ export default function WidgetLibrary({ entries, groups, palette, onAdd, onClose
           {group.name} <span aria-hidden="true">{sections.find((section) => section.id === group.id)?.count ?? 0}</span>
         </button>)}
       </div>
-      <p className="library-count mono" aria-live="polite">{shown === entries.length ? `Showing all ${shown} widgets` : `Showing ${shown} of ${entries.length} widgets`}</p>
+      <p className="library-count" aria-live="polite">{shown === entries.length ? `Showing all ${shown} widgets` : `Showing ${shown} of ${entries.length} widgets`}</p>
     </header>
     <div className="library-body" ref={body}>
       {visible.map((section) => <section className="library-section" key={section.id} aria-labelledby={`library-${section.id}`}>
         <h3 className="eyebrow" id={`library-${section.id}`}>{section.name} <span>{section.count}</span></h3>
         <div className="library-families">
-          {section.families.map((family) => <div className="library-family" key={family.id} style={{ '--stage-height': `${family.stageHeight}px` } as CSSProperties}>
+          {section.families.map((family) => <div className="library-family" key={family.id} style={{ '--stage-height': `${family.stageHeight}px`, '--tile-width': `${family.tileWidth}px` } as CSSProperties}>
             <div className="library-family-name"><strong>{family.name}</strong>{family.entries.length > 1 && <span className="mono">{family.entries.length} versions</span>}</div>
             <div className="library-variants">
               {family.entries.map((entry) => <button key={entry.id} className="library-tile" aria-label={`Add ${entry.name}`} onClick={() => onAdd(entry.id)}>

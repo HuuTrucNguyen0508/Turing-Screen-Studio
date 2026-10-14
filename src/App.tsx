@@ -586,7 +586,7 @@ export default function App() {
     </dialog>
     {libraryError && !libraryComparison && <p role="alert" className="recovery-error">{libraryError}</p>}
     <dialog ref={catalogDialog} className="catalog-dialog widget-library-dialog" aria-labelledby="catalog-title">
-      <button className="text-button" onClick={() => setCustomOpen(true)}>Manage custom widgets</button><WidgetLibrary palette={displayPalette} entries={[...customEntries, ...widgetCatalog]} groups={[{ id: 'custom', name: 'Custom widgets' }, ...widgetGroups]} onAdd={appendWidget} onClose={() => catalogDialog.current?.close()} />
+      <WidgetLibrary palette={displayPalette} entries={[...customEntries, ...widgetCatalog]} groups={[{ id: 'custom', name: 'Custom widgets' }, ...widgetGroups]} onAdd={appendWidget} onClose={() => catalogDialog.current?.close()} onManageCustom={() => setCustomOpen(true)} />
     </dialog>
     <MaterialImport open={materialOpen} onClose={() => { setMaterialOpen(false); setWidgetImport(null); }} file={widgetImport} canvas={document.canvas} palette={displayPalette} store={custom} onAdd={importToDraft} onOpen={(next) => { setMaterialOpen(false); openDraft(next, { kind: 'local' }); }} /><CustomWidgets palette={displayPalette} store={custom} candidate={customCandidate} onCloseCandidate={() => setCustomCandidate(null)} open={customOpen} onClose={() => setCustomOpen(false)} getWidget={() => editor.current.current.document.widgets.find((widget) => widget.id === editor.current.current.selectedId)} onAdd={(id) => appendWidget(`custom:${id}`)} />
     <dialog ref={presetsDialog} className="catalog-dialog" aria-labelledby="presets-title">
