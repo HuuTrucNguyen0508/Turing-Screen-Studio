@@ -283,18 +283,21 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
   const compactResize = handleCenters.some((center, index) => handleCenters.slice(index + 1).some((other) =>
     Math.abs(center.x - other.x) < hitSize + 4 && Math.abs(center.y - other.y) < hitSize + 4));
   return <section className="preview-panel" aria-label="Layout preview">
-    <div className="panel-heading"><div><span className="eyebrow">{document.canvas.width === document.canvas.height ? 'Square canvas' : document.canvas.width > document.canvas.height ? 'Landscape canvas' : 'Portrait canvas'}</span><h2>Canvas</h2></div><div className="canvas-heading-actions">{panelControls}<button className="mono" disabled={gesturing} onClick={onResizeCanvas} aria-label="Change canvas size">{document.canvas.width} × {document.canvas.height} px · Change</button></div></div>
+    <div className="canvas-toolbar">
+      <h2 className="visually-hidden">Canvas</h2>
+      {panelControls}
+      <div className="canvas-view-tools" role="group" aria-label="Canvas view">
+        <label title="Moves and resizes snap to card edges and 24 px gutters"><input type="checkbox" aria-label="Snapping" checked={snapping} onChange={(event) => {
+          finish(true); setSnapping(event.target.checked);
+          try { localStorage.setItem(SNAP_PREFERENCE, event.target.checked ? 'on' : 'off'); } catch { /* The current tab still keeps the choice. */ }
+        }} />Snapping</label>
+        <div className="zoom-controls"><button aria-label="Zoom out" disabled={zoom <= .25} onClick={() => view(zoom / 1.25)}>−</button><span aria-label="Canvas zoom">{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" disabled={zoom >= 4} onClick={() => view(zoom * 1.25)}>+</button><button onClick={() => view(1, true)}>Fit</button></div>
+        <button className="canvas-size-button" disabled={gesturing} onClick={onResizeCanvas} aria-label={`Change canvas size, ${document.canvas.width} × ${document.canvas.height} px`} title="Change canvas size">{document.canvas.width} × {document.canvas.height}</button>
+      </div>
+    </div>
     <div id="canvas-extra-tools" className="canvas-extra-tools" hidden={!toolsVisible}>{previewControls}
       <CanvasTools document={document} selectedIds={selectedIds} selectedId={selectedId} busy={gesturing} onChange={onChange} />
     </div>
-    <div className="canvas-view-tools" aria-label="Canvas view">
-      <label><input type="checkbox" aria-label="Snapping" checked={snapping} onChange={(event) => {
-        finish(true); setSnapping(event.target.checked);
-        try { localStorage.setItem(SNAP_PREFERENCE, event.target.checked ? 'on' : 'off'); } catch { /* The current tab still keeps the choice. */ }
-      }} />Snapping <span>Move & resize · 24 px gutters</span></label>
-      <div><button aria-label="Zoom out" disabled={zoom <= .25} onClick={() => view(zoom / 1.25)}>−</button><span aria-label="Canvas zoom">{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" disabled={zoom >= 4} onClick={() => view(zoom * 1.25)}>+</button><button onClick={() => view(1, true)}>Fit</button></div>
-    </div>
-    <div className="preview-instructions"><span>{previewNotice || 'Shift-click to select cards together.'}{onPreviewRetry && <button className="text-button" onClick={onPreviewRetry}>Retry preview</button>}</span><span className="mono">Scale {Math.round(scale * 100)}%</span></div>
     <div className="canvas-stage">
     <div className={`canvas-viewport${gesturing ? ' gesturing' : ''}${space ? ' pan-ready' : ''}${fileHover ? ' file-hover' : ''}`} ref={viewportRef} tabIndex={0} aria-label="Canvas viewport"
       onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = gesturing ? 'none' : 'copy'; setFileHover(!gesturing); } }}
@@ -368,6 +371,11 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
       requestAnimationFrame(() => viewportRef.current?.querySelector<HTMLElement>('[data-primary="true"]')?.focus({ preventScroll: true }));
     }} />}
     <MovementControls widget={selected} count={selectedIds.length} element={activeElement ?? null} onTarget={onMoveTarget} onNudge={onNudge} busy={gesturing} />
-    <details className="canvas-warnings"><summary>{warnings.length === 100 ? '100+' : warnings.length} layout notes</summary><div className="canvas-warning-content"><p>Informational. You can still export and save this layout.</p><ul>{warnings.slice(0, 8).map((warning, index) => <li key={index}>{warning.message}</li>)}</ul>{warnings.length > 8 && <p>{warnings.length - 8} more notes. Review overlapping or small cards.</p>}</div></details>
+    <div className="canvas-status">
+      <span className="canvas-status-notice" title={previewNotice}>{previewNotice || 'Shift-click to select cards together.'}</span>
+      {onPreviewRetry && <button className="text-button" onClick={onPreviewRetry}>Retry preview</button>}
+      <span className="mono">Scale {Math.round(scale * 100)}%</span>
+      <details className="canvas-warnings"><summary>{warnings.length === 100 ? '100+ layout notes' : warnings.length === 1 ? '1 layout note' : `${warnings.length} layout notes`}</summary><div className="canvas-warning-content"><p>Informational. You can still export and save this layout.</p><ul>{warnings.slice(0, 8).map((warning, index) => <li key={index}>{warning.message}</li>)}</ul>{warnings.length > 8 && <p>{warnings.length - 8} more notes. Review overlapping or small cards.</p>}</div></details>
+    </div>
   </section>;
 }

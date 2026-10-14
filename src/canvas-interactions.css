@@ -1,4 +1,4 @@
-.canvas-stage { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; margin: 5px 16px 16px; }
+.canvas-stage { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; margin: var(--space-3); }
 .canvas-stage > .canvas-viewport { margin: 0; }
 .element-targets { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .element-targets rect { fill: transparent; stroke: transparent; stroke-width: 1.5px; pointer-events: all; cursor: grab; }

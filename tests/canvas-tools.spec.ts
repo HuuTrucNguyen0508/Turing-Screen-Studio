@@ -281,7 +281,7 @@ test('stationary resize and returning to the original size preserve the redo bra
 test('overlap and small-card notes are bounded and still allow JSON export', async ({ page }) => {
   await row(page, 'gpu').click({ modifiers: ['Shift'] });
   await page.getByRole('button', { name: 'Align left', exact: true }).click();
-  await page.getByText('1 layout notes', { exact: true }).click();
+  await page.getByText('1 layout note', { exact: true }).click();
   await expect(page.locator('.canvas-warnings')).toContainText('overlap');
   await row(page, 'cpu').click();
   const width = page.getByRole('textbox', { name: 'Width', exact: true });
@@ -330,7 +330,7 @@ test('layout notes keep Save to panel available with a fully intercepted API', a
   await expect(page.getByRole('button', { name: 'Save to panel', exact: true })).toBeEnabled();
   await row(page, 'gpu').click({ modifiers: ['Shift'] });
   await page.getByRole('button', { name: 'Align left', exact: true }).click();
-  await expect(page.locator('.canvas-warnings summary')).toHaveText('1 layout notes');
+  await expect(page.locator('.canvas-warnings summary')).toHaveText('1 layout note');
   await page.getByRole('button', { name: 'Save to panel', exact: true }).click();
   await expect.poll(() => writes).toBe(1);
   expect(saved.widgets.find((widget) => widget.id === 'gpu')!.x).toBe(64);
