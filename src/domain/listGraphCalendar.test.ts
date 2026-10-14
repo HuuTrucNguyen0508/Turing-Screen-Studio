@@ -57,19 +57,20 @@ describe('list, graph and calendar contract', () => {
     }
   });
 
-  it('rejects controls in every single-line field identically', () => {
-    for (const control of Array.from({ length: 33 }, (_, index) => String.fromCharCode(index === 32 ? 127 : index))) {
+  it('rejects controls and line separators in every single-line field identically', () => {
+    const controls = [...Array.from({ length: 33 }, (_, index) => String.fromCharCode(index === 32 ? 127 : index)), '\u0085', '\u2028', '\u2029'];
+    for (const control of controls) {
       for (const index of [0, 1, 2]) {
         const document = doc();
         const widget = widgets()[index];
-        widget.settings.label = `Bad${control}`;
+        widget.settings.label = `Bad${control}label`;
         document.widgets = [widget];
         expect(() => validateLayout(document)).toThrow('must not contain control characters');
         expect(pythonValidate(document)).toEqual({ valid: false, error: '$.widgets[0].settings.label: must not contain control characters' });
       }
       for (const field of ['label', 'value', 'unit']) {
         const document = doc();
-        document.widgets = [{ ...widgets()[0], type: 'list', settings: { label: 'System', bars: true, rows: [{ ...rows[0], [field]: `24${control}` }] } }];
+        document.widgets = [{ ...widgets()[0], type: 'list', settings: { label: 'System', bars: true, rows: [{ ...rows[0], [field]: `2${control}4` }] } }];
         expect(() => validateLayout(document)).toThrow(`$.widgets[0].settings.rows[0].${field}: must not contain control characters`);
         expect(pythonValidate(document)).toEqual({ valid: false, error: `$.widgets[0].settings.rows[0].${field}: must not contain control characters` });
       }

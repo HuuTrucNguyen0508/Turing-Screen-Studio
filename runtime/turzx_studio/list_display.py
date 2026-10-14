@@ -3,8 +3,8 @@
 import math
 import re
 
-from .trend import format_reading
 from .card_text import SENSOR_SHORT_LABELS, card_kicker, card_padding, shorten_text
+from .trend import format_reading
 
 _NUMBER = re.compile(r' *-?[0-9]+(\.[0-9]+)? *')
 _FIELDS = {'cpu': 'cpu_percent', 'gpu': 'gpu_percent', 'memory': 'ram_percent', 'disk': 'disk_percent',

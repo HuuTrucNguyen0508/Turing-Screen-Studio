@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from .card_text import card_padding
-
 import math
 from pathlib import Path
 import re
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .card_text import card_padding
 from .layout import _palette, effective_widget_palette, validate_layout
 from .design import clock_time, resolve_elements
 from .usage_display import USAGE_SOURCES, usage_content

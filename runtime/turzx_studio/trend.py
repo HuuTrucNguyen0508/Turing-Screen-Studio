@@ -1,8 +1,8 @@
 """Trend geometry mirrored by src/domain/trend.ts. No collectors or I/O."""
 
-from .card_text import card_padding
-
 import math
+
+from .card_text import card_padding
 
 TREND_CAPACITY = 120
 TREND_SOURCES = ('cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature')

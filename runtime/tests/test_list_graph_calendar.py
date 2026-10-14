@@ -51,6 +51,28 @@ class ListGraphCalendarTests(unittest.TestCase):
         self.assertEqual(image.getpixel((left + 20, temperature['barY'] + 3)), hex_rgb(self.palette['secondary']))
         self.assertIsNone(network['barY'])
 
+    def test_validated_non_ascii_text_renders_in_new_cards(self):
+        settings = (
+            ('list', {'label': 'Café °C', 'bars': False,
+                      'rows': [{'source': 'cpu-temperature', 'label': 'Température', 'value': '24é', 'unit': '°C'}]}),
+            ('graph', {'label': 'Café °C', 'style': 'line', 'sources': ['cpu-temperature']}),
+            ('calendar', {'label': 'Café °C', 'source': 'sample', 'weekStart': 'monday'}),
+        )
+        for kind, content in settings:
+            with self.subTest(kind=kind):
+                document = validate_layout({**self.doc, 'chrome': 'none', 'widgets': [{
+                    'id': 'unicode', 'type': kind, 'x': 0, 'y': 0, 'width': 352, 'height': 328,
+                    'settings': content,
+                }]})
+                image = self.renderer.render(document)
+                self.assertEqual(image.size, (1280, 800))
+                self.assertEqual(image.mode, 'RGB')
+                self.assertIn(hex_rgb(self.palette['muted']),
+                              [color for _, color in image.crop((24, 18, 328, 48)).getcolors(352 * 328)])
+                if kind == 'list':
+                    self.assertIn(hex_rgb(self.palette['text']),
+                                  [color for _, color in image.crop((24, 60, 328, 328)).getcolors(352 * 328)])
+
     def test_graph_draws_demo_offline_and_history_live(self):
         widget = {'type': 'graph', 'width': 564, 'height': 304,
                   'settings': {'label': 'Network', 'style': 'area', 'sources': ['network-down', 'network-up']}}

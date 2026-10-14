@@ -6,6 +6,8 @@ import hashlib
 import json
 import math
 import re
+import unicodedata
+
 from .usage_display import USAGE_SOURCES
 from .dashboard_display import DASHBOARD_SOURCES
 from .design import validate_widget_design
@@ -78,7 +80,7 @@ def _integer(value: object, path: str, minimum: int,
 
 def _bounded(value: object, path: str, maximum: int) -> str:
     text = _string(value, path)
-    if re.search(r'[\x00-\x1f\x7f]', text):
+    if any(unicodedata.category(character) in ('Cc', 'Zl', 'Zp') for character in text):
         _fail(path, 'must not contain control characters')
     if len(text) > maximum:
         _fail(path, f"must be at most {maximum} characters")
