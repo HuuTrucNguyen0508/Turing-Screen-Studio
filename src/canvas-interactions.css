@@ -1,4 +1,4 @@
-.canvas-stage { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; margin: 5px 16px 16px; }
+.canvas-stage { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; margin: var(--space-3); }
 .canvas-stage > .canvas-viewport { margin: 0; }
 .element-targets { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .element-targets rect { fill: transparent; stroke: transparent; stroke-width: 1.5px; pointer-events: all; cursor: grab; }
@@ -13,7 +13,7 @@
 .selection-align { position: relative; }
 .selection-align summary { cursor: pointer; border: 1px solid var(--outline); border-radius: 7px; }
 .selection-align summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.selection-align > div { position: fixed; z-index: 20; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 210px; padding: 6px; background: var(--surface); border: 1px solid var(--outline); border-radius: 8px; }
+.selection-align > div { position: fixed; z-index: 20; display: grid; grid-template-columns: repeat(3, 36px); gap: var(--space-1); width: max-content; padding: 6px; background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius); }
 .resize-handle.directional { right: auto; bottom: auto; transform: translate(-50%, -50%); display: grid; place-items: center; padding: 0; background: transparent; border: 0; border-radius: 0; }
 .resize-handle.directional::after { content: ''; width: var(--handle-visual); height: var(--handle-visual); background: var(--editor-primary, var(--primary)); border: 0; border-radius: 2px; box-shadow: 0 0 0 1px var(--editor-background, var(--background)); }
 .resize-handle.directional:hover::after, .resize-handle.directional:focus-visible::after { background: var(--secondary); }
@@ -46,3 +46,4 @@
 .resize-pad { display: flex; gap: 6px; }
 .resize-pad button { flex: 1; min-height: 44px; font-size: 20px; }
 .compact-resize-dialog > .primary-button { width: 100%; min-height: 44px; }
+.selection-align > div button { display: grid; place-items: center; padding: 0; }

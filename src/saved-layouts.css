@@ -6,7 +6,7 @@
 .rotation-add label { display: grid; gap: 6px; font-size: 11px; color: var(--muted); }
 .rotation-add select { padding: 10px; background: var(--surfaceRaised); color: var(--text); border: 1px solid var(--outline); border-radius: 7px; }
 .rotation-add button, .rotation-controls button { font-size: 12px; }
-.saved-layouts-error { color: #fa746f; font-size: 13px; line-height: 1.6; margin-top: 14px; }
+.saved-layouts-error { color: var(--status-danger); font-size: 13px; line-height: 1.6; margin-top: 14px; }
 .saved-layout-list { list-style: none; margin: 22px 0 0; padding: 0; }
 .saved-layout-list > li { display: flex; align-items: center; gap: 18px; padding: 18px 0; border-top: 1px solid var(--outline); }
 .saved-layout-list > li.active-layout { border-top-color: var(--primary); }

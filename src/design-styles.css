@@ -1,12 +1,4 @@
 /* Inspector: Design section */
-.design-section > summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; border-radius: 6px; }
-.design-section > summary::-webkit-details-marker { display: none; }
-.design-section > summary::before { content: ''; width: 5px; height: 5px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); margin: 0 3px 0 1px; transition: transform .12s; }
-.design-section[open] > summary::before { transform: rotate(45deg); }
-.design-section > summary h4 { margin: 0; }
-.design-section > summary .mono { margin-left: auto; }
-.design-section > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
-.design-section[open] > summary { margin-bottom: 16px; }
 .design-note { margin-top: 12px; }
 
 .design-field { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: 10px; }
@@ -15,7 +7,7 @@
 .design-field-label { color: var(--muted); font-size: 10px; }
 .design-input { display: flex; align-items: center; border: 1px solid var(--outline); border-radius: 6px; background: var(--background); padding-right: 7px; min-width: 0; }
 .design-input:focus-within { border-color: var(--primary); }
-.design-input.invalid { border-color: #fa746f; }
+.design-input.invalid { border-color: var(--status-danger); }
 .design-input input { width: 100%; min-width: 0; padding: 7px 6px 7px 8px; color: var(--text); background: transparent; border: 0; border-radius: 6px; font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
 .design-input input:focus-visible { outline: none; }
 .design-input span { font-size: 9px; color: var(--muted); }
@@ -57,7 +49,7 @@
 
 .design-hide { margin: 0; flex-wrap: wrap; }
 .design-hide .mono { margin-left: auto; }
-.design-warning { font-size: 10px; line-height: 1.5; color: #fa746f; }
+.design-warning { font-size: 10px; line-height: 1.5; color: var(--status-danger); }
 .design-link { justify-self: start; padding: 2px 0; border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-decoration-color: var(--outline); text-underline-offset: 3px; }
 .design-link:hover:not(:disabled) { background: transparent; color: var(--primary); text-decoration-color: currentColor; }
 .design-link:disabled { text-decoration: none; }
@@ -79,5 +71,5 @@
 .design-marker:not(.active) .design-marker-caption { fill: var(--editor-muted, var(--muted)); }
 
 @media (prefers-reduced-motion: reduce) {
-  .design-section > summary::before, .design-chevron { transition: none; }
+  details.inspector-section > summary::before, .design-chevron { transition: none; }
 }

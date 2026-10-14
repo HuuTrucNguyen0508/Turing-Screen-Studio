@@ -66,7 +66,7 @@ test('manual dashboard colors support undo and reject invalid hex while Studio s
 });
 
 test('widget colors change only that card and individual resets restore inheritance', async ({ page }) => {
-  await page.getByRole('button', { name: 'Show Inspector', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspector', exact: true }).click();
   const colors = page.locator('.widget-colors'); await colors.locator('summary').click();
   await setHex(page, 'Card background', '#334455'); await setHex(page, 'Value and chart', '#77aabb');
   await expect(page.locator('[data-widget-id="cpu"]')).toHaveCSS('background-color', 'rgb(51, 68, 85)');
@@ -99,7 +99,7 @@ test('every widget type retains its overrides through export, reopen and custom 
   }
   const after = await exported(page); expect(after).toEqual(validateLayout(document));
   await openLayout(page, after);
-  await page.getByRole('button', { name: 'Show Inspector', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspector', exact: true }).click();
   await page.getByRole('button', { name: 'Save as custom widget…', exact: true }).click();
   await page.getByRole('textbox', { name: 'Custom widget name', exact: true }).fill('Colored CPU');
   await page.getByRole('button', { name: 'Save widget', exact: true }).click();
@@ -109,7 +109,7 @@ test('every widget type retains its overrides through export, reopen and custom 
 
 test('clock elements accept exact colors including the time suffix and retain them in JSON', async ({ page }) => {
   const document = createSampleLayout(); document.widgets = [{ id: 'clock', type: 'clock', x: 160, y: 160, width: 500, height: 280, settings: { label: 'Clock', time: '14:32', date: 'Tuesday', format: '12h', showDate: true } }];
-  await openLayout(page, document); await page.getByRole('button', { name: 'Show Inspector', exact: true }).click();
+  await openLayout(page, document); await page.getByRole('button', { name: 'Inspector', exact: true }).click();
   const design = page.locator('.design-section'); await design.locator('summary').click();
   await design.getByRole('button', { name: /^Time/ }).click();
   await setHex(page, 'Time custom color', '#d56789');
@@ -127,7 +127,7 @@ test('inherited colors can be pinned and clock indicators use the effective widg
   const dialog = await openColors(page);
   await dialog.getByRole('button', { name: 'Use Paper for Studio', exact: true }).click();
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-  await page.getByRole('button', { name: 'Show Inspector', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspector', exact: true }).click();
   const colors = page.locator('.widget-colors'); await colors.locator('summary').click();
   const text = colors.getByRole('textbox', { name: 'Text hex', exact: true });
   await text.focus(); await text.blur();
