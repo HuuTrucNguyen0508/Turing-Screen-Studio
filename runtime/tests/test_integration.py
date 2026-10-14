@@ -200,6 +200,33 @@ class IntegrationTests(unittest.TestCase):
         self.assertIsNone(self.owner.usage_snapshot)
         self.assertEqual(self.owner.usage.snapshot.call_count, 2)
 
+    def test_list_dirty_key_tracks_every_row_reading(self):
+        sources = {'cpu': 'cpu_percent', 'gpu': 'gpu_percent', 'memory': 'ram_percent', 'disk': 'disk_percent',
+                   'network-down': 'net_down_kbps', 'network-up': 'net_up_kbps',
+                   'cpu-temperature': 'cpu_temp', 'gpu-temperature': 'gpu_temp'}
+        for source, field in sources.items():
+            with self.subTest(source=source):
+                self.doc['widgets'] = [dict(id='list', type='list', x=64, y=160, width=352, height=304,
+                    settings=dict(label='System', rows=[dict(source=source, label='', value='24', unit='%')], bars=True))]
+                atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
+                stats = SimpleNamespace(**{field: 24})
+                first = self.dashboard.logical_dirty_key(None, None, stats, view='stats')
+                self.assertEqual(first, self.dashboard.logical_dirty_key(None, None, stats, view='stats'))
+                setattr(stats, field, 51)
+                self.assertNotEqual(first, self.dashboard.logical_dirty_key(None, None, stats, view='stats'))
+
+    def test_calendar_dirty_key_tracks_the_panel_date(self):
+        self.doc['widgets'] = [dict(id='calendar', type='calendar', x=64, y=160, width=352, height=328,
+            settings=dict(label='Calendar', source='clock', weekStart='monday'))]
+        atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
+        stats = SimpleNamespace(clock='Wed 14 Oct  23:59')
+        first = self.dashboard.logical_dirty_key(stats=stats, view='stats')
+        stats.clock = 'Thu 15 Oct  00:00'
+        second = self.dashboard.logical_dirty_key(stats=stats, view='stats')
+        self.assertNotEqual(first, second)
+        stats.clock = 'Thu 15 Oct  00:01'
+        self.assertEqual(second, self.dashboard.logical_dirty_key(stats=stats, view='stats'))
+
     def test_speedtest_never_acknowledges_new_layout(self):
         self.assertTrue(self.send()[0])
         self.dashboard.logical_dirty_key(view='speedtest')

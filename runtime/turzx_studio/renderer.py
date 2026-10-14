@@ -73,7 +73,7 @@ def instrument_geometry(width: int, height: int) -> dict:
             "show_shape": width >= 120 and height >= 160}
 
 
-def rendered_content(widget: dict, stats: object = None) -> dict:
+def rendered_content(widget: dict, stats: object = None, today=None) -> dict:
     """Return detached display settings without reading sensors or changing input.
 
     An absent source behaves as sample. Live sources use DashboardStats
@@ -87,7 +87,7 @@ def rendered_content(widget: dict, stats: object = None) -> dict:
     if widget["type"] == "list":
         return list_content(settings, stats)
     if widget["type"] == "calendar":
-        return calendar_content(settings, stats)
+        return calendar_content(settings, stats, today)
     if stats is None or source == "sample":
         return settings
     if source in DASHBOARD_SOURCES:

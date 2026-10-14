@@ -69,7 +69,7 @@ def panel_date(clock, today=None):
     return min(candidates, key=lambda value: abs((value - today).days)).isoformat()
 
 
-def calendar_content(settings, stats):
+def calendar_content(settings, stats, today=None):
     if settings['source'] == 'clock' and stats is not None:
-        return {**settings, 'date': panel_date(getattr(stats, 'clock', None), getattr(stats, 'today', None))}
+        return {**settings, 'date': panel_date(getattr(stats, 'clock', None), today)}
     return {**settings, 'date': CALENDAR_SAMPLE_DATE}

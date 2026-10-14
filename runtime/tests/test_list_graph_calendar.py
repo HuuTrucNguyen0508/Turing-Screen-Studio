@@ -68,8 +68,8 @@ class ListGraphCalendarTests(unittest.TestCase):
         widget = {'type': 'calendar', 'width': 352, 'height': 328,
                   'settings': {'label': 'Calendar', 'source': 'clock', 'weekStart': 'monday'}}
         self.assertEqual(rendered_content(widget)['date'], '2026-10-06')
-        stats = SimpleNamespace(clock='Wed 14 Oct  23:12', today=datetime.date(2026, 10, 14))
-        self.assertEqual(rendered_content(widget, stats)['date'], '2026-10-14')
+        stats = SimpleNamespace(clock='Wed 14 Oct  23:12')
+        self.assertEqual(rendered_content(widget, stats, today=datetime.date(2026, 10, 14))['date'], '2026-10-14')
         self.assertIsNone(rendered_content(widget, SimpleNamespace(clock=''))['date'])
         g = calendar_geometry(352, 328, 'Calendar', 5)
         sample = self.render(widget)

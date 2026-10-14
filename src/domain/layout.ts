@@ -195,6 +195,7 @@ function integer(input: unknown, path: string, min: number, max = Number.MAX_SAF
 function bounded(input: unknown, path: string, max: number): string {
   const value = string(input, path);
   // Count code points, as Python does.
+  if (/[\u0000-\u001f\u007f]/.test(value)) fail(path, 'must not contain control characters');
   if ([...value].length > max) fail(path, `must be at most ${max} characters`);
   return value;
 }

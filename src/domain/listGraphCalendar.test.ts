@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { createSampleLayout, parseLayout, serializeLayout, validateLayout } from './layout';
-import type { LayoutDocument, ListRow, Widget } from './layout';
+import type { CalendarWidget, GraphWidget, LayoutDocument, ListRow, ListWidget, Widget } from './layout';
 import { listFraction, listLayout, listSampleRow } from './list';
 import { graphChart } from './graph';
 import { calendarGeometry, calendarMonth } from './calendar';
@@ -12,7 +12,7 @@ const rows = [
   { source: 'cpu-temperature', label: 'CPU temp', value: '42', unit: '°C' },
   { source: 'network-down', label: 'Download', value: '640', unit: 'KB/s' },
 ] as const;
-const widgets = (): Widget[] => [
+const widgets = (): [ListWidget, GraphWidget, CalendarWidget] => [
   { id: 'list', type: 'list', x: 64, y: 64, width: 352, height: 304, settings: { label: 'System', rows: rows.map((row) => ({ ...row })), bars: true } },
   { id: 'graph', type: 'graph', x: 440, y: 64, width: 564, height: 304, settings: { label: 'Network', style: 'area', sources: ['network-down', 'network-up'] } },
   { id: 'calendar', type: 'calendar', x: 64, y: 392, width: 352, height: 328, settings: { label: '', source: 'clock', weekStart: 'sunday' } },
@@ -56,6 +56,25 @@ describe('list, graph and calendar contract', () => {
       expect(result.error).toContain(`$.widgets[0].settings.${field}:`);
     }
   });
+
+  it('rejects controls in every single-line field identically', () => {
+    for (const control of Array.from({ length: 33 }, (_, index) => String.fromCharCode(index === 32 ? 127 : index))) {
+      for (const index of [0, 1, 2]) {
+        const document = doc();
+        const widget = widgets()[index];
+        widget.settings.label = `Bad${control}`;
+        document.widgets = [widget];
+        expect(() => validateLayout(document)).toThrow('must not contain control characters');
+        expect(pythonValidate(document)).toEqual({ valid: false, error: '$.widgets[0].settings.label: must not contain control characters' });
+      }
+      for (const field of ['label', 'value', 'unit']) {
+        const document = doc();
+        document.widgets = [{ ...widgets()[0], type: 'list', settings: { label: 'System', bars: true, rows: [{ ...rows[0], [field]: `24${control}` }] } }];
+        expect(() => validateLayout(document)).toThrow(`$.widgets[0].settings.rows[0].${field}: must not contain control characters`);
+        expect(pythonValidate(document)).toEqual({ valid: false, error: `$.widgets[0].settings.rows[0].${field}: must not contain control characters` });
+      }
+    }
+  }, 15000);
 
   it('counts label limits in code points in both languages', () => {
     const labelled = (label: string) => ({ ...doc(), widgets: [{ ...widgets()[2], settings: { label, source: 'sample', weekStart: 'monday' } }] });
