@@ -49,3 +49,16 @@
 .gauge-style-option:hover { border-color: var(--muted); color: var(--text); }
 .gauge-style-option:has(input:checked) { border-color: var(--primary); color: var(--primary); background: var(--surfaceRaised); }
 .gauge-style-option:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.instrument-content svg { position: absolute; inset: 0; overflow: hidden; }
+.instrument-content text { white-space: pre; dominant-baseline: alphabetic; }
+.instrument-track { fill: var(--outline); }
+.instrument-progress { fill: var(--primary); }
+.instrument-content circle.instrument-track { fill: none; stroke: var(--outline); }
+.instrument-content circle.instrument-progress { fill: none; stroke: var(--primary); }
+.instrument-content[data-gauge-style='thermometer'] circle.instrument-track { fill: var(--outline); stroke: none; }
+.instrument-content[data-gauge-style='thermometer'] circle.instrument-progress { fill: var(--primary); stroke: none; }
+.instrument-value { fill: var(--primary); font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; }
+.instrument-unit { fill: var(--muted); font-family: 'Roboto', 'DejaVu Sans', sans-serif; }
+.instrument-bound { fill: var(--muted); font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 12px; }
+.instrument-detail { fill: var(--muted); font-family: 'Roboto', 'DejaVu Sans', sans-serif; font-size: 14px; text-anchor: middle; }

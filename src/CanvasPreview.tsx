@@ -33,6 +33,7 @@ type Props = {
   panelControls?: ReactNode;
   toolsVisible: boolean;
   previewNotice?: string;
+  previewError?: boolean;
   onPreviewRetry?: () => void;
   designElement?: string | null;
   activeElement?: string | null;
@@ -63,6 +64,7 @@ type Gesture = {
   handle?: ResizeHandle;
   element?: string;
   toolbarDocked: boolean;
+  previewStatus: Pick<Props, 'previewNotice' | 'previewError' | 'onPreviewRetry'>;
 };
 
 const handles: { id: ResizeHandle; name: string; x: number; y: number; cursor: string }[] = [
@@ -82,7 +84,7 @@ function initialSnapping() {
   catch { return true; }
 }
 
-export default function CanvasPreview({ document, palette, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, panelControls, toolsVisible, previewNotice, onPreviewRetry, designElement, activeElement, onMoveTarget, onNudge, onCardDrag, onSelectElement, onDuplicate, onDelete, onDetails, onImportWidgets }: Props) {
+export default function CanvasPreview({ document, palette, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, panelControls, toolsVisible, previewNotice, previewError, onPreviewRetry, designElement, activeElement, onMoveTarget, onNudge, onCardDrag, onSelectElement, onDuplicate, onDelete, onDetails, onImportWidgets }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [toolbarSize, setToolbarSize] = useState({ width: 320, height: 46 });
@@ -165,7 +167,7 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
     const currentScale = fitCanvas(original.canvas.width, original.canvas.height, viewport.width, viewport.height).scale * zoom;
     setSize({ width: viewport.width, height: viewport.height });
     gestureRef.current = { viewportWidth: viewport.width, viewportHeight: viewport.height, pointerId: event.pointerId, target: event.currentTarget, startX: event.clientX, startY: event.clientY, scale: currentScale,
-      document: original, ids: [...ids], widget: currentWidget, mode, pan, handle, element, toolbarDocked };
+      document: original, ids: [...ids], widget: currentWidget, mode, pan, handle, element, toolbarDocked, previewStatus: { previewNotice, previewError, onPreviewRetry } };
     setGesturing(true);
   }
 
@@ -263,6 +265,7 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
   const toolbarPlacement = toolbarPosition();
   // Keep the viewport size stable throughout a drag, even if free space changes.
   const toolbarDocked = gestureRef.current?.toolbarDocked ?? toolbarPlacement.docked;
+  const previewStatus = gestureRef.current?.previewStatus ?? { previewNotice, previewError, onPreviewRetry };
   useLayoutEffect(() => {
     // Selection and optional tools can change the available height in this commit.
     // Update the letterbox before paint so cards do not jump on the next pointer event.
@@ -372,8 +375,8 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
     }} />}
     <MovementControls widget={selected} count={selectedIds.length} element={activeElement ?? null} onTarget={onMoveTarget} onNudge={onNudge} busy={gesturing} />
     <div className="canvas-status">
-      <span className="canvas-status-notice" title={previewNotice}>{previewNotice || 'Shift-click to select cards together.'}</span>
-      {onPreviewRetry && <button className="text-button" onClick={onPreviewRetry}>Retry preview</button>}
+      <span className="canvas-status-notice" role={previewStatus.previewError ? 'status' : undefined}>{previewStatus.previewNotice || 'Shift-click to select cards together.'}</span>
+      {previewStatus.onPreviewRetry && <button className="text-button" onClick={previewStatus.onPreviewRetry}>Retry preview</button>}
       <span className="mono">Scale {Math.round(scale * 100)}%</span>
       <details className="canvas-warnings"><summary>{warnings.length === 100 ? '100+ layout notes' : warnings.length === 1 ? '1 layout note' : `${warnings.length} layout notes`}</summary><div className="canvas-warning-content"><p>Informational. You can still export and save this layout.</p><ul>{warnings.slice(0, 8).map((warning, index) => <li key={index}>{warning.message}</li>)}</ul>{warnings.length > 8 && <p>{warnings.length - 8} more notes. Review overlapping or small cards.</p>}</div></details>
     </div>

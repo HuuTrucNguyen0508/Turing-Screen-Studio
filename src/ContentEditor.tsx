@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react';
 import type { Widget } from './domain/layout';
 import { gaugeStyles, storageStyles } from './domain/layout';
 import { sourceLabels } from './domain/widgets';
 import { isDashboardSource } from './domain/dashboardData';
 import { trendGeometry, trendSources } from './domain/trend';
 import InspectorSection from './InspectorSection';
-import ListGraphCalendarEditor from './ListGraphCalendarEditor';
+import { CalendarEditor, GraphEditor, ListEditor } from './ListGraphCalendarEditor';
+import ContentField from './ContentField';
 
 const fieldLabels: Record<string, string> = {
   label: 'Label', value: 'Value', unit: 'Unit', detail: 'Detail', location: 'Location',
   temperature: 'Temperature', condition: 'Condition', high: 'High', low: 'Low',
   min: 'Minimum', max: 'Maximum', time: 'Time', date: 'Date', text: 'Text',
-  opacity: 'Opacity (%)', rows: 'Rows', bars: 'Bars', sources: 'Series', weekStart: 'Week start',
+  opacity: 'Opacity (%)',
 };
 
 const styleLabels = { arc: 'Arc', ring: 'Ring', bar: 'Bar', segments: 'Segments', thermometer: 'Thermometer', number: 'Number' };
@@ -27,47 +27,25 @@ const liveReplacedFields: Partial<Record<Widget['type'], readonly string[]>> = {
   clock: ['time', 'date'],
 };
 
-export function ContentField({ label, value, multiline = false, onCommit }: {
-  label: string; value: string | number; multiline?: boolean; onCommit: (value: string | number) => void;
-}) {
-  const [draft, setDraft] = useState(String(value));
-  const [error, setError] = useState('');
-  useEffect(() => { setDraft(String(value)); setError(''); }, [value]);
-  const numeric = typeof value === 'number';
-  function commit(next = draft) {
-    if (next === String(value)) return;
-    try {
-      const number = Number(next);
-      if (numeric && (!next.trim() || !Number.isFinite(number))) throw new Error('Enter a finite number.');
-      onCommit(numeric ? number : next);
-      setError('');
-    } catch (failure) { setError(failure instanceof Error ? failure.message.replace(/^.*settings\.[a-zA-Z]+: /, '') : 'Check this value.'); }
+type EditorProps = { widget: Widget; onCommit: (patch: Record<string, unknown>) => void };
+
+export default function ContentEditor({ widget, onCommit }: EditorProps) {
+  let content;
+  switch (widget.type) {
+    case 'list': content = <ListEditor widget={widget} onCommit={onCommit} />; break;
+    case 'graph': content = <GraphEditor widget={widget} onCommit={onCommit} />; break;
+    case 'calendar': content = <CalendarEditor widget={widget} onCommit={onCommit} />; break;
+    default: content = <StandardContentEditor widget={widget} onCommit={onCommit} />;
   }
-  const props = {
-    'aria-label': label, value: draft, 'aria-invalid': Boolean(error),
-    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setDraft(event.target.value); setError('');
-      // Typing arrives as an InputEvent and waits for Enter or blur; spinner and arrow-key steps commit at once.
-      if (numeric && !(event.nativeEvent instanceof InputEvent)) commit(event.target.value);
-    },
-    onBlur: () => commit(),
-    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      if (event.key === 'Enter' && !multiline) { event.preventDefault(); commit(); }
-      if (event.key === 'Escape') { event.stopPropagation(); setDraft(String(value)); setError(''); }
-    },
-  };
-  return <label className="content-field">{label}<div className={`input-with-unit${error ? ' invalid' : ''}`}>
-    {multiline ? <textarea {...props} rows={4} /> : <input {...props} type={numeric ? 'number' : 'text'} step={numeric ? 'any' : undefined} />}
-  </div>{error && <span className="field-error" role="alert">{error}</span>}</label>;
+  return <InspectorSection id="content" title="Content">{content}</InspectorSection>;
 }
 
-export default function ContentEditor({ widget, onCommit }: { widget: Widget; onCommit: (patch: Record<string, unknown>) => void }) {
-  if (widget.type === 'list' || widget.type === 'graph' || widget.type === 'calendar') return <ListGraphCalendarEditor widget={widget} onCommit={onCommit} />;
+function StandardContentEditor({ widget, onCommit }: { widget: Exclude<Widget, { type: 'list' | 'graph' | 'calendar' }>; onCommit: EditorProps['onCommit'] }) {
   const source = widget.type === 'text' || widget.type === 'image' ? 'sample' : widget.settings.source ?? 'sample';
   const fields = Object.entries(widget.settings).filter(([key]) => !controlledSettings.includes(key) && (!isDashboardSource(source) || key === 'label'));
   const replaced = source !== 'sample' && !isDashboardSource(source) ? liveReplacedFields[widget.type] ?? [] : [];
   const field = ([key, value]: [string, unknown]) => <ContentField key={key} label={fieldLabels[key]} value={value as string | number} multiline={key === 'text'} onCommit={(next) => onCommit({ [key]: next })} />;
-  return <InspectorSection id="content" title="Content"><div className="content-fields">
+  return <><div className="content-fields">
     {widget.type === 'image' && <label className="source-field">Image fit<select aria-label="Image fit" value={widget.settings.fit} onChange={(event) => onCommit({ fit: event.target.value })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="stretch">Stretch</option></select></label>}
     {widget.type === 'storage' && <label className="source-field">Display style<select aria-label="Display style" value={widget.settings.style} onChange={(event) => onCommit({ style: event.target.value })}>{storageStyles.map((style) => <option key={style} value={style}>{style === 'bars' ? 'Usage bars' : 'Capacity table'}</option>)}</select></label>}
     {widget.type === 'storage' && <><label className="source-field">Storage view<select aria-label="Storage view" value={widget.settings.grouping ?? 'partitions'} onChange={(event) => onCommit({ grouping: event.target.value, ...(event.target.value === 'drives' ? { mounts: undefined } : {}) })}><option value="drives">Physical drives</option><option value="partitions">Partitions</option></select></label>
@@ -87,7 +65,7 @@ export default function ContentEditor({ widget, onCommit }: { widget: Widget; on
       <div className="content-fields">{fields.filter(([key]) => replaced.includes(key)).map(field)}</div>
     </details>}
     {isDashboardSource(source) && <p className="panel-note">{source === 'game-resources' ? 'Game timers are shared across dashboards. Set a count after playing to correct the estimate.' : 'T3 threads show local active work. Stale or unavailable activity stays unknown.'}</p>}
-  </InspectorSection>;
+  </>;
 }
 
 function TrendControl({ widget, source, onCommit }: { widget: Extract<Widget, { type: 'metric' }>; source: string; onCommit: (patch: Record<string, unknown>) => void }) {
