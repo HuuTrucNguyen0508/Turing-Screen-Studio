@@ -23,8 +23,8 @@ export const sourceLabels: Record<string, string> = {
 
 export function widgetSources(widget: Widget): readonly string[] {
   if (widget.type === 'storage') return ['sample', 'mounted-storage'];
-  if (widget.type === 'text' || widget.type === 'image') return [];
-  if (widget.type === 'clock') return ['sample', 'clock'];
+  if (widget.type === 'text' || widget.type === 'image' || widget.type === 'list' || widget.type === 'graph') return [];
+  if (widget.type === 'clock' || widget.type === 'calendar') return ['sample', 'clock'];
   if (widget.type === 'weather') return ['sample', 'weather'];
   if (widget.type === 'metric' && widget.settings.trend) return ['sample', ...trendSources];
   if (widget.type === 'gauge') return metricSources.filter((source) => !isUsageSummary(source) && !isDashboardSource(source));

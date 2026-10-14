@@ -5,12 +5,13 @@ import { sourceLabels } from './domain/widgets';
 import { isDashboardSource } from './domain/dashboardData';
 import { trendGeometry, trendSources } from './domain/trend';
 import InspectorSection from './InspectorSection';
+import ListGraphCalendarEditor from './ListGraphCalendarEditor';
 
 const fieldLabels: Record<string, string> = {
   label: 'Label', value: 'Value', unit: 'Unit', detail: 'Detail', location: 'Location',
   temperature: 'Temperature', condition: 'Condition', high: 'High', low: 'Low',
   min: 'Minimum', max: 'Maximum', time: 'Time', date: 'Date', text: 'Text',
-  opacity: 'Opacity (%)',
+  opacity: 'Opacity (%)', rows: 'Rows', bars: 'Bars', sources: 'Series', weekStart: 'Week start',
 };
 
 const styleLabels = { arc: 'Arc', ring: 'Ring', bar: 'Bar', segments: 'Segments', thermometer: 'Thermometer', number: 'Number' };
@@ -61,6 +62,7 @@ export function ContentField({ label, value, multiline = false, onCommit }: {
 }
 
 export default function ContentEditor({ widget, onCommit }: { widget: Widget; onCommit: (patch: Record<string, unknown>) => void }) {
+  if (widget.type === 'list' || widget.type === 'graph' || widget.type === 'calendar') return <ListGraphCalendarEditor widget={widget} onCommit={onCommit} />;
   const source = widget.type === 'text' || widget.type === 'image' ? 'sample' : widget.settings.source ?? 'sample';
   const fields = Object.entries(widget.settings).filter(([key]) => !controlledSettings.includes(key) && (!isDashboardSource(source) || key === 'label'));
   const replaced = source !== 'sample' && !isDashboardSource(source) ? liveReplacedFields[widget.type] ?? [] : [];

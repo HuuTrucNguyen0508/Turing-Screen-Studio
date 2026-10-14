@@ -1,6 +1,7 @@
 /** Observation slots, newest last. Nulls retain their slot and break the line. */
 export const TREND_CAPACITY = 120;
 export const trendSources = ['cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature'] as const;
+export type TrendSource = typeof trendSources[number];
 const percentageSources = ['sample', 'cpu', 'gpu', 'memory', 'disk'];
 
 export function trendHistory(input: unknown): (number | null)[] {
@@ -42,11 +43,10 @@ export function trendGeometry(width: number, height: number) {
 }
 
 export interface TrendPoint { x: number; y: number }
+export interface ChartBox { left: number; right: number; top: number; bottom: number }
 
-export function trendChart(source: string, input: unknown, width: number, height: number) {
-  const history = trendHistory(input);
-  const [min, max] = trendRange(source, history);
-  const geometry = trendGeometry(width, height);
+/** Plot history into a box. Slot positions are fixed, so a short history starts at the right. */
+export function trendSegments(history: readonly (number | null)[], [min, max]: readonly [number, number], box: ChartBox): TrendPoint[][] {
   const segments: TrendPoint[][] = [];
   let segment: TrendPoint[] = [];
   const flush = () => { if (segment.length) segments.push(segment); segment = []; };
@@ -55,14 +55,40 @@ export function trendChart(source: string, input: unknown, width: number, height
     if (value === null) { flush(); return; }
     const fraction = Math.max(0, Math.min(1, (value / scale - min / scale) / (max / scale - min / scale)));
     segment.push({
-      x: Math.round(geometry.left + (TREND_CAPACITY - history.length + index) * (geometry.right - geometry.left) / (TREND_CAPACITY - 1)),
-      y: Math.round(geometry.bottom - fraction * (geometry.bottom - geometry.top)),
+      x: Math.round(box.left + (TREND_CAPACITY - history.length + index) * (box.right - box.left) / (TREND_CAPACITY - 1)),
+      y: Math.round(box.bottom - fraction * (box.bottom - box.top)),
     });
   });
   flush();
+  return segments;
+}
+
+export function trendState(histories: readonly (readonly (number | null)[])[], segments: readonly TrendPoint[][]): string {
+  return histories.every((history) => history.every((value) => value === null)) ? 'No history yet'
+    : segments.some((points) => points.length > 1) ? '' : 'Collecting history';
+}
+
+export function trendChart(source: string, input: unknown, width: number, height: number) {
+  const history = trendHistory(input);
+  const [min, max] = trendRange(source, history);
+  const geometry = trendGeometry(width, height);
+  const segments = trendSegments(history, [min, max], geometry);
   const count = history.filter((value) => value !== null).length;
-  const state = count === 0 ? 'No history yet' : segments.some((points) => points.length > 1) ? '' : 'Collecting history';
-  return { ...geometry, min, max, segments, count, state };
+  return { ...geometry, min, max, segments, count, state: trendState([history], segments) };
+}
+
+/** Rounds half up in both languages; toFixed and Python formatting disagree on ties. */
+export function fixedNumber(value: number, places: number): string {
+  const factor = 10 ** places;
+  return (Math.floor(value * factor + .5) / factor).toFixed(places);
+}
+
+/** Display a sensor number the way the panel shows live rows and graph legends. */
+export function formatReading(source: string, value: number | null): { value: string; unit: string } {
+  const unit = trendUnit(source);
+  if (value === null || !Number.isFinite(value)) return { value: '—', unit };
+  if (unit === 'KB/s' && value >= 1024) return { value: fixedNumber(value / 1024, 1), unit: 'MB/s' };
+  return { value: fixedNumber(value, 0), unit };
 }
 
 export function trendCaption(demo: boolean): string {

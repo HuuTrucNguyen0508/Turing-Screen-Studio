@@ -2,6 +2,11 @@ import { isUsageSummary, usageSources } from './usage';
 import { dashboardSources, isDashboardSource } from './dashboardData';
 import { validateWidgetDesign } from './design';
 import type { WidgetDesign } from './design';
+import { trendSources } from './trend';
+import type { TrendSource } from './trend';
+import { LIST_MAX_ROWS } from './list';
+import { calendarWeekStarts } from './calendar';
+import type { CalendarWeekStart } from './calendar';
 
 export interface Palette {
   name: string;
@@ -93,7 +98,36 @@ export interface StorageWidget extends Geometry, WidgetPresentation {
   settings: { label: string; style: typeof storageStyles[number]; source?: 'sample' | 'mounted-storage'; grouping?: 'drives' | 'partitions'; mounts?: string[] };
 }
 
-export type Widget = MetricWidget | WeatherWidget | ClockWidget | TextWidget | GaugeWidget | StorageWidget | ImageWidget;
+/** Sources with live history. List, graph and calendar labels are bounded so they fit a card. */
+export type SensorSource = TrendSource;
+export const MAX_CARD_LABEL = 64;
+export const MAX_ROW_LABEL = 32;
+export const MAX_ROW_VALUE = 16;
+export const MAX_ROW_UNIT = 8;
+
+export interface ListRow { source: SensorSource; label: string; value: string; unit: string }
+export interface ListWidget extends Geometry, WidgetPresentation {
+  id: string;
+  type: 'list';
+  settings: { label: string; rows: ListRow[]; bars: boolean };
+}
+
+export const graphStyles = ['area', 'line'] as const;
+export type GraphStyle = typeof graphStyles[number];
+export interface GraphWidget extends Geometry, WidgetPresentation {
+  id: string;
+  type: 'graph';
+  settings: { label: string; style: GraphStyle; sources: [SensorSource] | [SensorSource, SensorSource] };
+}
+
+export interface CalendarWidget extends Geometry, WidgetPresentation {
+  id: string;
+  type: 'calendar';
+  settings: { label: string; source: 'sample' | 'clock'; weekStart: CalendarWeekStart };
+}
+
+export const widgetTypes = ['metric', 'weather', 'clock', 'text', 'gauge', 'storage', 'image', 'list', 'graph', 'calendar'] as const;
+export type Widget = MetricWidget | WeatherWidget | ClockWidget | TextWidget | GaugeWidget | StorageWidget | ImageWidget | ListWidget | GraphWidget | CalendarWidget;
 
 export interface LayoutDocument {
   version: 1;
@@ -156,6 +190,18 @@ function integer(input: unknown, path: string, min: number, max = Number.MAX_SAF
   }
   if (input < min || input > max) fail(path, `must be between ${min} and ${max}`);
   return input === 0 ? 0 : input;
+}
+
+function bounded(input: unknown, path: string, max: number): string {
+  const value = string(input, path);
+  // Count code points, as Python does.
+  if ([...value].length > max) fail(path, `must be at most ${max} characters`);
+  return value;
+}
+
+function sensorSource(input: unknown, path: string): SensorSource {
+  if (typeof input !== 'string' || !(trendSources as readonly string[]).includes(input)) fail(path, `expected ${trendSources.join(', ')}`);
+  return input as SensorSource;
 }
 
 function color(input: unknown, path: string): string {
@@ -262,8 +308,8 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
   const value = object(input, path);
   exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path, ['design', 'colors']);
   const id = string(value.id, `${path}.id`, true);
-  if (typeof value.type !== 'string' || !['metric', 'weather', 'clock', 'text', 'gauge', 'storage', 'image'].includes(value.type)) {
-    fail(`${path}.type`, 'unsupported widget type; expected metric, weather, clock, text, gauge, storage, image');
+  if (typeof value.type !== 'string' || !(widgetTypes as readonly string[]).includes(value.type)) {
+    fail(`${path}.type`, `unsupported widget type; expected ${widgetTypes.join(', ')}`);
   }
   const geometry: Geometry = {
     x: integer(value.x, `${path}.x`, 0),
@@ -279,6 +325,38 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
   }
   const settings = object(value.settings, `${path}.settings`);
   const settingsPath = `${path}.settings`;
+  if (value.type === 'list') {
+    exactKeys(settings, ['label', 'rows', 'bars'], settingsPath);
+    const label = bounded(settings.label, `${settingsPath}.label`, MAX_CARD_LABEL);
+    if (!Array.isArray(settings.rows) || settings.rows.length < 1 || settings.rows.length > LIST_MAX_ROWS) fail(`${settingsPath}.rows`, `expected 1 to ${LIST_MAX_ROWS} rows`);
+    const rows = (settings.rows as unknown[]).map((entry, index): ListRow => {
+      const rowPath = `${settingsPath}.rows[${index}]`;
+      const row = object(entry, rowPath);
+      exactKeys(row, ['source', 'label', 'value', 'unit'], rowPath);
+      return { source: sensorSource(row.source, `${rowPath}.source`), label: bounded(row.label, `${rowPath}.label`, MAX_ROW_LABEL),
+        value: bounded(row.value, `${rowPath}.value`, MAX_ROW_VALUE), unit: bounded(row.unit, `${rowPath}.unit`, MAX_ROW_UNIT) };
+    });
+    if (new Set(rows.map((row) => row.source)).size !== rows.length) fail(`${settingsPath}.rows`, 'each row needs a different source');
+    if (typeof settings.bars !== 'boolean') fail(`${settingsPath}.bars`, 'expected a boolean');
+    return { id, type: 'list', ...geometry, settings: { label, rows, bars: settings.bars } };
+  }
+  if (value.type === 'graph') {
+    exactKeys(settings, ['label', 'style', 'sources'], settingsPath);
+    const label = bounded(settings.label, `${settingsPath}.label`, MAX_CARD_LABEL);
+    const style = optionalChoice(settings, 'style', settingsPath, graphStyles)!;
+    if (!Array.isArray(settings.sources) || settings.sources.length < 1 || settings.sources.length > 2) fail(`${settingsPath}.sources`, 'expected one or two sources');
+    const sources = (settings.sources as unknown[]).map((source, index) => sensorSource(source, `${settingsPath}.sources[${index}]`));
+    if (new Set(sources).size !== sources.length) fail(`${settingsPath}.sources`, 'expected different sources');
+    return { id, type: 'graph', ...geometry, settings: { label, style, sources: sources as GraphWidget['settings']['sources'] } };
+  }
+  if (value.type === 'calendar') {
+    exactKeys(settings, ['label', 'source', 'weekStart'], settingsPath);
+    return { id, type: 'calendar', ...geometry, settings: {
+      label: bounded(settings.label, `${settingsPath}.label`, MAX_CARD_LABEL),
+      source: optionalChoice(settings, 'source', settingsPath, ['sample', 'clock'] as const)!,
+      weekStart: optionalChoice(settings, 'weekStart', settingsPath, calendarWeekStarts)!,
+    } };
+  }
   if (value.type === 'image') {
     exactKeys(settings, ['label', 'data', 'fit', 'opacity'], settingsPath);
     return { id, type: 'image', ...geometry, settings: {
