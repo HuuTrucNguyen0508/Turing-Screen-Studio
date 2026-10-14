@@ -1,12 +1,4 @@
 /* Inspector: Design section */
-.design-section > summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; border-radius: 6px; }
-.design-section > summary::-webkit-details-marker { display: none; }
-.design-section > summary::before { content: ''; width: 5px; height: 5px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); margin: 0 3px 0 1px; transition: transform .12s; }
-.design-section[open] > summary::before { transform: rotate(45deg); }
-.design-section > summary h4 { margin: 0; }
-.design-section > summary .mono { margin-left: auto; }
-.design-section > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
-.design-section[open] > summary { margin-bottom: 16px; }
 .design-note { margin-top: 12px; }
 
 .design-field { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: 10px; }
@@ -79,5 +71,5 @@
 .design-marker:not(.active) .design-marker-caption { fill: var(--editor-muted, var(--muted)); }
 
 @media (prefers-reduced-motion: reduce) {
-  .design-section > summary::before, .design-chevron { transition: none; }
+  details.inspector-section > summary::before, .design-chevron { transition: none; }
 }

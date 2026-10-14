@@ -20,9 +20,6 @@
 .color-field .color-hex[aria-invalid='true'] { border-color: #df756b; }
 .color-reset { min-height: 44px; padding: 6px; font-size: 11px; }
 .color-field .field-error { display: block; margin-top: 6px; }
-.widget-colors > summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; gap: 6px; }
-.widget-colors > summary h4 { margin: 0; }
-.widget-colors > summary span { color: var(--muted); font-size: 10px; }
 .widget-colors > .panel-note { margin-top: 12px; }
 .widget-colors > .text-button { margin-top: 12px; }
 .color-footer-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }

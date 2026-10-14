@@ -60,6 +60,7 @@ test('storage library retains root gauges alongside mounted filesystem designs',
 });
 const card = (page: Page, id = 'cpu') => page.locator(`[data-widget-id="${id}"]`);
 const field = (page: Page, label: string) => page.getByRole('textbox', { name: label, exact: true });
+const number = (page: Page, label: string) => page.getByRole('spinbutton', { name: label, exact: true });
 
 async function geometry(page: Page) {
   return page.locator('[data-widget-id]').evaluateAll((cards) => cards.map((card) => {
@@ -256,14 +257,14 @@ test('add, edit, duplicate, remove, undo, export and reopen expanded widgets off
   await expect(card(page, 'text-2')).toHaveCount(1);
   await page.getByRole('button', { name: 'Remove', exact: true }).click();
   await page.locator('[data-widget-row="gauge"]').click();
-  await field(page, 'Value').fill('101');
-  await field(page, 'Value').press('Enter');
+  await number(page, 'Value').fill('101');
+  await number(page, 'Value').press('Enter');
   await expect(page.locator('.field-error')).toHaveText('must be between min and max');
-  await field(page, 'Value').press('Escape');
-  await field(page, 'Maximum').fill('200');
-  await field(page, 'Maximum').press('Enter');
-  await field(page, 'Value').fill('150.5');
-  await field(page, 'Value').press('Enter');
+  await number(page, 'Value').press('Escape');
+  await number(page, 'Maximum').fill('200');
+  await number(page, 'Maximum').press('Enter');
+  await number(page, 'Value').fill('150.5');
+  await number(page, 'Value').press('Enter');
   await page.getByLabel('Panel data source').selectOption('gpu-temperature');
   await field(page, 'Layout name').fill('My custom panel');
   await field(page, 'Layout name').press('Enter');
@@ -506,12 +507,12 @@ test('offline variant additions export and reopen exact sources, ranges, setting
     expect(widget.y + widget.height).toBeLessThanOrEqual(saved.canvas.height);
   }
   await page.locator('[data-widget-row="network-down-gauge"]').click();
-  await expect(field(page, 'Maximum')).toHaveValue('1024');
+  await expect(number(page, 'Maximum')).toHaveValue('1024');
   await expect(page.getByLabel('Panel data source')).toHaveValue('network-down');
-  await field(page, 'Maximum').fill('100');
-  await field(page, 'Maximum').press('Enter');
+  await number(page, 'Maximum').fill('100');
+  await number(page, 'Maximum').press('Enter');
   await expect(page.locator('.field-error')).toHaveText('must be between min and max');
-  await field(page, 'Maximum').press('Escape');
+  await number(page, 'Maximum').press('Escape');
   expect(await exportJson(page)).toBe(first);
   await openJson(page, first);
   await page.getByRole('button', { name: 'Open and discard changes', exact: true }).click();
@@ -553,3 +554,40 @@ test('mounted storage can be added, restyled, exported and reopened without appl
   await expect(mounted.locator('[data-storage-style="table"]')).toBeVisible();
   expect(saves).toBe(0);
 });
+
+test('live sources keep sample-only fields aside and trend toggles stay valid', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-widget-row="cpu"]').click();
+  const trend = page.getByRole('checkbox', { name: 'Trend chart', exact: true });
+  await expect(trend).not.toBeChecked();
+  await trend.check();
+  await expect(page.locator('[data-widget-id="cpu"] [data-trend="true"]')).toHaveCount(1);
+  await page.getByLabel('Panel data source', { exact: true }).selectOption('cpu');
+  await expect(field(page, 'Label')).toBeVisible();
+  await expect(field(page, 'Value')).toBeHidden();
+  await page.getByText('Sample values (preview only)', { exact: true }).click();
+  await expect(field(page, 'Value')).toHaveValue('24');
+  let saved = JSON.parse(await exportJson(page)) as LayoutDocument;
+  expect(saved.widgets.find((widget) => widget.id === 'cpu')?.settings).toMatchObject({ source: 'cpu', trend: true, value: '24' });
+  await trend.uncheck();
+  await page.getByLabel('Panel data source', { exact: true }).selectOption('codex-tokens');
+  await expect(trend).toBeDisabled();
+  await expect(page.getByText('Trend needs a CPU, GPU, memory, disk, network or temperature source.', { exact: true })).toBeVisible();
+  saved = JSON.parse(await exportJson(page)) as LayoutDocument;
+  expect(saved.widgets.find((widget) => widget.id === 'cpu')?.settings).toEqual({ label: 'CPU load', value: '24', unit: '%', detail: '8 cores · 42 °C', source: 'codex-tokens' });
+});
+
+test('gauge ranges use number fields and arrow steps commit at once', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Add widget', exact: true }).click();
+  const library = page.getByRole('dialog', { name: 'Add widget', exact: true });
+  await library.getByLabel('Search widgets', { exact: true }).fill('Download');
+  await library.getByRole('button', { name: 'Add Download gauge', exact: true }).click();
+  const maximum = number(page, 'Maximum');
+  await expect(maximum).toHaveValue('1024');
+  await maximum.press('ArrowUp');
+  const saved = JSON.parse(await exportJson(page)) as LayoutDocument;
+  expect(saved.widgets.find((widget) => widget.type === 'gauge' && widget.settings.source === 'network-down')?.settings).toMatchObject({ max: 1025 });
+  await expect(page.getByText('Sample values (preview only)', { exact: true })).toBeVisible();
+});
+
