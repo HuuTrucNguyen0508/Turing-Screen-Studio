@@ -193,6 +193,7 @@ class IntegrationTests(unittest.TestCase):
         second = self.dashboard.logical_dirty_key(view='stats')
         self.assertNotEqual(first, second)
         self.assertIn('storage', self.owner.status['supportedWidgetTypes'])
+        self.assertEqual(self.owner.status['supportedWidgetTypes'][-3:], ['list', 'graph', 'calendar'])
         self.doc['widgets'][0]['settings']['source'] = 'sample'
         atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
         self.dashboard.logical_dirty_key(view='stats')

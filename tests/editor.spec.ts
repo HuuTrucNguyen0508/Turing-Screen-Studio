@@ -42,7 +42,7 @@ test('AI usage preset is a demo draft with preserved live sources and no automat
   const download = await downloadPromise;
   const document = validateLayout(JSON.parse(await readFile((await download.path())!, 'utf8')));
   expect(document.name).toBe('AI usage');
-  expect(document.widgets.filter((widget) => widget.type !== 'text' && widget.type !== 'image' && /^(codex|claude)-/.test(widget.settings.source ?? ''))).toHaveLength(11);
+  expect(document.widgets.filter((widget) => 'source' in widget.settings && /^(codex|claude)-/.test(widget.settings.source ?? ''))).toHaveLength(11);
   const cost = document.widgets.find((widget) => widget.id === 'codex-cost');
   expect(cost?.type === 'metric' ? cost.settings.detail : '').toContain('not a subscription bill');
   expect(saves).toBe(0);

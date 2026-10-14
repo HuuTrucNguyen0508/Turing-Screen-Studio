@@ -3,12 +3,13 @@ import type { Widget } from './domain/layout';
 import { gaugeStyles, storageStyles } from './domain/layout';
 import { sourceLabels } from './domain/widgets';
 import { isDashboardSource } from './domain/dashboardData';
+import ListGraphCalendarEditor from './ListGraphCalendarEditor';
 
 const fieldLabels: Record<string, string> = {
   label: 'Label', value: 'Value', unit: 'Unit', detail: 'Detail', location: 'Location',
   temperature: 'Temperature', condition: 'Condition', high: 'High', low: 'Low',
   min: 'Minimum', max: 'Maximum', time: 'Time', date: 'Date', text: 'Text',
-  opacity: 'Opacity (%)',
+  opacity: 'Opacity (%)', rows: 'Rows', bars: 'Bars', sources: 'Series', weekStart: 'Week start',
 };
 
 const styleLabels = { arc: 'Arc', ring: 'Ring', bar: 'Bar', segments: 'Segments', thermometer: 'Thermometer', number: 'Number' };
@@ -43,6 +44,7 @@ export function ContentField({ label, value, multiline = false, onCommit }: {
 }
 
 export default function ContentEditor({ widget, onCommit }: { widget: Widget; onCommit: (patch: Record<string, unknown>) => void }) {
+  if (widget.type === 'list' || widget.type === 'graph' || widget.type === 'calendar') return <ListGraphCalendarEditor widget={widget} onCommit={onCommit} />;
   const source = widget.type === 'text' || widget.type === 'image' ? 'sample' : widget.settings.source ?? 'sample';
   return <div className="inspector-section"><h4>Content</h4><div className="content-fields">
     {widget.type === 'image' && <><label className="source-field">Image fit<select aria-label="Image fit" value={widget.settings.fit} onChange={(event) => onCommit({ fit: event.target.value })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="stretch">Stretch</option></select></label><p className="panel-note">Image pixels are embedded in the layout. Set opacity from 0 to 100.</p></>}

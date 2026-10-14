@@ -1,0 +1,15 @@
+/* List, graph and calendar cards. Geometry lives in SVG attributes from the
+   shared domain helpers; these rules set paint and the bundled faces that
+   PIL also uses (Studio Roboto and Studio Mono, declared in usage-styles.css).
+   Text sits on its alphabetic baseline, matching PIL anchors ls/ms/rs. */
+.sensor-card { width: 100%; height: 100%; overflow: hidden; }
+.sensor-card svg { display: block; overflow: hidden; font-family: 'Studio Roboto', sans-serif; }
+.sensor-card text { white-space: pre; dominant-baseline: alphabetic; }
+.sensor-card .sensor-kicker { fill: var(--muted); font-size: 15px; }
+.sensor-card .sensor-mono { font-family: 'Studio Mono', monospace; }
+.sensor-card .sensor-unit { font-family: 'Studio Roboto', sans-serif; fill: var(--muted); }
+.sensor-card .sensor-note { fill: var(--muted); }
+.sensor-card .sensor-track { fill: var(--outline); }
+.sensor-card .sensor-rule { stroke: var(--outline); shape-rendering: crispEdges; }
+.sensor-card rect { shape-rendering: crispEdges; }
+.sensor-card .sensor-track, .sensor-card .sensor-bar, .sensor-card .calendar-today { shape-rendering: auto; }

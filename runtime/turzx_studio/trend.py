@@ -3,6 +3,7 @@
 import math
 
 TREND_CAPACITY = 120
+TREND_SOURCES = ('cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature')
 PERCENTAGE_SOURCES = ('sample', 'cpu', 'gpu', 'memory', 'disk')
 
 
@@ -74,6 +75,13 @@ def trend_chart(source, value, width, height):
     return {**box, 'captionY': height - 29, 'showChart': width >= 160 and height >= 216,
             'min': minimum, 'max': maximum, 'segments': segments,
             'count': sum(item is not None for item in history), 'state': trend_state([history], segments)}
+
+
+def gauge_number(value: float) -> str:
+    if abs(value) > 1e14:
+        return str(value)
+    rounded = math.floor(value * 10 + .5) / 10
+    return str(int(rounded)) if rounded.is_integer() else str(rounded)
 
 
 def fixed_number(value, places):
