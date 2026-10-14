@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "name": "New widgets showcase",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "dynamic",
+    "background": "#0a0f0f",
+    "surface": "#131b1b",
+    "surfaceRaised": "#192121",
+    "text": "#dce8e7",
+    "muted": "#a2adad",
+    "primary": "#9bd0d1",
+    "secondary": "#b0cccc",
+    "outline": "#3f4a4a"
+  },
+  "widgets": [
+    {
+      "id": "system-list-1",
+      "type": "list",
+      "x": 64,
+      "y": 64,
+      "width": 368,
+      "height": 328,
+      "settings": {
+        "label": "System",
+        "rows": [
+          {
+            "source": "cpu",
+            "label": "CPU",
+            "value": "29",
+            "unit": "%"
+          },
+          {
+            "source": "gpu",
+            "label": "GPU",
+            "value": "22",
+            "unit": "%"
+          },
+          {
+            "source": "memory",
+            "label": "Memory",
+            "value": "40",
+            "unit": "%"
+          },
+          {
+            "source": "disk",
+            "label": "Disk",
+            "value": "45",
+            "unit": "%"
+          }
+        ],
+        "bars": true
+      }
+    },
+    {
+      "id": "network-graph-2",
+      "type": "graph",
+      "x": 456,
+      "y": 64,
+      "width": 760,
+      "height": 328,
+      "settings": {
+        "label": "Network",
+        "style": "area",
+        "sources": [
+          "network-down",
+          "network-up"
+        ]
+      }
+    },
+    {
+      "id": "calendar-3",
+      "type": "calendar",
+      "x": 64,
+      "y": 416,
+      "width": 368,
+      "height": 320,
+      "settings": {
+        "label": "Calendar",
+        "source": "clock",
+        "weekStart": "monday"
+      }
+    },
+    {
+      "id": "cpu-graph-4",
+      "type": "graph",
+      "x": 456,
+      "y": 416,
+      "width": 368,
+      "height": 320,
+      "settings": {
+        "label": "CPU load",
+        "style": "area",
+        "sources": [
+          "cpu"
+        ]
+      }
+    },
+    {
+      "id": "temperature-graph-5",
+      "type": "graph",
+      "x": 848,
+      "y": 416,
+      "width": 368,
+      "height": 320,
+      "settings": {
+        "label": "Temperatures",
+        "style": "line",
+        "sources": [
+          "cpu-temperature",
+          "gpu-temperature"
+        ]
+      }
+    }
+  ],
+  "paletteMode": "live",
+  "chrome": "none"
+}

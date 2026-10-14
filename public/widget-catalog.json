@@ -2213,6 +2213,233 @@
       "description": "Local working T3 threads, with unavailable activity kept unknown."
     },
     {
+      "id": "system-list",
+      "name": "System list",
+      "type": "list",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "System",
+        "rows": [
+          {
+            "source": "cpu",
+            "label": "CPU",
+            "value": "29",
+            "unit": "%"
+          },
+          {
+            "source": "gpu",
+            "label": "GPU",
+            "value": "22",
+            "unit": "%"
+          },
+          {
+            "source": "memory",
+            "label": "Memory",
+            "value": "40",
+            "unit": "%"
+          },
+          {
+            "source": "disk",
+            "label": "Disk",
+            "value": "45",
+            "unit": "%"
+          }
+        ],
+        "bars": true
+      },
+      "group": "system",
+      "family": "system-list",
+      "variant": "Standard",
+      "description": "CPU, GPU, memory and disk load as rows with usage bars."
+    },
+    {
+      "id": "system-list-tall",
+      "name": "System list with temperatures",
+      "type": "list",
+      "width": 352,
+      "height": 488,
+      "settings": {
+        "label": "Sensors",
+        "rows": [
+          {
+            "source": "cpu",
+            "label": "CPU",
+            "value": "29",
+            "unit": "%"
+          },
+          {
+            "source": "gpu",
+            "label": "GPU",
+            "value": "22",
+            "unit": "%"
+          },
+          {
+            "source": "memory",
+            "label": "Memory",
+            "value": "40",
+            "unit": "%"
+          },
+          {
+            "source": "disk",
+            "label": "Disk",
+            "value": "45",
+            "unit": "%"
+          },
+          {
+            "source": "cpu-temperature",
+            "label": "CPU temp",
+            "value": "44",
+            "unit": "\u00b0C"
+          },
+          {
+            "source": "gpu-temperature",
+            "label": "GPU temp",
+            "value": "57",
+            "unit": "\u00b0C"
+          }
+        ],
+        "bars": true
+      },
+      "group": "system",
+      "family": "system-list",
+      "variant": "Tall",
+      "description": "Six rows: load for CPU, GPU, memory and disk, plus CPU and GPU temperatures."
+    },
+    {
+      "id": "network-list",
+      "name": "Network list",
+      "type": "list",
+      "width": 270,
+      "height": 224,
+      "settings": {
+        "label": "Network",
+        "rows": [
+          {
+            "source": "network-down",
+            "label": "Download",
+            "value": "820",
+            "unit": "KB/s"
+          },
+          {
+            "source": "network-up",
+            "label": "Upload",
+            "value": "116",
+            "unit": "KB/s"
+          }
+        ],
+        "bars": false
+      },
+      "group": "network",
+      "family": "network-list",
+      "variant": "Standard",
+      "description": "Download and upload speeds as two rows."
+    },
+    {
+      "id": "cpu-graph",
+      "name": "CPU history graph",
+      "type": "graph",
+      "width": 352,
+      "height": 304,
+      "settings": {
+        "label": "CPU load",
+        "style": "area",
+        "sources": [
+          "cpu"
+        ]
+      },
+      "group": "system",
+      "family": "cpu-graph",
+      "variant": "Standard",
+      "description": "An area chart of the last 120 CPU load readings, with the current value."
+    },
+    {
+      "id": "network-graph",
+      "name": "Network history graph",
+      "type": "graph",
+      "width": 564,
+      "height": 304,
+      "settings": {
+        "label": "Network",
+        "style": "area",
+        "sources": [
+          "network-down",
+          "network-up"
+        ]
+      },
+      "group": "network",
+      "family": "network-graph",
+      "variant": "Standard",
+      "description": "Download and upload on one scale over the last 120 readings."
+    },
+    {
+      "id": "temperature-graph",
+      "name": "Temperature history graph",
+      "type": "graph",
+      "width": 564,
+      "height": 304,
+      "settings": {
+        "label": "Temperatures",
+        "style": "line",
+        "sources": [
+          "cpu-temperature",
+          "gpu-temperature"
+        ]
+      },
+      "group": "temperature",
+      "family": "temperature-graph",
+      "variant": "Standard",
+      "description": "CPU and GPU temperature lines over the last 120 readings."
+    },
+    {
+      "id": "calendar",
+      "name": "Month calendar",
+      "type": "calendar",
+      "width": 352,
+      "height": 328,
+      "settings": {
+        "label": "Calendar",
+        "source": "clock",
+        "weekStart": "monday"
+      },
+      "group": "clock",
+      "family": "calendar",
+      "variant": "Standard",
+      "description": "This month with today highlighted. Weeks start on Monday."
+    },
+    {
+      "id": "calendar-sunday",
+      "name": "Month calendar, Sunday start",
+      "type": "calendar",
+      "width": 352,
+      "height": 328,
+      "settings": {
+        "label": "Calendar",
+        "source": "clock",
+        "weekStart": "sunday"
+      },
+      "group": "clock",
+      "family": "calendar",
+      "variant": "Sunday start",
+      "description": "This month with today highlighted. Weeks start on Sunday."
+    },
+    {
+      "id": "calendar-large",
+      "name": "Large month calendar",
+      "type": "calendar",
+      "width": 564,
+      "height": 488,
+      "settings": {
+        "label": "",
+        "source": "clock",
+        "weekStart": "monday"
+      },
+      "group": "clock",
+      "family": "calendar",
+      "variant": "Large",
+      "description": "A large month grid with today highlighted."
+    },
+    {
       "id": "game-resources",
       "name": "Game timers",
       "type": "metric",

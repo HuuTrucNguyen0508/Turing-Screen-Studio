@@ -62,8 +62,11 @@ describe('widget editing', () => {
     expect(widgetCatalog.map(({ widget, ...metadata }) => ({ ...metadata, type: widget.type, width: widget.width, height: widget.height, settings: widget.settings, ...(widget.design ? { design: widget.design } : {}) }))).toEqual(catalog.widgets);
     expect(widgetCatalog.every(({ id, widget }) => widget.id === id && widget.x === 0 && widget.y === 0)).toBe(true);
   });
-  it('keeps all 112 choices, ten unique groups and the original IDs', () => {
-    expect(widgetCatalog).toHaveLength(112);
+  it('keeps all 121 choices, ten unique groups and the original IDs', () => {
+    expect(widgetCatalog).toHaveLength(121);
+    expect(widgetCatalog.slice(-10, -1).map(({ id }) => id)).toEqual([
+      'system-list', 'system-list-tall', 'network-list', 'cpu-graph', 'network-graph', 'temperature-graph', 'calendar', 'calendar-sunday', 'calendar-large',
+    ]);
     expect(new Set(widgetCatalog.map(({ id }) => id)).size).toBe(widgetCatalog.length);
     expect(widgetGroups.map(({ id }) => id)).toEqual(['system', 'network', 'temperature', 'gauge', 'clock', 'weather', 'text', 'ai-usage', 'storage', 'games']);
     expect(new Set(widgetGroups.map(({ id }) => id)).size).toBe(widgetGroups.length);

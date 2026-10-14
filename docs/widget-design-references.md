@@ -32,3 +32,15 @@ The widget library had 34 entries. Most of the gauge entries were the same 240°
 - Colors come from the live Caelestia palette. No theme from any gallery was imported.
 - Each style draws with the existing PIL renderer and an SVG preview from one geometry spec. No new dependencies, fonts or sensor collectors.
 - Many gallery panels are made for one fixed resolution. These styles must render at any valid card size, from 1 × 1 up, and may clip but never fail.
+
+## List, graph and calendar cards
+
+Added on 14 October 2026. These cards show data the panel already collects. They follow the AIDA64 and Rainmeter habit of putting several readings in one card. No code, images or theme files from any gallery were used.
+
+| Card | Reference | What we took | What we did differently |
+|---|---|---|---|
+| `list` | AIDA64 sensor panels with a column of labelled readings | One row per sensor, with a bar under each reading. | The value is right-aligned in mono and the unit sits beside it. Temperature bars use the secondary color so heat reads differently from load. Network rows have no bar, because speed has no fixed maximum. |
+| `graph` | turing `LINE_GRAPH`, Grafana time series | A large history chart with the current value. | The first series is a tinted area with a 2 px line and a dot at the latest reading. The second series is dashed and has a hollow swatch and dot, so it stays distinct when the palette's primary and secondary are close. |
+| `calendar` | Desktop calendar widgets | A month grid that starts on Monday or Sunday. | Today is the only filled cell. Weekend days are muted, and the weekday headers use two letters so Tuesday and Thursday differ. |
+
+Both renderers take every position from shared helpers (`src/domain/list.ts`, `graph.ts` and `calendar.ts`, mirrored in `runtime/turzx_studio/*_display.py`) and use the bundled Roboto and JetBrains Mono fonts. Parity tests compare the helper output in both languages.
