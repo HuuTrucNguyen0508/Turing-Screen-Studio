@@ -30,7 +30,7 @@ Open `http://127.0.0.1:4173`. Keep that local server running when using the edit
 
 ## Make a layout
 
-Use Create layout for a designed starting point, open [the sample layout](public/sample-layout.json), or add widgets from the searchable catalog. It includes metric, weather, clock, text, storage and gauge cards, plus AI usage summaries, T3 threads and game timers. Gauge designs include arc, ring, bar, segmented meter, thermometer and number. Browser previews use deterministic samples.
+Use Create layout for a designed starting point, open [the sample layout](public/sample-layout.json), or add widgets from the searchable catalog. It includes metric, weather, clock, text, storage, gauge, list, graph and calendar cards, plus AI usage summaries, T3 threads and game timers. Gauge designs include arc, ring, bar, segmented meter, thermometer and number. Browser previews use deterministic samples.
 
 The editor starts with a large canvas that fills the window. The Widgets, Inspector and Tools toggles above it reveal the panels you need; press one again to hide its panel and regain space. Snapping, zoom and canvas size sit in the same row. The strip below the canvas shows which renderer drew the preview, the scale and any layout notes. Panel choices are remembered in this browser and kept separate from layout JSON. Add widget and Import remain available with the Widgets panel hidden. On phones, opening a side panel brings it into view; its close button returns to the canvas controls.
 
