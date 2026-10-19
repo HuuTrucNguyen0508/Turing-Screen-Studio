@@ -96,6 +96,21 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(value["perModel"][0]["model"], "model-a")
         self.assertEqual(value["latestRecordAt"], usage._iso(NOW))
 
+    def test_rate_model_column_prices_by_rate_model_and_null_keeps_model(self):
+        self.cache({"null": {"p": "codex", "r": [self.row() + [None]], "t": []},
+                    "rated": {"p": "claude", "r": [self.row(model=1) + [0]], "t": []}},
+                   models=["model-a", "alias-model"])
+        self.rates()
+        snapshot = self.collector.snapshot()
+        self.assertAlmostEqual(snapshot["providers"]["codex"]["costUSD"], 1.295)
+        claude = snapshot["providers"]["claude"]
+        self.assertAlmostEqual(claude["costUSD"], 1.295)
+        self.assertEqual(claude["perModel"][0]["model"], "alias-model")
+
+    def test_invalid_rate_model_index_rejects_cache(self):
+        self.cache({"bad": {"p": "codex", "r": [self.row() + [5]], "t": []}})
+        self.assertIsNone(self.provider()["total"])
+
     def test_claude_message_deduplication_including_tail_records(self):
         row = self.row(key="message:request")
         second = self.row(key="message-two:request", tokens=(1, 2, 3, 4, 0))

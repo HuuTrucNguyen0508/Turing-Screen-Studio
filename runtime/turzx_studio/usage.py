@@ -124,9 +124,11 @@ def _read_json(path: Path, max_bytes: int = MAX_JSON_BYTES) -> tuple[dict, float
 def _decode_row(row: object, models: list, sessions: list) -> tuple | None:
     # T3 v5 serializeFile/decodeScanCache in src/usage/usageScanCache.ts.
     # r contains complete-line records; t contains separately parsed tail records.
-    if not isinstance(row, list) or len(row) != 11:
+    # T3 appended an optional 12th rateModel index without bumping the version.
+    if not isinstance(row, list) or len(row) not in (11, 12):
         return None
     stamp, model, session, *rest = row
+    rate_model = rest.pop(8) if len(rest) == 9 else None
     if not _number(stamp) or _iso(stamp / 1000) is None:
         return None
     if type(model) is not int or not 0 <= model < len(models):
@@ -149,7 +151,13 @@ def _decode_row(row: object, models: list, sessions: list) -> tuple | None:
         return None
     if tokens[4] > tokens[3]:
         return None
-    return stamp / 1000, models[model], sessions[session], tuple(tokens), key, cost, speed
+    if rate_model is not None:
+        if type(rate_model) is not int or not 0 <= rate_model < len(models):
+            return None
+        if not isinstance(models[rate_model], str) or not 0 < len(models[rate_model]) <= 128:
+            return None
+    rate_name = models[model] if rate_model is None else models[rate_model]
+    return stamp / 1000, models[model], sessions[session], tuple(tokens), key, cost, speed, rate_name
 
 
 def _token_rates(entry: dict, suffix: str = "", standard: tuple | None = None) -> tuple | None:
@@ -191,10 +199,10 @@ def _rate_table(document: dict) -> dict:
 
 
 def _price(row: tuple, rates: dict) -> tuple[float | None, str]:
-    _, model, _, tokens, _, reported, speed = row
+    _, _, _, tokens, _, reported, speed, rate_model = row
     if reported is not None:
         return reported, "reported"
-    name = model.strip().lower().split("[", 1)[0]
+    name = rate_model.strip().lower().split("[", 1)[0]
     if name.rsplit("/", 1)[-1] in UNPRICEABLE or name not in rates:
         return None, "unavailable"
     rate = rates[name][speed] or rates[name][0]
@@ -393,7 +401,7 @@ class UsageCollector:
                     row = _decode_row(serialized, names, sessions)
                     if row is None:
                         raise ValueError("usage_cache_invalid_row")
-                    stamp, model, session, tokens, key, _, _ = row
+                    stamp, model, session, tokens, key, _, _, _ = row
                     # Codex moved rollouts: preserve identical occurrences within
                     # a file, dedupe the same occurrence across copied files.
                     if provider == "codex" and session:
