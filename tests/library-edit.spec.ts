@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { chooseMenu } from './menus';
 import type { Page } from '@playwright/test';
 import { createSampleLayout } from '../src/domain/layout';
 
@@ -149,7 +150,7 @@ test('a delayed library save cannot attach its target to another opened draft', 
   });
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
   await expect.poll(() => saving).toBe(true);
-  await page.getByRole('button', { name: 'Open panel dashboard', exact: true }).click();
+  await chooseMenu(page, 'Layout', 'Open panel dashboard');
   await page.getByRole('button', { name: 'Open and discard changes', exact: true }).click();
   await expect(page.getByLabel('Layout name')).toHaveValue(createSampleLayout().name);
   release();

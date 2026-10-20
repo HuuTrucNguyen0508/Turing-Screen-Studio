@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
+import { chooseMenu } from './menus';
 import { createSampleLayout } from '../src/domain/layout';
 
 async function connected(page: Page, conflict = false) {
@@ -29,8 +30,8 @@ async function connected(page: Page, conflict = false) {
     return route.fulfill({ json: { games: rows, revision } });
   });
   await page.goto('/');
-  await expect(page.getByText('Panel editor', { exact: true })).toHaveCount(1);
-  await page.getByRole('button', { name: 'Game timers', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
+  await chooseMenu(page, 'Settings', 'Game timers');
   const dialog = page.getByRole('dialog', { name: 'Game timers', exact: true });
   await expect(dialog.getByLabel('Original Resin count')).toBeEnabled();
   return { dialog, requests, writes: () => writes };
@@ -106,7 +107,7 @@ test('a future saved timer explains the problem and can be cleared', async ({ pa
 
 test('offline timer controls explain the shared server and samples remain in the draft', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Game timers', exact: true }).click();
+  await chooseMenu(page, 'Settings', 'Game timers');
   const dialog = page.getByRole('dialog', { name: 'Game timers', exact: true });
   await expect(dialog.getByText("Open Studio's local server to set shared timers. Offline previews show sample counts.")).toBeVisible();
   await expect(dialog.getByLabel('Original Resin count')).toBeDisabled();

@@ -5,12 +5,12 @@ import type { Alignment } from './domain/canvas';
 import type { LayoutDocument, Widget } from './domain/layout';
 import { widgetLabel } from './WidgetContent';
 
-export default function SelectionToolbar({ document, widget, ids, style, docked, busy, toolbarRef, compactResize, onResize, onChange, onDuplicate, onDelete, onDetails }: {
+export default function SelectionToolbar({ document, widget, ids, style, docked, busy, toolbarRef, compactResize, onResize, onChange, onDuplicate, onDelete, onCopy, onDetails }: {
   document: LayoutDocument; widget: Widget; ids: readonly string[]; style: CSSProperties; busy: boolean;
   toolbarRef: Ref<HTMLDivElement>;
   compactResize: boolean; onResize: () => void;
   docked: boolean;
-  onChange: (document: LayoutDocument) => void; onDuplicate: () => void; onDelete: () => void; onDetails: () => void;
+  onChange: (document: LayoutDocument) => void; onDuplicate: () => void; onDelete: () => void; onCopy: (cut: boolean) => void; onDetails: () => void;
 }) {
   const align = useRef<HTMLDetailsElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -39,6 +39,8 @@ export default function SelectionToolbar({ document, widget, ids, style, docked,
   return <div ref={toolbarRef} className={`selection-toolbar${docked ? ' docked' : ''}`} data-selection-toolbar data-busy={busy} role="group" aria-label="Selection actions" style={style}
     onPointerDown={(event) => event.stopPropagation()}>
     <span className="selection-toolbar-name" title={widgetLabel(widget)}>{ids.length > 1 ? `${ids.length} cards` : widgetLabel(widget)}</span>
+    <button disabled={busy} aria-label={ids.length > 1 ? 'Copy selected widgets' : 'Copy selected widget'} aria-keyshortcuts="Control+C Meta+C" title="Copy to the clipboard (Ctrl+C)" onClick={() => onCopy(false)}>Copy</button>
+    <button disabled={busy} aria-label={ids.length > 1 ? 'Cut selected widgets' : 'Cut selected widget'} aria-keyshortcuts="Control+X Meta+X" title="Cut to the clipboard (Ctrl+X)" onClick={() => onCopy(true)}>Cut</button>
     {ids.length === 1 && <>
       {compactResize && <button disabled={busy} onClick={onResize}>Resize</button>}
       <button disabled={busy} aria-label="Duplicate selected widget" onClick={onDuplicate}>Duplicate</button>
@@ -54,6 +56,6 @@ export default function SelectionToolbar({ document, widget, ids, style, docked,
         }}>{mode}</button>)}
       </div>
     </details>}
-    <button disabled={busy} aria-label="Edit selection details" onClick={onDetails}>Edit details</button>
+    <button disabled={busy} aria-label="Edit selection details" onClick={onDetails}>Details</button>
   </div>;
 }

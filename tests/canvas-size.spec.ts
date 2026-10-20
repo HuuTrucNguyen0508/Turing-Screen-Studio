@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
+import { exportJson } from './menus';
 import { createSampleLayout } from '../src/domain/layout';
 
 async function exported(page: Page) {
   const pending = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export JSON', exact: true }).click();
+  await exportJson(page);
   return JSON.parse(await readFile((await (await pending).path())!, 'utf8'));
 }
 

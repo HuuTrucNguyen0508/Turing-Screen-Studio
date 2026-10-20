@@ -162,9 +162,9 @@ export function CardContent({ widget }: { widget: Widget }) {
   </div>;
 }
 
-export function StaticLayout({ document, maxHeight }: { document: LayoutDocument; maxHeight?: number }) {
-  const scale = Math.min(240 / document.canvas.width, (maxHeight ?? Infinity) / document.canvas.height);
-  return <div className="preset-thumbnail" aria-hidden="true" style={maxHeight ? { width: document.canvas.width * scale, height: document.canvas.height * scale } : undefined}><div className="static-document" style={{ ...paletteStyle(document.palette), color: 'var(--text)', width: document.canvas.width, height: document.canvas.height, transform: `scale(${scale})` }}>
+export function StaticLayout({ document, maxHeight, maxWidth }: { document: LayoutDocument; maxHeight?: number; maxWidth?: number }) {
+  const scale = Math.min((maxWidth ?? 240) / document.canvas.width, (maxHeight ?? Infinity) / document.canvas.height);
+  return <div className="preset-thumbnail" aria-hidden="true" style={maxHeight || maxWidth ? { width: document.canvas.width * scale, height: document.canvas.height * scale } : undefined}><div className="static-document" style={{ ...paletteStyle(document.palette), color: 'var(--text)', width: document.canvas.width, height: document.canvas.height, transform: `scale(${scale})` }}>
     {document.chrome !== 'none' && <div className="dashboard-header"><div><span className="card-kicker">TURZX / desktop</span><strong>{dashboardHeading(document)}</strong></div>{!document.widgets.some((widget) => widget.type === 'clock') && <div className="dashboard-time">10:24<span>Sunday, 4 October</span></div>}</div>}
     {document.widgets.map((widget) => <div key={widget.id} className={`dashboard-card${widget.type === 'image' ? ' image-card' : ''}`} style={{ ...widgetColorStyle(widget), color: 'var(--text)', left: widget.x, top: widget.y, width: widget.width, height: widget.height }}><CardContent widget={widget} /></div>)}
     {document.chrome !== 'none' && <div className="dashboard-footer"><span>Deterministic preview</span><span>{document.canvas.width} / {document.canvas.height}</span></div>}

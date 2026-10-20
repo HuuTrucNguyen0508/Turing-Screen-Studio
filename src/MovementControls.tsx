@@ -19,6 +19,5 @@ export default function MovementControls({ widget, count, element, onTarget, onN
     <div className="movement-nudges" role="group" aria-label="Nudge selection">
       {([['left', '←', -1, 0], ['up', '↑', 0, -1], ['down', '↓', 0, 1], ['right', '→', 1, 0]] as const).map(([direction, glyph, dx, dy]) => <button key={direction} data-nudge-button disabled={!widget || busy} aria-label={`Nudge ${direction}`} title={`Move ${direction} 1 px, Shift for 10 px`} onClick={(event) => onNudge(dx * (event.shiftKey ? 10 : 1), dy * (event.shiftKey ? 10 : 1))}>{glyph}</button>)}
     </div>
-    <p className="movement-help">Arrows 1 px. Shift 10 px.{elements.length > 0 && ' Enter selects an element. Esc returns to card.'} Space-drag pans.</p>
   </div>;
 }

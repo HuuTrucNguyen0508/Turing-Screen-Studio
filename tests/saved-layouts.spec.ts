@@ -112,9 +112,11 @@ test('switching preserves edits made before and during the request and blocks co
   await page.keyboard.press('Control+F11');
   await expect.poll(() => state.switches.length).toBe(1);
   await expect(page.getByRole('button', { name: 'Save to panel', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Open panel dashboard', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Layout', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Open panel dashboard', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Control+F12');
-  await page.keyboard.press('ArrowRight');
+  await card.focus(); await page.keyboard.press('ArrowRight');
   await expect(page.getByLabel('X position')).toHaveValue('66');
   release();
   await expect(page.getByRole('button', { name: 'Save to panel', exact: true })).toBeEnabled();

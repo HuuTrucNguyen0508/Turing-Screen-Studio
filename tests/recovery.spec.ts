@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { chooseMenu } from './menus';
 import type { Page } from '@playwright/test';
 import { createSampleLayout } from '../src/domain/layout';
 
@@ -217,7 +218,7 @@ test('restoring another draft preserves the current unfinished draft as a separa
   const other = await context.newPage(); await other.goto('/');
   await other.getByRole('group', { name: 'CPU load card' }).focus(); await other.keyboard.press('Shift+ArrowRight');
   await expect(other.getByText('Draft backed up', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Recover drafts', exact: true }).click();
+  await chooseMenu(page, 'Layout', 'Recover drafts');
   await page.getByRole('dialog', { name: 'Recover a draft' }).getByRole('button', { name: 'Restore draft', exact: true }).click();
   await expect(page.getByLabel('X position')).toHaveValue('74');
   await expect.poll(() => page.evaluate(() => Object.keys(localStorage)
@@ -244,7 +245,7 @@ test('owner polling does not reopen recovery and restoring rereads the latest st
   await expect(page.getByText('Draft backed up', { exact: true })).toBeVisible();
   const other = await context.newPage(); await other.goto('/');
   await expect(other.getByRole('dialog', { name: 'Recover a draft' })).not.toBeVisible();
-  await other.getByRole('button', { name: 'Recover drafts', exact: true }).click();
+  await chooseMenu(other, 'Layout', 'Recover drafts');
   await card.focus(); await page.keyboard.press('Shift+ArrowRight');
   await expect(page.getByText('Draft backed up', { exact: true })).toBeVisible();
   await other.getByRole('dialog', { name: 'Recover a draft' }).getByRole('button', { name: 'Restore draft', exact: true }).click();

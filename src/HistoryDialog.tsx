@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 import { parseLayout, serializeLayout } from './domain/layout';
 import type { LayoutDocument } from './domain/layout';
 import { groupArchives, parseArchives, parseLibrary } from './domain/library';
@@ -57,8 +58,10 @@ function HistoryRow({ group, thumbnail, matchesPanel, libraryNames, working, loa
   </li>;
 }
 
-export default function HistoryDialog({ available, onOpen }: {
+export default function HistoryDialog({ available, onOpen, openRef }: {
   available: boolean; onOpen: (document: LayoutDocument, target: ArchiveTarget) => void;
+  /** The Layout menu opens History; this component owns only the dialog. */
+  openRef: MutableRefObject<(() => void) | null>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [groups, setGroups] = useState<ArchiveGroup[] | null>(null);
@@ -188,8 +191,8 @@ export default function HistoryDialog({ available, onOpen }: {
     finally { actionPending.current = false; setWorking(false); }
   }
 
+  openRef.current = available ? () => void show() : null;
   return <>
-    {available && <button onClick={() => void show()}>History</button>}
     <dialog ref={dialog} className="catalog-dialog history-dialog" aria-labelledby="history-title">
       <div className="panel-heading"><h2 id="history-title">History</h2><button aria-label="Close History" onClick={() => dialog.current?.close()}>×</button></div>
       <p className="history-lede">Previous panel dashboards and library entries. Open a copy as a draft to edit it. The panel changes when you choose Save to panel.</p>

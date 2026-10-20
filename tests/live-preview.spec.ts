@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { exportJson } from './menus';
 import type { Page } from '@playwright/test';
 import { createSampleLayout } from '../src/domain/layout';
 import { readFile } from 'node:fs/promises';
@@ -17,7 +18,7 @@ test('trend templates show explicit demo charts and export independent source se
   await page.getByLabel('Panel data source', { exact: true }).selectOption('network-down');
   await expect(trend.getByRole('img')).toHaveAttribute('aria-label', /KB\/s/);
   const pending = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export JSON', exact: true }).click();
+  await exportJson(page);
   const downloaded = await pending;
   const saved = JSON.parse(await readFile((await downloaded.path())!, 'utf8'));
   expect(saved.widgets.find((widget: { id: string }) => widget.id === 'cpu-trend').settings).toMatchObject({ source: 'network-down', trend: true });

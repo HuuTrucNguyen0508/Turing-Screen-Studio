@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { exportJson } from './menus';
 import type { Page } from '@playwright/test';
 import { createSampleLayout } from '../src/domain/layout';
 
@@ -123,6 +124,9 @@ test('alignment, explicit distribution and paint layers use the whole selection'
 test('zoom uses document pixels for pointer movement and keyboard group nudges', async ({ page }) => {
   await page.getByRole('checkbox', { name: 'Snapping', exact: true }).uncheck();
   await row(page, 'gpu').click({ modifiers: ['Shift'] });
+  // Fold both panels so the zoomed cards stay inside the viewport.
+  await page.getByRole('button', { name: 'Hide Layers', exact: true }).click();
+  await page.getByRole('button', { name: 'Hide Inspector', exact: true }).click();
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await expect(page.getByLabel('Canvas zoom')).toHaveText('125%');
   await drag(page, 'cpu', 1, 0);
@@ -281,7 +285,7 @@ test('stationary resize and returning to the original size preserve the redo bra
 test('overlap and small-card notes are bounded and still allow JSON export', async ({ page }) => {
   await row(page, 'gpu').click({ modifiers: ['Shift'] });
   await page.getByRole('button', { name: 'Align left', exact: true }).click();
-  await page.getByText('1 layout notes', { exact: true }).click();
+  await page.getByText('1 layout note', { exact: true }).click();
   await expect(page.locator('.canvas-warnings')).toContainText('overlap');
   await row(page, 'cpu').click();
   const width = page.getByRole('textbox', { name: 'Width', exact: true });
@@ -289,7 +293,7 @@ test('overlap and small-card notes are bounded and still allow JSON export', asy
   await expect(page.locator('.canvas-warnings')).toContainText('too small');
   expect(await page.locator('.canvas-warnings li').count()).toBeLessThanOrEqual(8);
   const pending = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export JSON', exact: true }).click();
+  await exportJson(page);
   const download = await pending;
   const document = JSON.parse(await readFile((await download.path())!, 'utf8'));
   expect(document.widgets.find((widget: { id: string }) => widget.id === 'cpu').width).toBe(80);
@@ -330,7 +334,7 @@ test('layout notes keep Save to panel available with a fully intercepted API', a
   await expect(page.getByRole('button', { name: 'Save to panel', exact: true })).toBeEnabled();
   await row(page, 'gpu').click({ modifiers: ['Shift'] });
   await page.getByRole('button', { name: 'Align left', exact: true }).click();
-  await expect(page.locator('.canvas-warnings summary')).toHaveText('1 layout notes');
+  await expect(page.locator('.canvas-warnings summary')).toHaveText('1 layout note');
   await page.getByRole('button', { name: 'Save to panel', exact: true }).click();
   await expect.poll(() => writes).toBe(1);
   expect(saved.widgets.find((widget) => widget.id === 'gpu')!.x).toBe(64);

@@ -267,7 +267,7 @@ Deterministic sample (fixed `now`): Genshin 137, set 2 h ago → "Full in 8h 24m
 
 ## Editor: Game timers dialog
 
-Entry point: a **Game timers** button in the main toolbar beside History and Library. It also opens from the game card's inspector ("Set game timers…"). Use the existing `HistoryDialog` modal pattern: native `<dialog>`, focus trap, Escape closes, focus returns to the opener.
+Entry point: **Game timers** in the header's Settings menu. It also opens from the game card's inspector ("Set game timers…"). Use the existing `HistoryDialog` modal pattern: native `<dialog>`, focus trap, Escape closes, focus returns to the opener.
 
 ```
 ┌ Game timers ─────────────────────────────────── ✕ ┐

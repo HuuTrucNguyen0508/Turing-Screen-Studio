@@ -50,7 +50,7 @@ export default function CanvasTools({ document, selectedIds, selectedId, busy, o
       {(['horizontal', 'vertical'] as DistributionAxis[]).map((axis) => <span key={axis} className="tool-pair"><button disabled={count < 3} aria-label={`Distribute ${axis} evenly`} title={`Even ${axis} gaps`} onClick={() => run(() => distributeSelection(document, selectedIds, axis))}>{axis === 'horizontal' ? 'H' : 'V'} even</button><button aria-label={`Distribute ${axis} 24 px`} title={`24 px ${axis} gaps`} onClick={() => run(() => distributeSelection(document, selectedIds, axis, 24))}>24 px</button></span>)}
     </div></fieldset>
     <fieldset disabled={busy || !count}><legend>Layer</legend><div>
-      {(['back', 'backward', 'forward', 'front'] as LayerDirection[]).map((mode) => <button key={mode} aria-label={`Send ${mode}`} title={`Send selection ${mode}`} onClick={() => run(() => reorderSelection(document, selectedIds, mode))}>{mode}</button>)}
+      {(['back', 'backward', 'forward', 'front'] as LayerDirection[]).map((mode) => <button key={mode} aria-label={`Send ${mode}`} title={`Send selection ${mode}`} onClick={() => run(() => reorderSelection(document, selectedIds, mode))}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}
     </div></fieldset>
     {count > 1 && reference && <p className="size-reference">Size reference: <strong>{widgetLabel(reference)}</strong> <span className="mono">{reference.width} × {reference.height} px</span><span>Choose a selected card to change the reference.</span></p>}
     {error && <p className="canvas-tool-error" role="status">{error}</p>}

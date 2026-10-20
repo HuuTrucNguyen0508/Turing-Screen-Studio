@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { exportJson } from './menus';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createSampleLayout, validateLayout } from '../src/domain/layout';
@@ -6,7 +7,7 @@ import { createSampleLayout, validateLayout } from '../src/domain/layout';
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAJUlEQVR4nGP8ZSPXwEABYKJE86gBEMDEQCFgGjWAYTQMGCgPAwCu7QH0ZVvN7AAAAABJRU5ErkJggg==', 'base64');
 async function exported(page: Page) {
   const request = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export JSON', exact: true }).click();
+  await exportJson(page);
   return validateLayout(JSON.parse(await readFile((await (await request).path())!, 'utf8')));
 }
 async function addClock(page: Page) {

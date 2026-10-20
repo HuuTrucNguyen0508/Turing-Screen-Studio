@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { exportJson } from './menus';
 import type { Page } from '@playwright/test';
 import { createSampleLayout, validateLayout } from '../src/domain/layout';
 import type { LayoutDocument } from '../src/domain/layout';
@@ -14,7 +15,7 @@ function fixture(): LayoutDocument {
 }
 async function exported(page: Page) {
   const request = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export JSON', exact: true }).click();
+  await exportJson(page);
   return validateLayout(JSON.parse(await readFile((await (await request).path())!, 'utf8')));
 }
 async function geometry(page: Page, id = 'clock') {
@@ -152,7 +153,6 @@ test('phone selection actions dock outside canvas with touch targets and accessi
   for (const handle of await card(page).locator('[data-resize-handle]').all()) expect((await handle.boundingBox())!.width).toBeGreaterThanOrEqual(43.9);
   await toolbar.getByRole('button', { name: 'Edit selection details' }).click();
   await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeFocused();
-  await page.getByRole('button', { name: 'Close Inspector' }).click();
   await page.getByRole('group', { name: 'Arrows move' }).getByRole('button', { name: 'Time', exact: true }).click();
   await page.getByRole('button', { name: 'Nudge right' }).click();
   expect((await exported(page)).widgets[0].design?.elements?.time?.dx).toBe(1);

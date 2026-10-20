@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { chooseMenu } from './menus';
 import { createSampleLayout } from '../src/domain/layout';
 
 test('drag, save, and wait for the exact panel revision without losing newer edits', async ({ page }) => {
@@ -29,7 +30,9 @@ test('drag, save, and wait for the exact panel revision without losing newer edi
   await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width / 2 + 20, bounds.y + bounds.height / 2); await page.mouse.up();
   await page.getByRole('button', { name: 'Save to panel' }).click();
   await expect.poll(() => saved.widgets[0].x).toBeGreaterThan(layout.widgets[0].x);
-  await expect(page.getByRole('button', { name: 'Open panel dashboard' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Layout', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Open panel dashboard', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
   await card.focus(); await page.keyboard.press('ArrowRight');
   releaseSave!();
   await expect(page.getByTestId('document-status')).toHaveText('Unsaved changes');
@@ -62,7 +65,7 @@ test('editing before the initial saved layout loads preserves the draft for deli
   await expect(page.getByRole('button', { name: 'Save to panel' })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Review panel changes', exact: true })).toBeVisible();
   expect(posted).toBe(false);
-  await page.getByRole('button', { name: 'Open panel dashboard' }).click();
+  await chooseMenu(page, 'Layout', 'Open panel dashboard');
   await page.getByRole('button', { name: 'Open and discard changes' }).click();
   await expect(page.getByLabel('X position')).toHaveValue('100');
   await expect(page.getByRole('button', { name: 'Save to panel' })).toBeEnabled();
@@ -82,7 +85,7 @@ test('opening the saved layout prevents a concurrent save', async ({ page }) => 
   await page.goto('/');
   const save = page.getByRole('button', { name: 'Save to panel' });
   await expect(save).toBeEnabled();
-  await page.getByRole('button', { name: 'Open panel dashboard' }).click();
+  await chooseMenu(page, 'Layout', 'Open panel dashboard');
   await expect.poll(() => gets).toBe(2);
   await expect(save).toBeDisabled();
   releaseOpen!();
@@ -119,13 +122,13 @@ test('conflicts stay protected until the saved layout is actually opened', async
   await save.click();
   await expect(page.getByRole('alert')).toContainText('changed elsewhere');
   await expect(page.getByLabel('X position')).toHaveValue('65');
-  await page.getByRole('button', { name: 'Open panel dashboard' }).click();
+  await chooseMenu(page, 'Layout', 'Open panel dashboard');
   await page.getByRole('button', { name: 'Keep editing' }).click();
   await save.click();
   await expect.poll(() => attempts.length).toBe(2);
   expect(attempts).toEqual(['first', 'first']);
   expect(saved.widgets[0].x).toBe(100);
-  await page.getByRole('button', { name: 'Open panel dashboard' }).click();
+  await chooseMenu(page, 'Layout', 'Open panel dashboard');
   await page.getByRole('button', { name: 'Open and discard changes' }).click();
   await expect(page.getByLabel('X position')).toHaveValue('100');
   await save.click();
@@ -210,7 +213,7 @@ test('creating a preset changes only the draft and keeps the explicit panel save
   await page.route('**/layout-presets.json', (route) => route.fulfill({ json: { presets: [{ id: 'new', name: 'New preset', description: 'Empty.', document: preset }] } }));
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Save to panel' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Create layout', exact: true }).click();
+  await chooseMenu(page, 'Layout', 'Create layout');
   await page.getByRole('button', { name: 'Create New preset', exact: true }).click();
   await expect(page.locator('[data-widget-id]')).toHaveCount(0);
   await expect(page.getByTestId('document-status')).toHaveText('Unsaved changes');

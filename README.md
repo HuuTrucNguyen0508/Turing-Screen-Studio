@@ -32,25 +32,37 @@ Open `http://127.0.0.1:4173`. Keep that local server running when using the edit
 
 Use Create layout for a designed starting point, open [the sample layout](public/sample-layout.json), or add widgets from the searchable catalog. It includes metric, weather, clock, text, storage and gauge cards, plus AI usage summaries, T3 threads and game timers. Gauge designs include arc, ring, bar, segmented meter, thermometer and number. Browser previews use deterministic samples.
 
-The editor starts with a large canvas. Use Show Widgets, Show Inspector or Show tools above it to reveal the panels you need, then hide them to regain space. Panel choices are remembered in this browser and kept separate from layout JSON. Add widget and Import remain available with the Widgets panel hidden. On phones, opening a side panel brings it into view; its close button returns to the canvas controls.
+The header holds the layout name, Library, Undo and Redo, the panel status and one primary action: Save to panel when the Studio API is connected, or Export JSON offline. Less frequent actions sit in two menus. Layout has Create layout, Open layout, Export JSON, Open panel dashboard, View panel frame, History and Recover drafts. Settings has Colors and Game timers.
+
+Layers sit to the left of the canvas and the Inspector to the right. Use the arrow in either heading to fold it into a narrow strip, and the strip to bring it back. These choices are remembered in this browser and kept separate from layout JSON. Add widget, Import and Clipboard stay above the canvas. Snapping, Sample or Live preview data, Data sources, layout notes, zoom and the **?** shortcut list sit below it. On phones the Inspector and Layers follow the canvas.
 
 Select a card and drag to move it, or drag any edge or corner handle to resize. The opposite edge stays fixed, and a readout shows dimensions during the drag. Focus a handle to resize its edge with arrow keys. Arrow keys nudge one document pixel; Shift moves ten. Numeric fields commit on Enter or when you leave the field. Invalid values leave the document unchanged. Escape cancels an unfinished drag or field edit.
 
 Double-click a clock label, time or date to select it directly. Its outline shows the exact target; drag it or use arrow keys to adjust its offsets without moving the card. These hit targets also work over the panel renderer preview. Hidden text cannot be selected.
 
-A toolbar beside the selection offers Duplicate, Delete and Edit details. Select several cards to reveal alignment actions. Edit details opens the Inspector. On phones the toolbar sits below the canvas, with larger touch targets. When a card is too small on screen for eight distinct handles, Resize opens precise edge controls and the canvas keeps a single corner handle.
+A toolbar beside the selection offers Copy, Cut, Duplicate, Delete and Details. Select several cards to reveal alignment actions. Details opens and focuses the Inspector. On phones the toolbar sits below the canvas, with larger touch targets. When a card is too small on screen for eight distinct handles, Resize opens precise edge controls and the canvas keeps a single corner handle.
 
-Choose what **Arrows move** below the canvas. Clocks support Label, Time and Date targets; Enter on a clock selects Time, and Escape returns to Card. Element nudges change offsets without moving the card. Hidden elements must be shown in Design first. The arrow buttons also work by touch, and geometry fields accept Up/Down for one pixel or Shift for ten. Layer rows support arrow nudges too. Alignment and size tools appear when several cards are selected.
+Choose what **Arrows move** in the Inspector, under Position and size. Clocks support Label, Time and Date targets; Enter on a clock selects Time, and Escape returns to Card. Element nudges change offsets without moving the card. Hidden elements must be shown in Design first. The arrow buttons also work by touch, and geometry fields accept Up/Down for one pixel or Shift for ten. Layer rows support arrow nudges too. The Inspector's Arrange section changes layer order, and adds alignment, size and distribution tools when several cards are selected.
 
 Shift-click to select several cards. Ctrl+A selects all outside text fields. Move groups, align or distribute cards, change their layers, or match the selected reference card's width, height or size. Matching leaves the selection unchanged if it would put any card outside the canvas.
 
 Snapping helps align edges, centers and 24-pixel gutters. Numeric fields and keyboard nudges remain precise. Zoom, pan and Fit change the view without changing saved geometry. Use Canvas size for a preset or custom dimensions, then choose Fit cards, Keep positions or Clear and resize. See [how resizing works](docs/screen-sizes.md#resize-an-existing-layout).
 
-Undo and Redo cover committed edits, including canvas resizing. Use Ctrl+Z and Ctrl+Shift+Z or Ctrl+Y outside text fields. A completed drag counts as one edit. Opening a layout starts a new history of up to 100 edits.
+Undo and Redo cover committed edits, including canvas resizing and pasting. Use Ctrl+Z and Ctrl+Shift+Z or Ctrl+Y outside text fields. A completed drag counts as one edit. Opening a layout starts a new history of up to 100 edits. The **?** button below the canvas lists every shortcut.
+
+## Move widgets between layouts
+
+Select one or more cards and choose Copy or Cut, or press Ctrl+C or Ctrl+X outside text fields. Open another layout, for example with Library and Edit as draft, then press Ctrl+V or choose Paste in Clipboard above the canvas. On a Mac, use Cmd.
+
+The clipboard keeps the last 12 copies in this browser, so it survives reloads, other tabs and switching layouts. Each entry shows a preview, its type, the layout it came from and when it was copied. Ctrl+V pastes the newest entry; Clipboard can paste any entry or remove it.
+
+A pasted card keeps its ID when the layout does not already use it, otherwise it gets the next free one, such as `cpu-2`. It returns to its copied position when that space is free. Otherwise it takes the nearest free space, or sits 24 pixels from the copied position on a full canvas. Cards larger than the canvas are scaled down to fit, and positions stay whole pixels. A paste is one undo step. Cut removes the cards in one undo step too.
+
+The clipboard is for moving cards around. To keep a card for good, use Save as custom widget, from the Inspector or a clipboard entry; it then appears under Custom widgets in Add widget.
 
 Open Design in the inspector to adjust clock text alignment, offsets, font sizes, palette colors and visibility. Save as custom widget keeps a reusable copy. Add widget lists these under Custom widgets; Manage custom widgets supports rename, replacement, removal and import/export. Offline copies are saved in this browser.
 
-Use **Import…** in Widgets or drop files on the canvas. Review Studio layout cards, widget packs, single widget JSON or pasted JSON before adding selected copies. Adding is one undo step and keeps the current palette. Save custom widgets keeps reusable copies; Open as layout retains the source geometry and uses the existing unsaved-changes prompt.
+Use **Import…** above the canvas or drop files on the canvas. Review Studio layout cards, widget packs, single widget JSON or pasted JSON before adding selected copies. Adding is one undo step and keeps the current palette. Save custom widgets keeps reusable copies; Open as layout retains the source geometry and uses the existing unsaved-changes prompt.
 
 PNG, JPEG and WebP images import as embedded PNG widgets. Choose Fill canvas behind widgets for a background. Image fit and opacity remain editable, and image pixels survive JSON export, draft recovery and PIL rendering. Source images must be under 4 MB, at most 4096 pixels per side and 16 million pixels. Each embedded PNG URI is limited to 512 KiB; the complete layout must fit 1 MiB. Custom widget packs still have a 256 KiB limit. Resize or compress large images before importing.
 
@@ -58,9 +70,9 @@ Select a Turing Smart Screen Python `theme.yaml` and its images together to conv
 
 Export JSON saves your draft at its chosen canvas size. Open layout reopens it with the same geometry and settings. Invalid imports preserve your draft. Export keeps the unsaved warning until you reopen the file because the browser cannot tell whether you cancelled the download.
 
-Draft recovery backs up committed edits in this browser. Reloading offers Restore draft, Export backup and Discard draft; Recover drafts opens that list later. Each tab has its own backup. Uncommitted text and unfinished drags are not backed up. Keep a separate JSON export for layouts you want to retain.
+Draft recovery backs up committed edits in this browser. Reloading offers Restore draft, Export backup and Discard draft; Recover drafts in the Layout menu opens that list later. Each tab has its own backup. Uncommitted text and unfinished drags are not backed up. Keep a separate JSON export for layouts you want to retain.
 
-Open Colors in the header to customize Studio and dashboard colors with pickers, exact hex values or presets. Studio appearance is remembered in this browser. Dashboard colors are saved in layout JSON and support Undo. Desktop color sync is optional; editing a dashboard color captures the displayed palette and switches to saved colors.
+Choose Colors in the Settings menu, or Dashboard colors under Layers, to customize Studio and dashboard colors with pickers, exact hex values or presets. Studio appearance is remembered in this browser. Dashboard colors are saved in layout JSON and support Undo. Desktop color sync is optional; editing a dashboard color captures the displayed palette and switches to saved colors.
 
 Open Colors in the Inspector to override a widget's backgrounds, text, chart accents and border. Reset a color to follow the dashboard again, or reset all widget colors. Clock elements also accept exact colors in Design. Overrides survive exports and custom widget copies. Embedded image pixels retain their original colors.
 
@@ -88,7 +100,7 @@ TURZX_PYTHON=/absolute/path/to/python pnpm studio
 
 The API keeps local state under `~/.local/share/turzx-studio/`. Its active panel layout and saved dashboard library accept only 1280 × 800. Custom sizes remain editor drafts for export and preview.
 
-Connected features include live preview, Data sources, Library, History and custom widget storage. Live preview uses the existing runtime's readings and falls back to samples when fresh data is unavailable. Library edits and panel saves use separate revision checks. A conflict keeps your draft and offers a comparison. Every changed panel save, library replacement or removal archives the previous document under `older-config/`. History can reopen an archive as a draft or download its JSON.
+Connected features include live preview, Data sources, Library, History in the Layout menu and custom widget storage. Live preview uses the existing runtime's readings and falls back to samples when fresh data is unavailable. Library edits and panel saves use separate revision checks. A conflict keeps your draft and offers a comparison. Every changed panel save, library replacement or removal archives the previous document under `older-config/`. History can reopen an archive as a draft or download its JSON.
 
 Saved layouts supports up to 12 dashboards. Previous and Next reach the full list; Ctrl+F9 through Ctrl+F12 select the first four when the legacy desktop shortcuts are installed. Reordering changes those assignments. Saving the library alone does not switch the panel, and switching leaves an unsaved editor draft intact.
 

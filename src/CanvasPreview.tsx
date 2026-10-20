@@ -4,12 +4,11 @@ import { fitCanvas, pointerDeltaToDocument } from './domain/layout';
 import type { LayoutDocument, Palette, Widget } from './domain/layout';
 import { canvasWarnings, moveSelection, resizeFromHandle, snapSelection } from './domain/canvas';
 import type { CanvasGuide, ResizeHandle } from './domain/canvas';
-import CanvasTools from './CanvasTools';
 import DesignMarker from './DesignMarker';
 import { CardContent, widgetLabel } from './WidgetContent';
 import { dashboardHeading } from './domain/usage';
 import { nudgeWidgetElement, resolveElements } from './domain/design';
-import MovementControls from './MovementControls';
+import ShortcutsHelp from './ShortcutsHelp';
 import ElementTargets from './ElementTargets';
 import SelectionToolbar from './SelectionToolbar';
 import CompactResize from './CompactResize';
@@ -30,18 +29,18 @@ type Props = {
   onGestureEnd: (cancel: boolean) => void;
   onResizeCanvas?: () => void;
   previewControls?: ReactNode;
-  panelControls?: ReactNode;
-  toolsVisible: boolean;
+  /** Adding, importing and the clipboard, shown above the canvas. */
+  stageControls?: ReactNode;
+  panelShortcuts: boolean;
   previewNotice?: string;
   onPreviewRetry?: () => void;
   designElement?: string | null;
   activeElement?: string | null;
-  onMoveTarget: (element: string | null) => void;
-  onNudge: (dx: number, dy: number) => void;
   onCardDrag: () => void;
   onSelectElement: (id: string, element: string) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onCopy: (cut: boolean) => void;
   onDetails: () => void;
   onImportWidgets: (files: File[]) => void;
   bitmap?: string | null;
@@ -82,7 +81,7 @@ function initialSnapping() {
   catch { return true; }
 }
 
-export default function CanvasPreview({ document, palette, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, panelControls, toolsVisible, previewNotice, onPreviewRetry, designElement, activeElement, onMoveTarget, onNudge, onCardDrag, onSelectElement, onDuplicate, onDelete, onDetails, onImportWidgets }: Props) {
+export default function CanvasPreview({ document, palette, selectedId, selectedIds, onSelect, onChange, getDocument, getSelection, onGestureStart, onGestureEnd, bitmap, onResizeCanvas, previewControls, stageControls, panelShortcuts, previewNotice, onPreviewRetry, designElement, activeElement, onCardDrag, onSelectElement, onDuplicate, onDelete, onCopy, onDetails, onImportWidgets }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [toolbarSize, setToolbarSize] = useState({ width: 320, height: 46 });
@@ -283,18 +282,8 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
   const compactResize = handleCenters.some((center, index) => handleCenters.slice(index + 1).some((other) =>
     Math.abs(center.x - other.x) < hitSize + 4 && Math.abs(center.y - other.y) < hitSize + 4));
   return <section className="preview-panel" aria-label="Layout preview">
-    <div className="panel-heading"><div><span className="eyebrow">{document.canvas.width === document.canvas.height ? 'Square canvas' : document.canvas.width > document.canvas.height ? 'Landscape canvas' : 'Portrait canvas'}</span><h2>Canvas</h2></div><div className="canvas-heading-actions">{panelControls}<button className="mono" disabled={gesturing} onClick={onResizeCanvas} aria-label="Change canvas size">{document.canvas.width} × {document.canvas.height} px · Change</button></div></div>
-    <div id="canvas-extra-tools" className="canvas-extra-tools" hidden={!toolsVisible}>{previewControls}
-      <CanvasTools document={document} selectedIds={selectedIds} selectedId={selectedId} busy={gesturing} onChange={onChange} />
-    </div>
-    <div className="canvas-view-tools" aria-label="Canvas view">
-      <label><input type="checkbox" aria-label="Snapping" checked={snapping} onChange={(event) => {
-        finish(true); setSnapping(event.target.checked);
-        try { localStorage.setItem(SNAP_PREFERENCE, event.target.checked ? 'on' : 'off'); } catch { /* The current tab still keeps the choice. */ }
-      }} />Snapping <span>Move & resize · 24 px gutters</span></label>
-      <div><button aria-label="Zoom out" disabled={zoom <= .25} onClick={() => view(zoom / 1.25)}>−</button><span aria-label="Canvas zoom">{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" disabled={zoom >= 4} onClick={() => view(zoom * 1.25)}>+</button><button onClick={() => view(1, true)}>Fit</button></div>
-    </div>
-    <div className="preview-instructions"><span>{previewNotice || 'Shift-click to select cards together.'}{onPreviewRetry && <button className="text-button" onClick={onPreviewRetry}>Retry preview</button>}</span><span className="mono">Scale {Math.round(scale * 100)}%</span></div>
+    <h2 className="visually-hidden">Canvas</h2>
+    <div className="stage-bar">{stageControls}<button className="canvas-size-button" disabled={gesturing} onClick={onResizeCanvas} aria-label="Change canvas size" title="Change canvas size">{document.canvas.width} × {document.canvas.height}</button></div>
     <div className="canvas-stage">
     <div className={`canvas-viewport${gesturing ? ' gesturing' : ''}${space ? ' pan-ready' : ''}${fileHover ? ' file-hover' : ''}`} ref={viewportRef} tabIndex={0} aria-label="Canvas viewport"
       onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = gesturing ? 'none' : 'copy'; setFileHover(!gesturing); } }}
@@ -361,13 +350,23 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
     </div>
     {selected && <SelectionToolbar toolbarRef={toolbarRef} document={document} widget={selected} ids={selectedIds} style={toolbarPlacement.style} docked={toolbarDocked} busy={gesturing}
       compactResize={compactResize} onResize={() => { onCardDrag(); setResizeOpen(true); }}
-      onChange={onChange} onDuplicate={onDuplicate} onDelete={onDelete} onDetails={onDetails} />}
+      onChange={onChange} onDuplicate={onDuplicate} onDelete={onDelete} onCopy={onCopy} onDetails={onDetails} />}
     </div>
     {resizeOpen && selected && <CompactResize key={selected.id} document={document} widget={selected} onChange={onChange} onClose={() => {
       setResizeOpen(false);
       requestAnimationFrame(() => viewportRef.current?.querySelector<HTMLElement>('[data-primary="true"]')?.focus({ preventScroll: true }));
     }} />}
-    <MovementControls widget={selected} count={selectedIds.length} element={activeElement ?? null} onTarget={onMoveTarget} onNudge={onNudge} busy={gesturing} />
-    <details className="canvas-warnings"><summary>{warnings.length === 100 ? '100+' : warnings.length} layout notes</summary><div className="canvas-warning-content"><p>Informational. You can still export and save this layout.</p><ul>{warnings.slice(0, 8).map((warning, index) => <li key={index}>{warning.message}</li>)}</ul>{warnings.length > 8 && <p>{warnings.length - 8} more notes. Review overlapping or small cards.</p>}</div></details>
+    <div className="stage-footer" aria-label="Canvas view" role="group" data-alert={Boolean(onPreviewRetry)}>
+      <label className="snap-toggle" title="Snap edges, centers and 24 px gutters while moving and resizing"><input type="checkbox" aria-label="Snapping" checked={snapping} onChange={(event) => {
+        finish(true); setSnapping(event.target.checked);
+        try { localStorage.setItem(SNAP_PREFERENCE, event.target.checked ? 'on' : 'off'); } catch { /* The current tab still keeps the choice. */ }
+      }} />Snapping</label>
+      {previewControls}
+      {/* The slot keeps its size when notes come and go, so a drag never resizes the canvas. */}
+      <details className="canvas-warnings" data-empty={warnings.length === 0} aria-hidden={warnings.length === 0 || undefined}><summary tabIndex={warnings.length === 0 ? -1 : undefined}>{warnings.length === 100 ? '100+' : warnings.length} layout {warnings.length === 1 ? 'note' : 'notes'}</summary><div className="canvas-warning-content"><p>Informational. You can still export and save this layout.</p><ul>{warnings.slice(0, 8).map((warning, index) => <li key={index}>{warning.message}</li>)}</ul>{warnings.length > 8 && <p>{warnings.length - 8} more notes. Review overlapping or small cards.</p>}</div></details>
+      <span className="preview-notice" title={previewNotice}>{previewNotice}{onPreviewRetry && <button className="text-link" onClick={onPreviewRetry}>Retry preview</button>}</span>
+      <div className="zoom-controls"><button aria-label="Zoom out" disabled={zoom <= .25} onClick={() => view(zoom / 1.25)}>−</button><span aria-label="Canvas zoom" title={`Scale ${Math.round(scale * 100)}% of panel pixels`}>{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" disabled={zoom >= 4} onClick={() => view(zoom * 1.25)}>+</button><button onClick={() => view(1, true)}>Fit</button></div>
+      <ShortcutsHelp panel={panelShortcuts} />
+    </div>
   </section>;
 }

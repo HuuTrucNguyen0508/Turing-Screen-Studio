@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
+import { chooseMenu, exportJson as clickExport } from './menus';
 import type { Page, Locator } from '@playwright/test';
 import { gaugeStyles, validateLayout } from '../src/domain/layout';
 import type { LayoutDocument } from '../src/domain/layout';
@@ -29,7 +30,7 @@ test('AI usage preset is a demo draft with preserved live sources and no automat
   let saves = 0;
   page.on('request', (request) => { if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/layout') saves++; });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create layout', exact: true }).click();
+  await chooseMenu(page, 'Layout', 'Create layout');
   await page.getByRole('button', { name: 'Create AI usage', exact: true }).click();
   await expect(page.getByTestId('document-canvas').locator('.dashboard-header strong')).toHaveText('AI usage');
   await expect(page.locator('[data-widget-id="codex-tokens"] .usage-content')).toBeVisible();
@@ -38,7 +39,7 @@ test('AI usage preset is a demo draft with preserved live sources and no automat
   await expect(page.locator('[data-widget-id="codex-models"] .usage-model-row').first()).toContainText('11.50');
   await expect(page.locator('[data-widget-id="claude-session-bar"] [data-gauge-style="bar"]')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export JSON', exact: true }).click();
+  await clickExport(page);
   const download = await downloadPromise;
   const document = validateLayout(JSON.parse(await readFile((await download.path())!, 'utf8')));
   expect(document.name).toBe('AI usage');
@@ -74,7 +75,7 @@ async function openJson(page: Page, text: string) {
 
 async function exportJson(page: Page) {
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export JSON', exact: true }).click();
+  await clickExport(page);
   const download = await downloadPromise;
   return readFile((await download.path())!, 'utf8');
 }
@@ -248,13 +249,13 @@ test('add, edit, duplicate, remove, undo, export and reopen expanded widgets off
   await field(page, 'Text').fill('First line\nSecond line');
   await field(page, 'Label').click();
   await expect(card(page, 'text')).toContainText('Second line');
-  await page.getByRole('button', { name: 'Duplicate', exact: true }).click();
+  await page.getByRole('button', { name: 'Duplicate selected widget', exact: true }).click();
   await expect(card(page, 'text-2')).toHaveAttribute('data-selected', 'true');
-  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete selected widget', exact: true }).click();
   await expect(card(page, 'text-2')).toHaveCount(0);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(card(page, 'text-2')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete selected widget', exact: true }).click();
   await page.locator('[data-widget-row="gauge"]').click();
   await field(page, 'Value').fill('101');
   await field(page, 'Value').press('Enter');
@@ -287,12 +288,12 @@ test('layout presets protect dirty drafts, preserve palette, and support an empt
   await page.getByLabel('Import palette file', { exact: true }).setInputFiles({ name: 'scheme.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ name: 'Personal palette', colours: {
     background: '0a0f0f', surfaceContainer: '131b1b', surfaceContainerHigh: '192121', onSurface: 'dce8e7', onSurfaceVariant: 'a2adad', primary: 'aa88bb', secondary: 'b0cccc', outlineVariant: '3f4a4a',
   } })) });
-  await page.getByRole('button', { name: 'Create layout', exact: true }).click();
+  await chooseMenu(page, 'Layout', 'Create layout');
   await page.getByRole('button', { name: 'Create Blank canvas', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('Replace unsaved changes?');
   await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
   await expect(card(page)).toHaveCount(1);
-  await page.getByRole('button', { name: 'Create layout', exact: true }).click();
+  await chooseMenu(page, 'Layout', 'Create layout');
   await page.getByRole('button', { name: 'Create Blank canvas', exact: true }).click();
   await page.getByRole('button', { name: 'Create and discard changes', exact: true }).click();
   await expect(page.locator('[data-widget-id]')).toHaveCount(0);

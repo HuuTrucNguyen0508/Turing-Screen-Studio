@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
+import { exportJson } from './menus';
 
 for (const name of ['system-overview-clean', 'ai-usage-30d']) {
   test(`${name} imports and exports clean chrome without applying`, async ({ page }) => {
@@ -29,7 +30,7 @@ for (const name of ['system-overview-clean', 'ai-usage-30d']) {
       await expect(canvas.locator('.summary-footnote')).toContainText('Demo quota readings');
     }
     const pending = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Export JSON', exact: true }).click();
+    await exportJson(page);
     const download = await pending;
     expect(JSON.parse(await readFile((await download.path())!, 'utf8'))).toEqual(document);
     await page.setViewportSize({ width: 390, height: 844 });

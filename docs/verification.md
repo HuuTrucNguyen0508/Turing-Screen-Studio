@@ -1,3 +1,13 @@
+## Simpler workbench and widget clipboard, 20 October 2026
+
+The header now holds the layout name, Library, Undo and Redo, the panel status, a Layout menu, a Settings menu and one primary action. Layers and the Inspector are docked beside the canvas and fold into narrow strips instead of using three Show toggles. Arrange tools and Arrows move live in the Inspector. Snapping, preview data, layout notes, zoom and a **?** shortcut list sit below the canvas.
+
+Copy and Cut work from the selection actions and with Ctrl+C or Ctrl+X outside text fields. The clipboard keeps the last 12 copies in browser storage, so they survive reloads and switching layouts. Paste goes through editor history. The pure logic is in `src/domain/clipboard.ts`, with 9 domain tests for placement, fresh IDs, scaling into smaller canvases, history limits and defensive parsing.
+
+`pnpm typecheck`, `pnpm build` and `pnpm test` passed: 19 files, 429 tests. `pnpm test:e2e` passed 131 of 132. The new `clipboard.spec.ts` covers copying across two saved layouts, the tray, reloads and Undo. The failing case, `storage-views.spec.ts`, expects "NVMe partition"; an unrelated uncommitted change in `src/domain/storage.ts` renames that row to "NVMe". Logs are in `artifacts/ui-simplify/`.
+
+A layout-notes button that appeared mid-drag wrapped the canvas footer and cancelled the drag. The notes slot now keeps its size, and the desktop footer stays on one line. Screenshots at 1600 × 1000 and 1280 × 800 were checked in the live pink Caelestia scheme. At 1280 × 800 the canvas renders at 60% instead of 41%, with both panels open.
+
 ## Larger canvas and collapsible panels, 7 October 2026
 
 The editor starts with Widgets, Inspector and extra tools hidden. Visible Show/Hide buttons reveal each area independently and retain their choices in browser preferences, separate from saved layout data. Panels stay mounted so invalid field text survives hiding. Add widget and Import remain available from the canvas header. The open Inspector is wider, and phone panels scroll into view and return focus to their toggle when closed.
