@@ -14,6 +14,7 @@ from .layout import GAUGE_STYLES, effective_palette
 from .renderer import LayoutRenderer
 from .watch import LayoutWatcher
 from .storage import Paths, PaletteWatcher, atomic_write
+from .t3_refresh import UsageRefresher, token_path
 from .usage import UsageCollector
 from .usage_display import USAGE_SOURCES, UsageStats
 from .activity import T3Activity
@@ -90,6 +91,7 @@ class RuntimeIntegration:
         self.status = {}
         self.usage = UsageCollector()
         self.usage_snapshot = None
+        self.usage_refresh = UsageRefresher(Path.home(), token_path(self.paths.state_dir), self.usage.expire)
         self.activity = T3Activity()
         self.games = GameResources(self.paths.state_dir / 'game-timers.json')
         self.activity_snapshot = None
@@ -248,6 +250,10 @@ class RuntimeIntegration:
                 key = (*key, hashlib.sha256(json.dumps(displayed, sort_keys=True).encode()).hexdigest())
             if owner.document and any(widget['settings'].get('trend') for widget in owner.document['widgets']):
                 key = (*key, owner.live.observed_at)
+            if sources.intersection(USAGE_SOURCES):
+                # T3 persists token usage only when asked for a summary.
+                owner.usage_refresh.poke()
+                owner.publish(t3UsageRefresh=owner.usage_refresh.status())
             if owner.document and any(widget['settings'].get('source') in USAGE_SOURCES or (widget['type'] == 'storage' and widget['settings'].get('source') == 'mounted-storage') for widget in owner.document['widgets']):
                 owner.usage_snapshot = owner.usage.snapshot()
                 return (*key, owner.usage_snapshot.get('readAt'))

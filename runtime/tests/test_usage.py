@@ -111,6 +111,29 @@ class UsageTests(unittest.TestCase):
         self.cache({"bad": {"p": "codex", "r": [self.row() + [5]], "t": []}})
         self.assertIsNone(self.provider()["total"])
 
+    def test_v7_cache_with_service_tier_turn_is_preferred_over_abandoned_v5(self):
+        self.cache({"old": {"p": "codex", "r": [self.row(tokens=(1, 0, 0, 1, 0))], "t": []}})
+        self.write_json("usage-scan-cache-v7.json", {"version": 7, "models": ["model-a"], "sessions": ["session-a"],
+                        "files": {"new": {"p": "codex", "r": [self.row() + [None, "turn-1"]], "t": [self.row(key="k") + [0]]}}})
+        value = self.provider()
+        self.assertEqual(value["total"], 200)
+        self.assertEqual(value["records"], 2)
+        self.assertEqual(value["source"], "t3_usage_scan_cache")
+        self.assertEqual(value["freshness"]["tokens"]["source"], "t3_usage_scan_cache")
+
+    def test_invalid_v7_service_tier_turn_rejects_cache(self):
+        self.write_json("usage-scan-cache-v7.json", {"version": 7, "models": ["model-a"], "sessions": ["session-a"],
+                        "files": {"bad": {"p": "codex", "r": [self.row() + [None, 5]], "t": []}}})
+        self.assertIsNone(self.provider()["total"])
+
+    def test_expire_recollects_before_cache_interval(self):
+        self.cache()
+        self.assertEqual(self.provider()["total"], 100)
+        self.cache({"a": {"p": "codex", "r": [self.row(), self.row(stamp=NOW - 1)], "t": []}})
+        self.assertEqual(self.provider()["total"], 100)
+        self.collector.expire()
+        self.assertEqual(self.provider()["total"], 200)
+
     def test_claude_message_deduplication_including_tail_records(self):
         row = self.row(key="message:request")
         second = self.row(key="message-two:request", tokens=(1, 2, 3, 4, 0))

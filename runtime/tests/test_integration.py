@@ -179,6 +179,23 @@ class IntegrationTests(unittest.TestCase):
         with Image.open(self.paths.frame) as capture:
             self.assertEqual(capture.tobytes(), frame.tobytes())
 
+    def test_usage_widgets_request_t3_rescan_but_storage_alone_does_not(self):
+        self.owner.usage.snapshot = Mock(return_value=dict(readAt='now'))
+        self.owner.usage_refresh.poke = Mock(return_value=False)
+        self.owner.usage_refresh.status = Mock(return_value=dict(error='t3_token_missing', refreshedAt=None))
+        self.doc['widgets'] = [dict(id='disks', type='storage', x=64, y=160, width=564, height=480,
+                                    settings=dict(label='Disks', style='bars', source='mounted-storage'))]
+        atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
+        self.dashboard.logical_dirty_key(view='stats')
+        self.owner.usage_refresh.poke.assert_not_called()
+        root = Path(__file__).parents[2]
+        self.doc['widgets'][0] = next(card for card in json.loads((root / 'layouts/ai-usage-30d.json').read_text())['widgets']
+                                      if card['settings'].get('source') == 'usage-tokens-30d')
+        atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
+        self.dashboard.logical_dirty_key(view='stats')
+        self.owner.usage_refresh.poke.assert_called_once()
+        self.assertEqual(self.owner.status['t3UsageRefresh'], dict(error='t3_token_missing', refreshedAt=None))
+
     def test_mounted_storage_alone_collects_live_rows_and_invalidates_on_refresh(self):
         self.doc['widgets'] = [dict(id='disks', type='storage', x=64, y=160, width=564, height=480,
                                     settings=dict(label='Disks', style='bars', source='mounted-storage'))]

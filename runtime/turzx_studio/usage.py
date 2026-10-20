@@ -44,6 +44,10 @@ TOKEN_PROVIDERS = (*PROVIDERS, "cursor")
 LAST30_SECONDS = 30 * 86400
 MAX_PROVIDER_BYTES = 256 * 1024
 MAX_WINDOWS = 32
+# T3 writes the newest name and reads older names only when it is missing.
+SCAN_CACHE_FILES = ("usage-scan-cache-v7.json", "usage-scan-cache-v6.json", "usage-scan-cache-v5.json")
+SCAN_CACHE_VERSIONS = range(5, 8)
+TOKEN_SOURCE = "t3_usage_scan_cache"
 TOKEN_FIELDS = ("input", "cacheRead", "cacheWrite", "output", "reasoning")
 UNPRICEABLE = {"<synthetic>", "synthetic", "opus", "sonnet", "haiku", "fable"}
 QUOTA_HEADER = re.compile(
@@ -122,11 +126,16 @@ def _read_json(path: Path, max_bytes: int = MAX_JSON_BYTES) -> tuple[dict, float
 
 
 def _decode_row(row: object, models: list, sessions: list) -> tuple | None:
-    # T3 v5 serializeFile/decodeScanCache in src/usage/usageScanCache.ts.
+    # T3 v5-v7 serializeFile/decodeScanCache in src/usage/usageScanCache.ts.
     # r contains complete-line records; t contains separately parsed tail records.
-    # T3 appended an optional 12th rateModel index without bumping the version.
-    if not isinstance(row, list) or len(row) not in (11, 12):
+    # Optional 12th rateModel index (null when absent) and, from v7, a 13th
+    # unresolved service-tier turn ID that only T3's own repricing uses.
+    if not isinstance(row, list) or len(row) not in (11, 12, 13):
         return None
+    if len(row) == 13:
+        if not isinstance(row[12], str) or len(row[12]) > 256:
+            return None
+        row = row[:12]
     stamp, model, session, *rest = row
     rate_model = rest.pop(8) if len(rest) == 9 else None
     if not _number(stamp) or _iso(stamp / 1000) is None:
@@ -263,6 +272,11 @@ class UsageCollector:
         self._quota_window_stamps = {}
         self._tails = {}
 
+    def expire(self) -> None:
+        """Collect on the next snapshot, after T3 rewrote its scan cache."""
+        with self._lock:
+            self._snapshot = None
+
     def snapshot(self) -> dict:
         with self._lock:
             now = float(self.clock())
@@ -350,10 +364,10 @@ class UsageCollector:
             windows = dict(evidence[1]) if evidence else dict.fromkeys(("five_hour", "weekly"), "unknown")
             providers[name] = {**totals[name], "limits": copy.deepcopy(limits), "freshness": freshness,
                                "quotaWindows": windows,
-                               "source": "t3_usage_scan_cache_v5",
+                               "source": TOKEN_SOURCE,
                                "errors": sorted(set(itertools.chain.from_iterable(part["errors"] for part in freshness.values())))}
         rolling_totals, rolling_freshness = token_periods["last30days"]
-        rolling = {name: {**rolling_totals[name], "source": "t3_usage_scan_cache_v5",
+        rolling = {name: {**rolling_totals[name], "source": TOKEN_SOURCE,
                          "freshness": {"tokens": rolling_freshness[name],
                                        "pricing": _freshness("t3_cached_litellm_rates", rates_at, now, rate_errors, 86400)},
                          "errors": sorted(set(rolling_freshness[name]["errors"] + rate_errors))}
@@ -379,9 +393,11 @@ class UsageCollector:
         latest = {period: dict.fromkeys(TOKEN_PROVIDERS) for period in periods}
         duplicates = dict.fromkeys(TOKEN_PROVIDERS, 0)
         try:
-            raw, observed = _read_json(base / "usage-scan-cache-v5.json")
+            path = next((base / name for name in SCAN_CACHE_FILES if (base / name).exists()), base / SCAN_CACHE_FILES[0])
+            raw, observed = _read_json(path)
             names, sessions, files = raw.get("models"), raw.get("sessions"), raw.get("files")
-            if (raw.get("version") != 5 or not isinstance(names, list) or len(names) > MAX_MODELS
+            if (type(raw.get("version")) is not int or raw["version"] not in SCAN_CACHE_VERSIONS
+                    or not isinstance(names, list) or len(names) > MAX_MODELS
                     or not isinstance(sessions, list) or len(sessions) > MAX_SESSIONS or not isinstance(files, dict)
                     or len(files) > MAX_FILES):
                 raise ValueError("cache_schema")
@@ -459,7 +475,7 @@ class UsageCollector:
                         observed_provider = None
                     provider_errors = errors or ["usage_cache_provider_missing"]
                 totals[period][name] = value
-                freshness[name] = _freshness("t3_usage_scan_cache_v5", observed_provider, now, provider_errors)
+                freshness[name] = _freshness(TOKEN_SOURCE, observed_provider, now, provider_errors)
             result[period] = totals[period], freshness
         return result
 

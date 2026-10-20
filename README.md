@@ -117,9 +117,10 @@ Read [panel setup and rollback](docs/panel-integration.md) before using these co
 pnpm panel:install
 pnpm panel:rollback
 pnpm shortcuts:install
+pnpm t3:connect
 ```
 
-The panel installer backs up the original dashboard and adds a separate systemd override, then restarts its service. Rollback removes the override and restarts the original runtime. The shortcut installer changes Caelestia/Hyprland configuration and enables the local Studio API service. These are machine-specific integration commands, not part of the offline quick start.
+The panel installer backs up the original dashboard and adds a separate systemd override, then restarts its service. Rollback removes the override and restarts the original runtime. The shortcut installer changes Caelestia/Hyprland configuration and enables the local Studio API service. `t3:connect` issues a read-only T3 token so usage cards stay current; see [usage data](docs/usage-data.md#keeping-t3-token-usage-current). These are machine-specific integration commands, not part of the offline quick start.
 
 Save to panel writes a guarded layout; Panel accepted frame requires an acknowledged USB upload for that revision. The editor and preview server never own USB. The independent runtime retains exclusive USB ownership, reconnect handling, dirty-frame skipping and its roughly 1 Hz idle refresh. H.264 remains an opt-in experiment. See the [TURZX diary](https://github.com/HuuTrucNguyen0508/Hyprland_Diary/tree/main/TURZX-SCREEN) for orientation and transport experiments.
 

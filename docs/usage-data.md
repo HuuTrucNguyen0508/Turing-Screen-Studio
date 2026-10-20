@@ -1,6 +1,6 @@
 # Local usage and storage data
 
-`runtime/turzx_studio/usage.py` provides a read-only collector. It needs only Python's standard library. Reuse one `UsageCollector` instance in the runtime and call `snapshot()` when preparing live data. Each call returns a detached JSON-safe dictionary. It creates no worker, starts no process, and makes no network request.
+`runtime/turzx_studio/usage.py` provides a read-only collector. It needs only Python's standard library. Reuse one `UsageCollector` instance in the runtime and call `snapshot()` when preparing live data. Each call returns a detached JSON-safe dictionary. It creates no worker, starts no process, and makes no network request. `expire()` makes the next call collect again; the runtime calls it after T3 rewrites its scan cache.
 
 ```python
 from turzx_studio.usage import UsageCollector
@@ -16,14 +16,14 @@ storage = snapshot["storage"]
 
 ## Sources and scope
 
-- `~/.t3/userdata/usage-scan-cache-v5.json` supplies token records, model names and optional reported cost. Only version 5 is accepted. Both complete records in `r` and separate tail records in `t` contribute.
+- `~/.t3/userdata/usage-scan-cache-v7.json` supplies token records, model names and optional reported cost. As T3 does, the collector falls back to `-v6` and then `-v5` only when the newer file is missing. Versions 5 to 7 are accepted. Both complete records in `r` and separate tail records in `t` contribute.
 - `~/.t3/userdata/usage-model-rates.json` supplies cached LiteLLM rates and `fetchedAtMs`. The collector never downloads rates.
 - `~/.t3/caches/codex-pro.json` and `claudeAgent.json` supply normalized subscription windows. The reader verifies provider identity, reads only the quota fields and does not invoke an authenticated probe.
 - `~/.codex-pro/sessions/**/*.jsonl` supplies subscription quotas from timestamped `event_msg` / `token_count` events containing `payload.rate_limits`. Quota scanning uses this Pro home only. Its configured account is Pro. A session row requires an explicitly reported 300-minute window; missing or old telemetry alone cannot create one.
 - `~/.t3/userdata/statev2.sqlite` supplies Claude exhaustion notices from `orchestration_v2_projection_turn_items`, with `type='system_notice'`. SQLite opens with `mode=ro` and connection-local `query_only`. Connections close after each refresh.
 - `shutil.disk_usage('/')` supplies root storage; bounded `/proc/self/mountinfo` reads plus `shutil.disk_usage(mount)` supply `mountedStorage`. The collector does not walk directories to estimate storage.
 
-Token totals describe the current UTC calendar day in the saved T3 cache. They include all locally cached sources assigned to each provider, including `~/.codex`, `~/.codex-pro` and `~/.claude`. They include other projects and agents. They are processed tokens across requests, not current context size. They do not measure subscription allowance. The default token cache can lag active sessions until T3 persists another scan.
+Token totals describe the current UTC calendar day in the saved T3 cache. They include all locally cached sources assigned to each provider, including `~/.codex`, `~/.codex-pro` and `~/.claude`. They include other projects and agents. They are processed tokens across requests, not current context size. They do not measure subscription allowance. T3 persists another scan only when a client requests its usage summary; see [Keeping T3 token usage current](#keeping-t3-token-usage-current).
 
 Quota scope differs from token scope. Codex quotas refer to the configured Pro account, which has no five-hour limit. That account default remains inapplicable when telemetry is missing or stale. An explicitly reported five-hour window overrides it if the account changes. Claude's structured cache can provide actual five-hour and weekly percentages. The exhaustion notice is a stale fallback with an estimated reset. Unknown Claude windows stay visible as unavailable; an explicit unsupported observation can hide one until that evidence expires. Account-wide weekly windows are distinct from monthly and model-specific windows. The quota ledger displays usage left, calculated as 100 minus the observed used percentage. Its bars shrink as allowance is consumed. Unknown and expired reset observations remain unavailable, never an assumed full allowance. Raw quota telemetry retains both used and remaining percentages.
 
@@ -53,7 +53,19 @@ The bundle contains the original module markers `src/usage/usageScanCache.ts`, `
 10 speed index: standard=0, fast=1, ultrafast=2
 ```
 
+The v7 layout was verified in T3 `0.1.1-nightly.20261020.3411`, member `apps/server/dist/binCli-Bm8tVhP8.mjs`, `src/usage/usageScanCache.ts`. T3 appends two optional fields. Index 11 is a `rateModel` index or null; the collector prices by that model when present. From version 7, index 12 is an unresolved service-tier turn ID, which only T3's own repricing uses. The collector validates it as a bounded string and otherwise ignores it.
+
 `UsageService.readFileRecords` combines `r` and `t`. Claude records deduplicate globally by provider and message/request key. Codex copied rollouts deduplicate by session, timestamp, model, token fields and within-file occurrence number. This preserves separate identical occurrences in an original file while dropping matching occurrences in its copies. No session IDs or dedupe keys leave the collector.
+
+## Keeping T3 token usage current
+
+T3 rescans transcripts and rewrites its scan cache only inside `UsageService.readSummary`. Only the `server.getUsageSummary` WebSocket method calls it, and in the T3 client only the Usage page sends that request. Quota caches refresh in the background, but token totals freeze while that page is closed.
+
+`runtime/turzx_studio/t3_refresh.py` sends that request for the panel. While the displayed layout has a usage source, the runtime starts at most one background request per 60 seconds. It reads T3's origin from `~/.t3/userdata/server-runtime.json` and refuses any host other than loopback over plain HTTP. It connects to `/ws?orchestrationProtocol=2` with a bearer token and requests today's UTC summary without `awaitRefresh`, so T3 does not wait for Cursor's network fetch. The scan covers every transcript; the day window only limits the reply, which is discarded. On success, the runtime calls `UsageCollector.expire()` so the next frame reads the rewritten cache.
+
+`pnpm t3:connect` runs `t3 auth session issue --scope diagnostics:read`. That is the only scope `server.getUsageSummary` requires. The command saves the token to `~/.local/share/turzx-studio/t3-usage-token` with mode 0600 and tests it once. The default lifetime is 365 days; pass `--ttl` to change it. The runtime refuses a token file readable by group or other users. Revoke the session labelled `TURZX Studio usage refresh` with `t3 auth session list` and `t3 auth session revoke <id>`.
+
+Without a token, the refresher stays idle and the collector reads whatever T3 last persisted. Rejected or under-scoped tokens back off for 15 minutes. The runtime status file reports `t3UsageRefresh` with `refreshedAt` and a fixed error code such as `t3_token_missing`, `t3_unreachable`, `t3_token_rejected` or `t3_timeout`. Errors never include the token, paths or server text. Each request is limited to a 2-second connect, a 60-second total deadline and an 8 MiB reply.
 
 ## Mapping contract
 

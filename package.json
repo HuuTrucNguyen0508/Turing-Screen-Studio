@@ -18,7 +18,8 @@
     "panel:install": "python3 runtime/install_panel.py",
     "panel:rollback": "python3 runtime/install_panel.py --rollback",
     "layout": "python3 runtime/run_layout_cli.py",
-    "shortcuts:install": "python3 runtime/install_shortcuts.py"
+    "shortcuts:install": "python3 runtime/install_shortcuts.py",
+    "t3:connect": "python3 runtime/connect_t3_usage.py"
   },
   "dependencies": {
     "react": "^19.3.0",
