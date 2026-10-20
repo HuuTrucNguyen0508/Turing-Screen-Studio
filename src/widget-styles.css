@@ -49,3 +49,18 @@
 .gauge-style-option:hover { border-color: var(--muted); color: var(--text); }
 .gauge-style-option:has(input:checked) { border-color: var(--primary); color: var(--primary); background: var(--surfaceRaised); }
 .gauge-style-option:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Instrument classes used by WidgetContent's ring, bar, segments, thermometer
+   and number gauges. Without these, SVG paints default black. Colors match
+   LayoutRenderer._instrument: outline track, primary fill and value, muted text. */
+.instrument-content svg { position: absolute; inset: 0; overflow: hidden; }
+.instrument-content rect { shape-rendering: crispEdges; }
+.instrument-content .instrument-track { fill: var(--outline); }
+.instrument-content circle.instrument-track[fill='none'] { fill: none; stroke: var(--outline); }
+.instrument-content .instrument-progress { fill: var(--primary); }
+.instrument-content circle.instrument-progress[fill='none'] { fill: none; stroke: var(--primary); }
+.instrument-content text { white-space: pre; dominant-baseline: alphabetic; }
+.instrument-content .instrument-value { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; fill: var(--primary); }
+.instrument-content .instrument-unit { font-family: 'Roboto', 'DejaVu Sans', sans-serif; fill: var(--muted); }
+.instrument-content .instrument-bound { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 12px; fill: var(--muted); }
+.instrument-content .instrument-detail { font-family: 'Roboto', 'DejaVu Sans', sans-serif; font-size: 14px; fill: var(--muted); text-anchor: middle; }
