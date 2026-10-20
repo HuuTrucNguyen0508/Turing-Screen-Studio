@@ -250,7 +250,7 @@ class RuntimeIntegration:
                 key = (*key, hashlib.sha256(json.dumps(displayed, sort_keys=True).encode()).hexdigest())
             if owner.document and any(widget['settings'].get('trend') for widget in owner.document['widgets']):
                 key = (*key, owner.live.observed_at)
-            if sources.intersection(USAGE_SOURCES):
+            if sources.intersection(USAGE_SOURCES) - {'storage'}:
                 # T3 persists token usage only when asked for a summary.
                 owner.usage_refresh.poke()
                 owner.publish(t3UsageRefresh=owner.usage_refresh.status())

@@ -11,7 +11,7 @@ blocks the panel loop.
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -23,10 +23,14 @@ import time
 from typing import Callable
 from urllib.parse import urlsplit
 
+from .usage import SCAN_CACHE_FILES
+
 REFRESH_SECONDS = 60
 REJECTED_BACKOFF_SECONDS = 900
 CONNECT_SECONDS = 2.0
 REQUEST_SECONDS = 60.0
+PERSISTENCE_SECONDS = 5.0
+PERSISTENCE_POLL_SECONDS = 0.1
 MAX_HEADER_BYTES = 16 * 1024
 MAX_MESSAGE_BYTES = 8 * 1024 * 1024
 MAX_SMALL_FILE_BYTES = 64 * 1024
@@ -170,7 +174,7 @@ def _exit(message: bytes) -> dict | None:
 
 
 def request_usage_scan(home: Path, token_file: Path, *, now: Callable[[], float] = time.time) -> None:
-    """Make T3 rescan usage and persist its cache. Raises RefreshError."""
+    """Request a T3 usage rescan; persistence may finish later. Raises RefreshError."""
     host, port = _server(home)
     token = _token(token_file)
     deadline = time.monotonic() + REQUEST_SECONDS
@@ -198,10 +202,12 @@ def request_usage_scan(home: Path, token_file: Path, *, now: Callable[[], float]
         fields = {name.strip().lower(): value.strip() for name, _, value in (line.partition(":") for line in lines[1:])}
         if fields.get("sec-websocket-accept") != accept:
             raise RefreshError("t3_bad_handshake")
-        # The scan covers every transcript; the window only filters the reply.
-        day = datetime.fromtimestamp(now(), timezone.utc).date().isoformat()
+        # T3 selects transcripts by mtime relative to sinceDay.
+        day = datetime.fromtimestamp(now(), timezone.utc).date()
+        since_day = day - timedelta(days=30)
         request = {"_tag": "Request", "id": REQUEST_ID, "tag": "server.getUsageSummary",
-                   "payload": {"sinceDay": day, "untilDay": day, "timeZone": "UTC"}, "headers": []}
+                   "payload": {"sinceDay": since_day.isoformat(), "untilDay": day.isoformat(), "timeZone": "UTC"},
+                   "headers": []}
         stream.send_frame(0x1, json.dumps(request).encode())
         while True:
             result = _exit(stream.message())
@@ -216,15 +222,31 @@ def request_usage_scan(home: Path, token_file: Path, *, now: Callable[[], float]
         raise RefreshError("t3_token_scope" if "EnvironmentAuthorizationError" in text else "t3_usage_scan_failed")
 
 
+def _scan_cache_identity(home: Path) -> tuple[Path, int, int, int] | None:
+    for name in SCAN_CACHE_FILES:
+        path = home / ".t3/userdata" / name
+        try:
+            stat = path.stat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return None
+        return path, stat.st_mtime_ns, stat.st_size, stat.st_ino
+    return None
+
+
 class UsageRefresher:
     """Rate-limited background trigger; poke() never blocks the caller."""
 
     def __init__(self, home: Path, token_file: Path, on_success: Callable[[], None] | None = None, *,
                  clock: Callable[[], float] = time.monotonic,
-                 request: Callable[[Path, Path], None] = request_usage_scan):
+                 request: Callable[[Path, Path], None] = request_usage_scan,
+                 persistence_seconds: float = PERSISTENCE_SECONDS,
+                 sleep: Callable[[float], None] = time.sleep):
         self.home, self.token_file = home, token_file
         self.on_success = on_success
         self.clock, self.request = clock, request
+        self.persistence_seconds, self.sleep = persistence_seconds, sleep
         self._lock = threading.Lock()
         self._running = False
         self._next = 0.0
@@ -253,7 +275,15 @@ class UsageRefresher:
     def _run(self) -> None:
         error = None
         try:
+            previous = _scan_cache_identity(self.home)
             self.request(self.home, self.token_file)
+            # T3 returns before its detached cache write completes.
+            deadline = time.monotonic() + self.persistence_seconds
+            while _scan_cache_identity(self.home) == previous:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self.sleep(min(PERSISTENCE_POLL_SECONDS, remaining))
         except RefreshError as failure:
             error = failure.code
         except Exception:

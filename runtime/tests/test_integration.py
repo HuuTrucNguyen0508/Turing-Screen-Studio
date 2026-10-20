@@ -188,6 +188,12 @@ class IntegrationTests(unittest.TestCase):
         atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
         self.dashboard.logical_dirty_key(view='stats')
         self.owner.usage_refresh.poke.assert_not_called()
+        self.doc['widgets'] = [dict(id='root', type='metric', x=64, y=160, width=564, height=160,
+                                    settings=dict(label='Root storage', source='storage', value='40', unit='%', detail='Used'))]
+        atomic_write(self.paths.layout, serialize_layout(self.doc).encode())
+        self.dashboard.logical_dirty_key(view='stats')
+        self.owner.usage_refresh.poke.assert_not_called()
+        self.assertEqual(self.owner.usage.snapshot.call_count, 2)
         root = Path(__file__).parents[2]
         self.doc['widgets'][0] = next(card for card in json.loads((root / 'layouts/ai-usage-30d.json').read_text())['widgets']
                                       if card['settings'].get('source') == 'usage-tokens-30d')

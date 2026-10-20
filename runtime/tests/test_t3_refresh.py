@@ -1,6 +1,7 @@
 """T3 usage refresh against a fake loopback WebSocket server, never real T3."""
 
 import base64
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import unittest
 
 from turzx_studio import t3_refresh
 from turzx_studio.t3_refresh import RefreshError, UsageRefresher, request_usage_scan
+from turzx_studio.usage import UsageCollector
 
 
 class FakeT3:
@@ -116,15 +118,23 @@ class RequestTests(unittest.TestCase):
         self.runtime(f"http://127.0.0.1:{server.port}")
         return server
 
-    def test_success_sends_bearer_and_today_summary_request(self):
+    def test_success_sends_bearer_and_rolling_window_summary_request(self):
         server = self.serve(reply=SUCCESS, ping=True, chatter=True)
         request_usage_scan(self.home, self.token, now=lambda: 1792500000)
         server.thread.join(5)
         self.assertIn("GET /ws?orchestrationProtocol=2 ", server.headers)
         self.assertIn("Authorization: Bearer secret-token\r\n", server.headers)
         self.assertEqual(server.request, {"_tag": "Request", "id": "1", "tag": "server.getUsageSummary", "headers": [],
-                                          "payload": {"sinceDay": "2026-10-20", "untilDay": "2026-10-20", "timeZone": "UTC"}})
+                                          "payload": {"sinceDay": "2026-09-20", "untilDay": "2026-10-20", "timeZone": "UTC"}})
         self.assertEqual(server.pong, (0xA, b"hi"))
+
+    def test_historical_window_covers_rolling_start_across_year_boundary(self):
+        server = self.serve(reply=SUCCESS)
+        now = datetime(2026, 1, 15, 23, 59, tzinfo=timezone.utc).timestamp()
+        request_usage_scan(self.home, self.token, now=lambda: now)
+        server.thread.join(5)
+        self.assertEqual(server.request["payload"], {
+            "sinceDay": "2025-12-16", "untilDay": "2026-01-15", "timeZone": "UTC"})
 
     def test_failures_map_to_fixed_codes(self):
         cases = [
@@ -200,12 +210,13 @@ class RefresherTests(unittest.TestCase):
                 raise RefreshError(self.failure)
 
         self.refresher = UsageRefresher(Path(self.temp.name), self.token, lambda: self.expired.append(True),
-                                        clock=lambda: self.now, request=request)
+                                        clock=lambda: self.now, request=request, persistence_seconds=0)
 
     def settle(self):
         deadline = time.monotonic() + 5
         while self.refresher._running and time.monotonic() < deadline:
             time.sleep(0.01)
+        self.assertFalse(self.refresher._running, "refresh thread did not finish")
 
     def test_missing_token_stays_idle(self):
         self.assertFalse(self.refresher.poke())
@@ -241,6 +252,99 @@ class RefresherTests(unittest.TestCase):
         self.assertFalse(self.refresher.poke())
         self.now += t3_refresh.REJECTED_BACKOFF_SECONDS
         self.assertTrue(self.refresher.poke())
+        self.settle()
+
+
+class PersistenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name)
+        self.base = self.home / ".t3/userdata"
+        self.base.mkdir(parents=True)
+        self.token = self.home / "t3-usage-token"
+        self.token.write_text("test-token")
+        self.now = datetime(2026, 10, 20, 12, tzinfo=timezone.utc).timestamp()
+        mountinfo = self.home / "mountinfo"
+        mountinfo.write_text("")
+        self.collector = UsageCollector(self.home, clock=lambda: self.now, mountinfo_path=mountinfo)
+        self.done = threading.Event()
+
+    def write_cache(self, path, total):
+        row = [int(self.now * 1000), 0, 0, total, 0, 0, 0, 0, None, None, 0]
+        document = {"version": int(path.stem[-1]), "models": ["model-a"], "sessions": ["session-a"],
+                    "files": {"session.jsonl": {"p": "codex", "s": 10, "m": self.now * 1000,
+                                               "r": [row], "t": []}}}
+        replacement = path.with_suffix(".tmp")
+        replacement.write_text(json.dumps(document))
+        if path.exists():
+            stamp = path.stat().st_mtime_ns
+            os.utime(replacement, ns=(stamp, stamp))
+        replacement.replace(path)
+
+    def start_refresh(self, request, *, sleep=time.sleep, persistence_seconds=1):
+        def expire():
+            self.collector.expire()
+            self.done.set()
+
+        self.refresher = UsageRefresher(self.home, self.token, expire, request=request,
+                                        sleep=sleep, persistence_seconds=persistence_seconds)
+        self.assertTrue(self.refresher.poke())
+
+    def settle(self):
+        self.assertTrue(self.done.wait(2), "collector was not expired")
+        deadline = time.monotonic() + 2
+        while self.refresher._running and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertFalse(self.refresher._running)
+        self.assertIsNone(self.refresher.status()["error"])
+
+    def test_delayed_replacement_expires_collector_after_new_totals_are_persisted(self):
+        for version in (7, 6, 5, None):
+            with self.subTest(initial_version=version):
+                for path in self.base.glob("*.json"):
+                    path.unlink()
+                self.collector = UsageCollector(self.home, clock=lambda: self.now,
+                                                mountinfo_path=self.home / "mountinfo")
+                self.done.clear()
+                path = self.base / f"usage-scan-cache-v{version or 7}.json"
+                if version is not None:
+                    self.write_cache(path, 10)
+                old_total = 10 if version is not None else None
+                self.assertEqual(self.collector.snapshot()["providers"]["codex"]["total"], old_total)
+                waiting = []
+
+                def delayed_write(seconds):
+                    waiting.append((threading.current_thread().name, self.done.is_set(),
+                                    self.collector.snapshot()["providers"]["codex"]["total"]))
+                    self.write_cache(path, 20)
+
+                self.start_refresh(lambda home, token: None, sleep=delayed_write)
+                self.settle()
+                self.assertEqual(waiting, [("t3-usage-refresh", False, old_total)])
+                self.assertEqual(self.collector.snapshot()["providers"]["codex"]["total"], 20)
+
+    def test_new_v7_cache_supersedes_existing_fallback_before_expiring(self):
+        self.write_cache(self.base / "usage-scan-cache-v6.json", 10)
+        self.assertEqual(self.collector.snapshot()["providers"]["codex"]["total"], 10)
+        self.start_refresh(lambda home, token: self.write_cache(self.base / "usage-scan-cache-v7.json", 20))
+        self.settle()
+        self.assertEqual(self.collector.snapshot()["providers"]["codex"]["total"], 20)
+
+    def test_unchanged_cache_still_expires_collector_after_timeout(self):
+        self.write_cache(self.base / "usage-scan-cache-v7.json", 10)
+        self.collector.snapshot()
+        waits = []
+
+        def sleep(seconds):
+            waits.append(seconds)
+            time.sleep(seconds)
+
+        self.start_refresh(lambda home, token: None, sleep=sleep, persistence_seconds=0.02)
+        self.settle()
+        self.assertTrue(waits)
+        self.assertLessEqual(sum(waits), 0.02)
+        self.assertFalse(self.collector.snapshot()["cached"])
 
 
 if __name__ == "__main__":
