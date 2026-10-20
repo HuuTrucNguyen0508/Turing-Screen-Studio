@@ -13,6 +13,10 @@ pnpm studio
 
 Open `http://127.0.0.1:5174`. The server binds only to loopback and serves the production build. It seeds a saved layout once, with live CPU, GPU, memory and weather sources and desktop colours. Existing saved files are preserved.
 
+To stop Studio from the app, choose **Settings → Shut down Studio…** and confirm. This cleanly exits the server. The editor and Ctrl+F9–F12 layout shortcuts stop working until Studio starts again. The independent panel runtime keeps showing its current layout. Committed unsaved edits stay in draft recovery in this browser. Uncommitted text and unfinished drags are not backed up.
+
+For the installed service, run `systemctl --user start turzx-studio.service` to start Studio again. A clean shutdown does not trigger its `Restart=on-failure` policy. The enabled service starts again at the next login. For a manually launched server, run `pnpm studio` from the repository. The stopped screen has copy buttons for both commands. Choose **Reconnect** after starting the server.
+
 In another terminal, install the adapter into the existing service:
 
 ```bash

@@ -44,31 +44,31 @@ export default function useDraftRecovery(editor: EditorState) {
     return active ? active.has(entry.record.recordId) : navigator.locks ? true : leaseActive(entry);
   }
 
-  function persist(force = false) {
-    if (!ready.current && !force) return;
+  function persist(force = false): boolean {
+    if (!ready.current && !force) return false;
     const editor = current.current;
     // Back up the transaction origin while a pointer gesture is in progress.
     const state = editor.gesture ? { ...editor, document: editor.gesture.document } : editor;
     const text = serializeLayout(state.document);
     if (text === state.baseline) {
       try { localStorage.removeItem(recordKey); savedRef.current = null; setBackedUp(false); }
-      catch { setError('Draft storage could not be cleared. Export JSON to keep a copy.'); }
-      return;
+      catch { setError('Draft storage could not be cleared. Export JSON to keep a copy.'); return false; }
+      return true;
     }
     const identity = text + state.baseline + state.baseRevision + JSON.stringify(state.target);
     if (savedRef.current === identity) {
-      try { if (localStorage.getItem(recordKey) !== null) return; }
+      try { if (localStorage.getItem(recordKey) !== null) return true; }
       catch { /* Report the failed write below. */ }
     }
     const now = Date.now();
     let storage: Storage;
     try { storage = localStorage; }
-    catch { setError('Draft storage is unavailable. Export JSON to keep your work.'); setBackedUp(false); return; }
+    catch { setError('Draft storage is unavailable. Export JSON to keep your work.'); setBackedUp(false); return false; }
     const result = writeRecovery(storage, {
       version: 2, document: state.document, baseline: state.baseline, baseRevision: state.baseRevision, target: state.target,
       source: state.target.kind === 'library' ? `Library: ${state.target.entryName}` : state.target.kind === 'archive' ? 'History draft' : state.target.kind === 'panel' ? 'Panel dashboard' : 'Local draft', title: state.document.name, time: now, recordId: instanceId,
     });
-    if (!result.ok) { setError(`Draft backup failed. ${result.error} Export JSON to keep your work.`); setBackedUp(false); return; }
+    if (!result.ok) { setError(`Draft backup failed. ${result.error} Export JSON to keep your work.`); setBackedUp(false); return false; }
     savedRef.current = identity; setBackedUp(true); setTime(now); setError('');
     if (restoredKey.current) {
       const { key, raw } = restoredKey.current;
@@ -79,6 +79,7 @@ export default function useDraftRecovery(editor: EditorState) {
       } catch { /* The verified new copy exists; retain the older copy on cleanup failure. */ }
       restoredKey.current = null;
     }
+    return true;
   }
 
   useEffect(() => {
@@ -145,7 +146,7 @@ export default function useDraftRecovery(editor: EditorState) {
     try { const fresh = readRecovery(localStorage, entry.key); if (fresh && fresh.raw !== entry.raw) { setEntries((items) => items.map((item) => item.key === entry.key ? fresh : item)); setError('This backup changed. Review its latest version before discarding it.'); return; } localStorage.removeItem(entry.key); setEntries((items) => items.filter((item) => item.key !== entry.key)); }
     catch { setError('The draft could not be removed. It remains available for recovery.'); }
   }
-  return { entries, pending, error, backedUp, time, refresh, restore, discard, activeElsewhere,
+  return { entries, pending, error, backedUp, time, refresh, restore, discard, activeElsewhere, flush: () => persist(true),
     close() { startupDecided.current = true; setPending(false); ready.current = true; },
   };
 }

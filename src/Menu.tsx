@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode, Ref } from 'react';
 
-export type MenuEntry = { label: string; onSelect: () => void; disabled?: boolean; title?: string } | 'separator';
+export type MenuEntry = { label: string; onSelect: () => void; disabled?: boolean; title?: string; destructive?: boolean } | 'separator';
 
 /** A menu button: arrows move between items, Escape and Tab close it, focus returns to the button. */
 export function Menu({ label, items, triggerRef, className = '' }: { label: string; items: MenuEntry[]; triggerRef?: Ref<HTMLButtonElement>; className?: string }) {
@@ -41,7 +41,7 @@ export function Menu({ label, items, triggerRef, className = '' }: { label: stri
       {label}<svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>
     </button>
     {open && <div ref={list} id={id} role="menu" aria-label={label} className="menu-list">
-      {entries.map((item, index) => item === 'separator' ? <div key={`separator-${index}`} role="separator" /> : <button key={item.label} role="menuitem" disabled={item.disabled} title={item.title}
+      {entries.map((item, index) => item === 'separator' ? <div key={`separator-${index}`} role="separator" /> : <button key={item.label} role="menuitem" className={item.destructive ? 'destructive-action' : undefined} disabled={item.disabled} title={item.title}
         onClick={() => { setOpen(false); trigger.current?.focus(); item.onSelect(); }}>{item.label}</button>)}
     </div>}
   </div>;

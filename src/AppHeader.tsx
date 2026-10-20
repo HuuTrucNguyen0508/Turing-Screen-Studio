@@ -4,12 +4,13 @@ import { Menu } from './Menu';
 import type { MenuEntry } from './Menu';
 import type { DraftTarget } from './domain/draft';
 
-export default function AppHeader({ name, target, status, dirty, canUndo, canRedo, panel, library, layoutMenu, settingsMenu, settingsRef, actions, onRename, onUndo, onRedo }: {
+export default function AppHeader({ name, target, status, dirty, canUndo, canRedo, panel, library, layoutMenu, settingsMenu, settingsRef, actions, onRename, onUndo, onRedo, onShutdown }: {
   name: string; target: DraftTarget; status: string; dirty: boolean; canUndo: boolean; canRedo: boolean;
   /** Panel connection summary; detail explains it on hover. */
   panel: { available: boolean; state: string; detail: string };
   library: ReactNode; layoutMenu: MenuEntry[]; settingsMenu: MenuEntry[]; settingsRef: Ref<HTMLButtonElement>; actions: ReactNode;
   onRename: (value: string) => void; onUndo: () => void; onRedo: () => void;
+  onShutdown: () => void;
 }) {
   const origin = target.kind === 'library' ? `Library entry ${target.entryName}` : target.kind === 'archive' ? 'History draft' : null;
   return <header className="app-header">
@@ -34,7 +35,7 @@ export default function AppHeader({ name, target, status, dirty, canUndo, canRed
     <div className="header-end">
       <span className={`panel-status${panel.available ? '' : ' offline'}`} role={panel.available ? 'status' : undefined} title={panel.detail}><span className="status-dot" aria-hidden="true" />{panel.state}</span>
       <Menu label="Layout" items={layoutMenu} />
-      <Menu label="Settings" items={settingsMenu} triggerRef={settingsRef} />
+      <Menu label="Settings" className="settings-menu" items={panel.available ? [...settingsMenu, 'separator', { label: 'Shut down Studio…', destructive: true, onSelect: onShutdown }] : settingsMenu} triggerRef={settingsRef} />
       <div className="header-actions">{actions}</div>
     </div>
   </header>;

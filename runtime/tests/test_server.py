@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import threading
@@ -163,6 +164,66 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertIn("error", json.loads(body))
         self.assertNotIn("Access-Control-Allow-Origin", headers)
+
+    def test_shutdown_exits_cleanly_and_closes_listener(self):
+        process = subprocess.Popen([
+            sys.executable, str(RUNTIME / "server.py"), "--port", "0",
+            "--state-dir", str(self.root / "child-state"),
+            "--runtime-dir", str(self.root / "child-runtime"), "--dist", str(self.dist),
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            address = process.stdout.readline().strip().removeprefix("TURZX Studio: http://")
+            host, port = address.split(":")
+            connection = HTTPConnection(host, int(port), timeout=5)
+            connection.request("POST", "/api/shutdown", headers={"Origin": f"http://{address}"})
+            response = connection.getresponse()
+            self.assertEqual(response.status, 202)
+            self.assertEqual(json.loads(response.read()), {"status": "stopping"})
+            connection.close()
+            _, errors = process.communicate(timeout=10)
+            self.assertEqual(process.returncode, 0, errors)
+            with self.assertRaises(OSError):
+                HTTPConnection(host, int(port), timeout=1).connect()
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.communicate(timeout=5)
+
+    def test_shutdown_rejects_foreign_origin_and_host(self):
+        for headers in ({"Origin": "https://example.com"}, {"Host": "example.com"}):
+            with self.subTest(headers=headers):
+                self.assert_json_error(self.request("POST", "/api/shutdown", headers=headers), 403)
+                self.assertTrue(self.thread.is_alive())
+        self.assertEqual(self.request("GET", "/api/status")[0], 200)
+
+    def test_shutdown_requires_post(self):
+        self.assert_json_error(self.request("GET", "/api/shutdown"), 405)
+        self.assertTrue(self.thread.is_alive())
+
+    def test_shutdown_waits_for_inflight_response(self):
+        entered = threading.Event()
+        release = threading.Event()
+        body = b"preview" * 100000
+
+        def preview(*args, **kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise TimeoutError("test did not release preview")
+            return body
+
+        with patch.object(self.app, "preview", side_effect=preview), ThreadPoolExecutor() as pool:
+            pending = pool.submit(self.post, "/api/preview", {})
+            try:
+                self.assertTrue(entered.wait(5))
+                self.assertEqual(self.request("POST", "/api/shutdown")[0], 202)
+                self.thread.join(timeout=5)
+                self.assertFalse(self.thread.is_alive())
+                self.assertFalse(pending.done())
+            finally:
+                release.set()
+            status, _, received = pending.result(timeout=5)
+            self.assertEqual(status, 200)
+            self.assertEqual(received, body)
 
     def test_removed_ai_endpoints_return_404_without_changing_saved_layout(self):
         original = self.paths.layout.read_bytes()

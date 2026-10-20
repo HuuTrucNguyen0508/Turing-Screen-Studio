@@ -427,11 +427,15 @@ class StudioApplication:
 
 
 class StudioHTTPServer(ThreadingHTTPServer):
-    daemon_threads = True
+    daemon_threads = False
 
     def __init__(self, app: StudioApplication, port: int = 5174) -> None:
         self.app = app
         super().__init__(("127.0.0.1", port), StudioHandler)
+
+    def shutdown_and_close(self) -> None:
+        self.shutdown()
+        self.server_close()
 
 
 class StudioHandler(BaseHTTPRequestHandler):
@@ -513,6 +517,13 @@ class StudioHandler(BaseHTTPRequestHandler):
             self.connection.settimeout(15)
             path = self._check_request()
             app = self.server.app
+            if path == "/api/shutdown":
+                if self.command != "POST":
+                    raise APIError(405, "Use POST to shut down Studio")
+                self._json(202, {"status": "stopping"})
+                self.wfile.flush()
+                threading.Thread(target=self.server.shutdown_and_close, name="studio-shutdown").start()
+                return
             if self.command in ("GET", "HEAD"):
                 if path == "/api/layout":
                     result = app.layout()

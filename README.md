@@ -32,7 +32,7 @@ Open `http://127.0.0.1:4173`. Keep that local server running when using the edit
 
 Use Create layout for a designed starting point, open [the sample layout](public/sample-layout.json), or add widgets from the searchable catalog. It includes metric, weather, clock, text, storage and gauge cards, plus AI usage summaries, T3 threads and game timers. Gauge designs include arc, ring, bar, segmented meter, thermometer and number. Browser previews use deterministic samples.
 
-The header holds the layout name, Library, Undo and Redo, the panel status and one primary action: Save to panel when the Studio API is connected, or Export JSON offline. Less frequent actions sit in two menus. Layout has Create layout, Open layout, Export JSON, Open panel dashboard, View panel frame, History and Recover drafts. Settings has Colors and Game timers.
+The header holds the layout name, Library, Undo and Redo, the panel status and one primary action: Save to panel when the Studio API is connected, or Export JSON offline. Less frequent actions sit in two menus. Layout has Create layout, Open layout, Export JSON, Open panel dashboard, View panel frame, History and Recover drafts. Settings has Colors and Game timers. When connected, it also has **Shut down Studio…**.
 
 Layers sit to the left of the canvas and the Inspector to the right. Use the arrow in either heading to fold it into a narrow strip, and the strip to bring it back. These choices are remembered in this browser and kept separate from layout JSON. Add widget, Import and Clipboard stay above the canvas. Snapping, Sample or Live preview data, Data sources, layout notes, zoom and the **?** shortcut list sit below it. On phones the Inspector and Layers follow the canvas.
 
@@ -136,6 +136,8 @@ The panel installer backs up the original dashboard and adds a separate systemd 
 
 Save to panel writes a guarded layout; Panel accepted frame requires an acknowledged USB upload for that revision. The editor and preview server never own USB. The independent runtime retains exclusive USB ownership, reconnect handling, dirty-frame skipping and its roughly 1 Hz idle refresh. H.264 remains an opt-in experiment. See the [TURZX diary](https://github.com/HuuTrucNguyen0508/Hyprland_Diary/tree/main/TURZX-SCREEN) for orientation and transport experiments.
 
+To stop the Studio server, choose **Settings → Shut down Studio…** and confirm. The editor and Ctrl+F9–F12 layout shortcuts stop until Studio starts again. The panel keeps showing its current layout. Committed unsaved edits stay in draft recovery in this browser. Restart with `systemctl --user start turzx-studio.service`, or run `pnpm studio` from the repository for a manual installation. Then choose **Reconnect** on the stopped screen. The enabled service also starts at the next login.
+
 ## Checks and contributing
 
 The complete test suite runs on Linux and needs the Python setup above. Activate that environment so the cross-language domain tests find Pillow:
@@ -148,7 +150,7 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-Domain tests check the layout contract and editing operations. Build also checks the domain module without browser types. Playwright starts its own loopback server on port 4175 and checks editing, import/export and offline use against `dist/`. On Linux, `pnpm exec playwright install --with-deps chromium` also installs required browser libraries. To use an existing Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its executable path.
+Domain tests check the layout contract and editing operations. Build also checks the domain module without browser types. Playwright starts an offline preview server on port 4175 and an isolated Studio API on port 4176 with temporary state. It checks editing, import/export, offline use and shutdown against `dist/`. Shutdown browser tests mock the endpoint so the shared test server stays running. On Linux, `pnpm exec playwright install --with-deps chromium` also installs required browser libraries. To use an existing Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its executable path.
 
 With the Python environment installed, run `PYTHONPATH=runtime .venv/bin/python -m unittest discover -s runtime/tests`. CI runs these checks without the private dashboard installation or hardware.
 

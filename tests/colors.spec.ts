@@ -102,8 +102,7 @@ test('every widget type retains its overrides through export, reopen and custom 
   await page.getByRole('button', { name: 'Save as custom widget…', exact: true }).click();
   await page.getByRole('textbox', { name: 'Custom widget name', exact: true }).fill('Colored CPU');
   await page.getByRole('button', { name: 'Save widget', exact: true }).click();
-  const stored = await page.evaluate(() => Object.entries(localStorage).find(([key]) => key.includes('custom-widgets'))?.[1]);
-  expect(stored).toContain('#88bbcc');
+  await expect.poll(() => page.evaluate(() => Object.entries(localStorage).find(([key]) => key.includes('custom-widgets'))?.[1])).toContain('#88bbcc');
 });
 
 test('clock elements accept exact colors including the time suffix and retain them in JSON', async ({ page }) => {

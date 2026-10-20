@@ -30,7 +30,7 @@ import { addWidget, addWidgetTemplate, duplicateWidget, parseLayoutPresets, remo
 import type { LayoutPreset } from './domain/widgets';
 import { moveSelection } from './domain/canvas';
 import { parseCaelestiaPalette, parseLayout, serializeLayout } from './domain/layout';
-import type { LayoutDocument, Widget } from './domain/layout';
+import type { LayoutDocument, Palette, Widget } from './domain/layout';
 import { clipEntry, pasteClip, removeSelection } from './domain/clipboard';
 import type { ClipEntry } from './domain/clipboard';
 import useWidgetClipboard from './useWidgetClipboard';
@@ -40,6 +40,7 @@ import type { MenuEntry } from './Menu';
 import LayersPanel from './LayersPanel';
 import InspectorPanel from './InspectorPanel';
 import { PresetsDialog, RecoveryDialog } from './StartDialogs';
+import { ShutdownDialog, StudioStopped } from './StudioShutdown';
 
 const workspacePreference = 'turzx-studio.workspace-panels.v2';
 type WorkspacePanels = { layers: boolean; inspector: boolean };
@@ -54,6 +55,11 @@ function initialPanels(): WorkspacePanels {
 const textEntry = 'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]), textarea, select, [contenteditable]';
 
 export default function App() {
+  const [stoppedPalette, setStoppedPalette] = useState<Palette | null>(null);
+  return stoppedPalette ? <StudioStopped palette={stoppedPalette} /> : <StudioEditor onStopped={setStoppedPalette} />;
+}
+
+function StudioEditor({ onStopped }: { onStopped: (palette: Palette) => void }) {
   const editor = useEditor();
   const studioTheme = useStudioTheme();
   const [colorsTab, setColorsTab] = useState<'studio' | 'dashboard' | null>(null);
@@ -87,6 +93,7 @@ export default function App() {
   const importDialog = useRef<HTMLDialogElement>(null);
   const importSequence = useRef(0);
   const panelDialog = useRef<HTMLDialogElement>(null);
+  const shutdownDialog = useRef<HTMLDialogElement>(null);
   const catalogDialog = useRef<HTMLDialogElement>(null);
   const presetsDialog = useRef<HTMLDialogElement>(null);
   const quickAddButton = useRef<HTMLButtonElement>(null);
@@ -518,7 +525,7 @@ export default function App() {
         ? { available: true, state: panelState, detail: panel.status.error || (panelChangedElsewhere ? 'The panel switched outside this editor. Choose Open panel dashboard in the Layout menu to view it.' : 'Preview uses the chosen data mode. Save to panel applies this draft.') }
         : { available: false, state: 'Offline editor', detail: panel.connectionError || 'Sample data. No panel connection.' }}
       library={<SavedLayouts draftCompatible={panelCompatible} onEdit={(next, target) => openDraft(next, target)} onLibraryUpdated={libraryUpdated} available={panel.available} busy={busyPanel} presets={presets} getDocument={() => documentRef.current} onSwitch={switchPanelLayout} onError={setError} onMessage={setMessage} />}
-      layoutMenu={layoutMenu} settingsMenu={settingsMenu} settingsRef={colorsButton}
+      layoutMenu={layoutMenu} settingsMenu={settingsMenu} settingsRef={colorsButton} onShutdown={() => shutdownDialog.current?.showModal()}
       actions={panel.available ? <>
         {editor.state.target.kind === 'library' && <button aria-describedby={sizeNote ? 'panel-size-note' : undefined} title={sizeNote} disabled={!panelCompatible || librarySaving || serialized === editor.state.target.entryText} onClick={() => void saveToLibrary()}>Save to library</button>}
         <button className="primary-button" aria-describedby={sizeNote ? 'panel-size-note' : undefined} title={sizeNote} disabled={!panelCompatible || busyPanel} onClick={() => void saveToPanel()}>{panel.saving ? 'Saving…' : 'Save to panel'}</button>
@@ -560,6 +567,7 @@ export default function App() {
       change(next); setDocumentGeneration(generation => generation + 1); setError('');
       setMessage(`Resized canvas to ${next.canvas.width} × ${next.canvas.height}. Undo restores the previous size and cards.`);
     }} />}
+    <ShutdownDialog dialogRef={shutdownDialog} dirty={dirty} preserveDraft={recovery.flush} onStopped={() => onStopped(studioPalette)} />
     <HistoryDialog available={panel.available} onOpen={openDraft} openRef={historyOpen} />
     <GameTimers open={gameTimersOpen} available={panel.available} onClose={() => setGameTimersOpen(false)} onChanged={panel.retryPreview} />
     <RecoveryDialog dialogRef={recoveryDialog} recovery={recovery} error={error} onRestore={restoreDraft} onExport={exportRecovery} />
