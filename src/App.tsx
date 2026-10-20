@@ -301,13 +301,13 @@ export default function App() {
     const lead = cards.find((widget) => widget.id === state.selectedId) ?? cards[0];
     const name = cards.length > 1 ? `${widgetLabel(lead)} and ${cards.length - 1} more` : widgetLabel(lead);
     try {
-      clipboard.remember(clipEntry(state.document, state.selectedIds, { id: crypto.randomUUID(), name, copiedAt: Date.now() }));
+      const result = clipboard.remember(clipEntry(state.document, state.selectedIds, { id: crypto.randomUUID(), name, copiedAt: Date.now() }));
       if (cut) {
         change(removeSelection(state.document, state.selectedIds), null);
         requestAnimationFrame(() => window.document.querySelector<HTMLElement>('.canvas-viewport')?.focus({ preventScroll: true }));
       }
       setError('');
-      setMessage(`${cut ? 'Cut' : 'Copied'} ${name}. Open another layout and press Ctrl+V, or use Clipboard, to paste it.${cut ? ' Undo restores it here.' : ''}`);
+      setMessage(`${cut ? 'Cut' : 'Copied'} ${name}. ${result.persisted ? 'Open another layout and press Ctrl+V, or use Clipboard, to paste it.' : 'This copy lives only in this tab until it closes. Press Ctrl+V here to paste it.'}${result.persisted && result.warning ? ` ${result.warning}` : ''}${cut ? ' Undo restores it here.' : ''}`);
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not copy the selection.'); }
   }
 

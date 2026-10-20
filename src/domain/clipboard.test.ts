@@ -3,13 +3,37 @@ import { createSampleLayout, serializeLayout } from './layout';
 import type { LayoutDocument } from './layout';
 import {
   CLIPBOARD_LIMIT, clipBounds, clipEntry, clipPreview, clipType, emptyClipboard, forgetClip,
-  parseClipboard, pasteClip, rememberClip, removeSelection, serializeClipboard,
+  mergeClipboard, parseClipboard, pasteClip, rememberClip, removeSelection, serializeClipboard,
 } from './clipboard';
 
 const meta = (id = 'clip-1') => ({ id, name: 'CPU load', copiedAt: 1_700_000_000_000 });
 const empty = (width = 1280, height = 800): LayoutDocument => ({ ...createSampleLayout(), name: 'Target', canvas: { width, height }, widgets: [] });
 
 describe('widget clipboard', () => {
+  it('merges tab-only copies with incoming storage newest first and deduplicates by ID and content', () => {
+    const source = createSampleLayout();
+    const local = clipEntry(source, ['cpu'], { ...meta('local'), copiedAt: 10 });
+    const remote = clipEntry(source, ['gpu'], { ...meta('remote'), copiedAt: 20 });
+    const localBoard = rememberClip(emptyClipboard, local);
+    expect(mergeClipboard(localBoard, rememberClip(emptyClipboard, remote)).entries.map((clip) => clip.id)).toEqual(['remote', 'local']);
+    expect(mergeClipboard(localBoard, emptyClipboard)).toEqual(localBoard);
+    const repeated = { ...local, id: 'new-local', copiedAt: 30 };
+    const replacedId = { ...remote, id: 'local', copiedAt: 40 };
+    expect(mergeClipboard(localBoard, rememberClip(emptyClipboard, repeated)).entries).toEqual([repeated]);
+    expect(mergeClipboard(localBoard, rememberClip(emptyClipboard, replacedId)).entries).toEqual([replacedId]);
+  });
+
+  it('caps merged clipboard history at 12 without retaining older duplicates', () => {
+    const source = createSampleLayout();
+    const copies = Array.from({ length: 16 }, (_, index) => {
+      const doc: LayoutDocument = { ...source, widgets: source.widgets.map((widget) => ({ ...widget, x: widget.x + index })) };
+      return clipEntry(doc, ['cpu'], { ...meta(`clip-${index}`), copiedAt: index });
+    });
+    const local = copies.slice(0, 8).reduce(rememberClip, emptyClipboard);
+    const stored = copies.slice(8).reduce(rememberClip, emptyClipboard);
+    expect(mergeClipboard(local, stored).entries.map((clip) => clip.id)).toEqual(copies.slice(4).reverse().map((clip) => clip.id));
+  });
+
   it('copies detached widgets in paint order with their source', () => {
     const source = createSampleLayout();
     const clip = clipEntry(source, ['weather', 'cpu'], meta());

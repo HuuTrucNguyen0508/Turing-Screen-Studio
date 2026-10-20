@@ -111,3 +111,25 @@ test('header menus open from the keyboard and return focus when closed', async (
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Keyboard shortcuts', exact: true })).toBeFocused();
 });
+
+for (const viewport of [{ width: 360, height: 740 }, { width: 1280, height: 800 }, { width: 1600, height: 1000 }]) {
+  test(`expanded Data sources keeps stage controls in bounds at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    const summary = page.getByText('Data sources', { exact: true });
+    await summary.click();
+    const stage = (await page.locator('.preview-panel').boundingBox())!;
+    for (const control of [page.getByLabel('Canvas zoom', { exact: true }), page.getByRole('button', { name: 'Keyboard shortcuts', exact: true })]) {
+      const bounds = (await control.boundingBox())!;
+      expect(bounds.x).toBeGreaterThanOrEqual(stage.x);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(stage.x + stage.width);
+    }
+    const note = page.getByText('Connect to the local Studio server to inspect runtime readings.', { exact: true });
+    const bounds = (await note.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(stage.x);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(stage.x + stage.width);
+    await expect(note).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `artifacts/ui-simplify/fix-sources-${viewport.width}x${viewport.height}.png` });
+  });
+}

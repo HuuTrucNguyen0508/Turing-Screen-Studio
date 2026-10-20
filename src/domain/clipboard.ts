@@ -83,6 +83,13 @@ export function rememberClip(board: WidgetClipboard, clip: ClipEntry): WidgetCli
   return Object.freeze({ version: 1, entries: Object.freeze([clip, ...rest].slice(0, CLIPBOARD_LIMIT)) });
 }
 
+/** Merge shared history with copies retained in this tab, using the same copy identity rules. */
+export function mergeClipboard(local: WidgetClipboard, stored: WidgetClipboard): WidgetClipboard {
+  return [...local.entries, ...stored.entries]
+    .sort((a, b) => a.copiedAt - b.copiedAt)
+    .reduce(rememberClip, emptyClipboard);
+}
+
 export function forgetClip(board: WidgetClipboard, id: string): WidgetClipboard {
   return Object.freeze({ version: 1, entries: Object.freeze(board.entries.filter((clip) => clip.id !== id)) });
 }

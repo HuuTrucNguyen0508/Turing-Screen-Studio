@@ -64,7 +64,7 @@ export default function PreviewSources({ available, mode, onMode }: {
     </div>
     <details className="source-details" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>Data sources</summary>
-      {!available ? <p>Connect to the local Studio server to inspect runtime readings.</p> : <>
+      <div className="source-content">{!available ? <p>Connect to the local Studio server to inspect runtime readings.</p> : <>
         {error && <p role="status">{error} Previous readings are stale.</p>}
         {live?.error && <p role="status">{live.error}</p>}
         {!live && !error && <p role="status">Reading source diagnostics…</p>}
@@ -86,7 +86,7 @@ export default function PreviewSources({ available, mode, onMode }: {
           })}
         </tbody></table></div>}
         <p className="source-footnote">Readings come from the running dashboard. Provider quotas are local cached observations. Unknown readings stay unknown. Previewing leaves the panel layout unchanged.</p>
-      </>}
+      </>}</div>
     </details>
   </div>;
 }
