@@ -130,7 +130,7 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
     operation.current = true;
     setSaving(true);
     try {
-      const response = await fetch('/api/layout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': expectedRevision }, body: serializeLayout(snapshot) });
+      const response = await fetch('/api/layout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': expectedRevision }, body: serializeLayout(snapshot), signal: AbortSignal.timeout(8000) });
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 409 && typeof data.revision === 'string') {
@@ -143,6 +143,9 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
       setRevision(data.revision);
       setStatus((current) => ({ ...current, requestedRevision: data.revision }));
       return data.revision as string;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError') throw new Error('Save result unknown. Your draft is intact. Open panel dashboard to check before saving again.');
+      throw error;
     } finally { operation.current = false; setSaving(false); }
   }
 
@@ -151,10 +154,13 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
     operation.current = true;
     setOpeningSaved(true);
     try {
-      const response = await fetch('/api/layout');
+      const response = await fetch('/api/layout', { signal: AbortSignal.timeout(8000) });
       if (!response.ok) throw new Error('Could not open the saved layout.');
       const data = await response.json();
       return { document: parseLayout(JSON.stringify(data.document)), revision: data.revision as string };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError') throw new Error('Opening the panel dashboard timed out. Your draft is intact. Try again.');
+      throw error;
     } finally { operation.current = false; setOpeningSaved(false); }
   }
 
@@ -165,7 +171,7 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
     try {
       const response = await fetch('/api/layouts/switch', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': revision },
-        body: JSON.stringify(selection),
+        body: JSON.stringify(selection), signal: AbortSignal.timeout(8000),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -176,6 +182,9 @@ export default function usePanel(document: LayoutDocument, onOpen: (document: La
       const saved = parseLayout(JSON.stringify(data.document));
       adoptSaved(data.revision);
       return { document: saved, revision: data.revision as string, activeId: data.activeId as string };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError') throw new Error('Switch result unknown. Your draft is intact. Open panel dashboard to check before switching again.');
+      throw error;
     } finally { operation.current = false; setSwitching(false); }
   }
 

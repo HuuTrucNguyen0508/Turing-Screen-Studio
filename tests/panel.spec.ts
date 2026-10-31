@@ -250,3 +250,67 @@ test('browsing and adding library variants keeps panel writes explicit', async (
   expect(saved.widgets.some(({ id }) => id === 'network-down-gauge')).toBe(false);
   await expect(page.getByRole('button', { name: 'Save to panel' })).toBeEnabled();
 });
+
+
+test('human pace drag survives connected preview changing from pending to error', async ({ page }) => {
+  const layout = createSampleLayout();
+  let rejectPreview: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => { rejectPreview = resolve; });
+  await page.route('**/api/layout', (route) => route.fulfill({ json: { document: layout, revision: 'drag' } }));
+  await page.route('**/api/status', (route) => route.fulfill({ json: { runtimeRunning: true, connected: true } }));
+  await page.route('**/api/palette', (route) => route.fulfill({ json: { palette: null } }));
+  await page.route('**/api/preview', async (route) => { await gate; await route.fulfill({ status: 422, json: { error: 'Preview rejected' } }); });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Save to panel' })).toBeVisible();
+  const viewport = page.getByLabel('Canvas viewport', { exact: true });
+  const before = (await viewport.boundingBox())!;
+  const bounds = (await page.getByRole('group', { name: 'CPU load card' }).boundingBox())!;
+  const x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2;
+  await page.mouse.move(x, y); await page.mouse.down();
+  await page.mouse.move(x + 10, y); await page.waitForTimeout(100);
+  const response = page.waitForResponse('**/api/preview');
+  rejectPreview!();
+  await (await response).finished();
+  for (let step = 2; step <= 6; step++) { await page.mouse.move(x + step * 10, y); await page.waitForTimeout(100); }
+  await page.mouse.up();
+  await expect(page.locator('.preview-notice')).toContainText('Preview rejected');
+  expect(await viewport.boundingBox()).toEqual(before);
+  await expect.poll(async () => Number(await page.getByLabel('X position').inputValue())).toBeGreaterThan(layout.widgets[0].x);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByLabel('X position')).toHaveValue(String(layout.widgets[0].x));
+});
+
+test('timed out save keeps draft and unlocks panel actions with unknown result', async ({ page }) => {
+  const layout = createSampleLayout();
+  await page.route('**/api/layout', (route) => route.request().method() === 'POST' ? new Promise<void>(() => {}) : route.fulfill({ json: { document: layout, revision: 'timeout' } }));
+  await page.route('**/api/status', (route) => route.fulfill({ json: {} }));
+  await page.route('**/api/palette', (route) => route.fulfill({ json: { palette: null } }));
+  await page.route('**/api/preview', (route) => route.fulfill({ status: 422, json: { error: 'Sample preview' } }));
+  await page.goto('/');
+  const save = page.getByRole('button', { name: 'Save to panel', exact: true });
+  await expect(save).toBeVisible();
+  await page.getByRole('group', { name: 'CPU load card' }).press('ArrowRight');
+  await save.click();
+  await expect(page.getByRole('alert')).toContainText('Save result unknown', { timeout: 12000 });
+  await expect(save).toBeEnabled();
+  await expect(page.getByLabel('X position')).toHaveValue('65');
+  await expect(page.getByTestId('document-status')).toHaveText('Unsaved changes');
+  await chooseMenu(page, 'Layout', 'Open panel dashboard');
+  await expect(page.getByRole('button', { name: 'Open and discard changes' })).toBeVisible();
+});
+
+test('a timed out open preserves the draft and releases the operation lock', async ({ page }) => {
+  let gets = 0;
+  await page.route('**/api/layout', (route) => ++gets === 1 ? route.fulfill({ json: { document: createSampleLayout(), revision: 'open-timeout' } }) : new Promise<void>(() => {}));
+  await page.route('**/api/status', (route) => route.fulfill({ json: {} }));
+  await page.route('**/api/palette', (route) => route.fulfill({ json: { palette: null } }));
+  await page.route('**/api/preview', (route) => route.fulfill({ status: 422, json: { error: 'Sample preview' } }));
+  await page.goto('/');
+  const save = page.getByRole('button', { name: 'Save to panel', exact: true });
+  await expect(save).toBeEnabled();
+  await page.getByRole('group', { name: 'CPU load card' }).press('ArrowRight');
+  await chooseMenu(page, 'Layout', 'Open panel dashboard');
+  await expect(page.getByRole('alert')).toContainText('Opening the panel dashboard timed out', { timeout: 12000 });
+  await expect(save).toBeEnabled();
+  await expect(page.getByLabel('X position')).toHaveValue('65');
+});

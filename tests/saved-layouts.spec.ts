@@ -166,3 +166,17 @@ test('inspector input typed during a delayed switch remains until the user commi
   await x.press('Enter');
   await expect(page.getByTestId('document-status')).toHaveText('Unsaved changes');
 });
+
+test('a timed out switch preserves the editor draft and releases panel actions', async ({ page }) => {
+  const state = await setup(page);
+  state.setGate(new Promise<void>(() => {}));
+  const card = page.getByRole('group', { name: 'CPU load card' });
+  await card.press('ArrowRight');
+  await page.keyboard.press('Control+F10');
+  await expect.poll(() => state.switches.length).toBe(1);
+  await expect(page.getByRole('alert')).toContainText('Switch result unknown', { timeout: 12000 });
+  await expect(page.getByLabel('X position')).toHaveValue('65');
+  await expect(page.getByRole('button', { name: 'Save to panel', exact: true })).toBeEnabled();
+  await page.keyboard.press('Control+F11');
+  await expect.poll(() => state.switches.length).toBe(2);
+});
