@@ -380,7 +380,7 @@ class T3Activity:
                         "threads": items[:MAX_ITEMS], "observedAt": _iso(observed),
                         "note": "Verified T3 execution." if items else "No working T3 threads."}
         except sqlite3.Error as error:
-            # Python 3.10 lacks both sqlite_errorcode and the result-code
+            # Older SQLite bindings lack both sqlite_errorcode and the result-code
             # constants. Match SQLite's fixed diagnostic text on that version.
             code = getattr(error, "sqlite_errorcode", None)
             diagnostic = str(error).lower()

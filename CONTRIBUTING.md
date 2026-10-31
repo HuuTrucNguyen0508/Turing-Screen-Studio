@@ -11,7 +11,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-For the optional Linux API and Python tests, use Python 3.10 or newer:
+For the optional Linux API and Python tests, use Python 3.11 or newer:
 
 ```bash
 python3 -m venv .venv

@@ -57,11 +57,11 @@ Reloaded the local Studio and matching dashboard renderer after checks passed. A
 
 ## Public CI setup fixes, 7 October 2026
 
-The corrected [GitHub run](https://github.com/HuuTrucNguyen0508/Turing-Screen-Studio/actions/runs/37619068513) passed all four jobs on code commit `19357d0`: editor tests/build, all 92 browser cases, and Python 3.10/3.13 runtime suites. The final documentation update adds environment activation for local cross-language tests and uses a CI skip marker because it changes prose only.
+The corrected [GitHub run](https://github.com/HuuTrucNguyen0508/Turing-Screen-Studio/actions/runs/37619068513) passed all four jobs on code commit `19357d0`: editor tests/build, all 92 browser cases, and the then-supported minimum Python and Python 3.13 runtime suites. The final documentation update adds environment activation for local cross-language tests and uses a CI skip marker because it changes prose only.
 
 The initial GitHub run passed all 92 browser cases and the Python 3.13 suite. It exposed a missing Pillow dependency in the editor job, because one domain test imports the PIL gauge helpers. That job now installs the pinned Python requirement before running domain tests.
 
-Python 3.10 exposed missing SQLite result-code constants in activity error handling and a version-dependent mock wrapper in two usage tests. The reader now preserves unavailable/budget states on older Python by handling SQLite's fixed diagnostics without missing-constant lookups. File-open spies use an explicit real-call side effect. All 62 activity checks and 64 usage checks passed locally, including an older-binding regression.
+The former minimum Python version exposed missing SQLite result-code constants in activity error handling and a version-dependent mock wrapper in two usage tests. The reader now preserves unavailable/budget states on older Python by handling SQLite's fixed diagnostics without missing-constant lookups. File-open spies use an explicit real-call side effect. All 62 activity checks and 64 usage checks passed locally, including an older-binding regression.
 
 ## Community release, 7 October 2026
 

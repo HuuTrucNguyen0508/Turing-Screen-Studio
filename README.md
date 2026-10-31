@@ -84,7 +84,7 @@ The clean drafts in [system-overview-clean.json](layouts/system-overview-clean.j
 
 ## Optional Linux Studio API
 
-The local Python API provides PIL previews and saved-layout tools. It is currently supported on Linux with Python 3.10 or newer and Pillow 13.0.0. It can run without the legacy dashboard or a USB device, but live sensor readings and panel acknowledgements require the existing runtime.
+The local Python API provides PIL previews and saved-layout tools. It is currently supported on Linux with Python 3.11 or newer and Pillow 13.0.0. It can run without the legacy dashboard or a USB device, but live sensor readings and panel acknowledgements require the existing runtime.
 
 From the repository root, after the JavaScript setup:
 
