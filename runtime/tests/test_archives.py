@@ -29,6 +29,14 @@ class ArchiveTests(unittest.TestCase):
         self.app = server.StudioApplication(self.paths)
         self.document = self.app.layout()['document']
 
+    def test_seed_lock_permission_error_keeps_server_available(self):
+        self.paths.layout.unlink()
+        with patch('server.layout_write_lock', side_effect=PermissionError('read-only state directory')):
+            app = server.StudioApplication(self.paths)
+        self.assertIn('read-only state directory', app.seed_error)
+        with self.assertRaisesRegex(server.APIError, 'Cannot create the initial Studio layout'):
+            app.layout()
+
     def test_seed_rechecks_layout_after_acquiring_shared_lock(self):
         from contextlib import contextmanager
         from turzx_studio.archives import layout_write_lock

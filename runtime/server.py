@@ -139,11 +139,11 @@ class StudioApplication:
         self.usage = UsageCollector()
         self.activity = T3Activity()
         self.games = GameResources(self.paths.state_dir / 'game-timers.json')
-        with self.layout_lock, layout_write_lock(self.paths):
-            # lexists behavior preserves broken symlinks too, rather than seeding over them.
-            if self.paths.layout.exists() or self.paths.layout.is_symlink():
-                return
-            try:
+        try:
+            with self.layout_lock, layout_write_lock(self.paths):
+                # lexists behavior preserves broken symlinks too, rather than seeding over them.
+                if self.paths.layout.exists() or self.paths.layout.is_symlink():
+                    return
                 document = parse_layout(read_bounded(Path(sample) if sample is not None else
                                                     ROOT / "public/sample-layout.json").decode("utf-8"), panel=True)
                 document["paletteMode"] = "live"
@@ -153,8 +153,8 @@ class StudioApplication:
                     elif widget["type"] == "weather":
                         widget["settings"]["source"] = "weather"
                 atomic_write(self.paths.layout, serialize_layout(document).encode("utf-8"))
-            except (OSError, ValueError) as error:
-                self.seed_error = f"Cannot create the initial Studio layout: {error}"
+        except (OSError, ValueError) as error:
+            self.seed_error = f"Cannot create the initial Studio layout: {error}"
 
     def _read_layout(self) -> dict:
         try:
