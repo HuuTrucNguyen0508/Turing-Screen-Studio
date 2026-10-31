@@ -29,6 +29,39 @@ class ArchiveTests(unittest.TestCase):
         self.app = server.StudioApplication(self.paths)
         self.document = self.app.layout()['document']
 
+    def test_seed_rechecks_layout_after_acquiring_shared_lock(self):
+        from contextlib import contextmanager
+        from turzx_studio.archives import layout_write_lock
+        self.paths.layout.unlink()
+        saved = {**self.document, 'name': 'Concurrent user save'}
+        @contextmanager
+        def concurrent_save(paths):
+            with layout_write_lock(paths):
+                paths.layout.write_text(json.dumps(saved))
+                yield
+        with patch('server.layout_write_lock', concurrent_save):
+            server.StudioApplication(self.paths)
+        self.assertEqual(self.app.layout()['document'], saved)
+
+    def test_archive_directories_are_flushed_before_active_replace(self):
+        import turzx_studio.storage as storage
+        events = []
+        real_replace = os.replace
+        def replace(source, destination):
+            events.append(('replace', Path(destination)))
+            return real_replace(source, destination)
+        def flush(directory):
+            events.append(('flush', Path(directory)))
+        with patch.object(storage, 'fsync_directory', side_effect=flush), patch(
+                'turzx_studio.archives.fsync_directory', side_effect=flush), patch(
+                'turzx_studio.storage.os.replace', side_effect=replace):
+            result = self.app.save({**self.document, 'name': 'Durable'}, revision(self.document))
+        archive = self.paths.older_configs / result['archive']['id']
+        active = events.index(('replace', self.paths.layout))
+        self.assertLess(events.index(('flush', archive)), active)
+        self.assertLess(events.index(('flush', self.paths.older_configs)), active)
+        self.assertGreater(events.index(('flush', self.paths.state_dir), active), active)
+
     def test_replacement_preserves_exact_previous_bytes_and_restore_preserves_newer(self):
         # Existing user formatting is part of the preserved file.
         before = json.dumps(self.document, ensure_ascii=False).encode() + b'\n\n'

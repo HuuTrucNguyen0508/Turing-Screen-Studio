@@ -6,6 +6,7 @@ from copy import deepcopy
 import os
 from pathlib import Path
 import tempfile
+import sys
 from threading import RLock
 
 from .layout import parse_caelestia_palette
@@ -47,6 +48,17 @@ class Paths:
         return self.runtime_dir / "live.json"
 
 
+def fsync_directory(path: str | Path) -> None:
+    """Persist directory entries on Linux; other offline platforms keep atomic writes."""
+    if not sys.platform.startswith('linux'):
+        return
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def atomic_write(path: str | Path, data: bytes) -> None:
     """Replace a file with flushed bytes, keeping both temp and final files private.
 
@@ -63,6 +75,7 @@ def atomic_write(path: str | Path, data: bytes) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        fsync_directory(path.parent)
     finally:
         try:
             os.unlink(temporary)

@@ -13,7 +13,7 @@ import stat
 import tempfile
 
 from .layout import parse_layout, revision
-from .storage import Paths, atomic_write
+from .storage import Paths, atomic_write, fsync_directory
 
 ARCHIVE_ID = re.compile(r"[0-9]{8}T[0-9]{12}Z-[0-9a-f]{12}\Z")
 
@@ -54,6 +54,9 @@ def archive_layout(paths: Paths, data: bytes, reason: str = 'panel-save') -> dic
         atomic_write(temporary / 'layout.json', data)
         atomic_write(temporary / 'manifest.json', (json.dumps(metadata, indent=2) + '\n').encode())
         temporary.rename(root / identifier)
+        fsync_directory(root / identifier)
+        fsync_directory(root)
+        fsync_directory(root.parent)
     finally:
         if temporary.exists():
             shutil.rmtree(temporary)

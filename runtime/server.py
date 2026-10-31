@@ -139,7 +139,7 @@ class StudioApplication:
         self.usage = UsageCollector()
         self.activity = T3Activity()
         self.games = GameResources(self.paths.state_dir / 'game-timers.json')
-        with self.layout_lock:
+        with self.layout_lock, layout_write_lock(self.paths):
             # lexists behavior preserves broken symlinks too, rather than seeding over them.
             if self.paths.layout.exists() or self.paths.layout.is_symlink():
                 return
