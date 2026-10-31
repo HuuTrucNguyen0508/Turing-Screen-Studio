@@ -2,24 +2,30 @@
 
 Merged `studio-polish` into `audit-fixes`, retaining the simplified workbench, clipboard, shutdown and short storage labels alongside list, graph and calendar cards, collapsible Inspector sections, grouped sample controls and the trend checkbox.
 
-Preview status now reserves a fixed wrapping notice row so pending, success and error states cannot resize the canvas viewport. Gestures retain their status snapshot, and real viewport resizing still cancels a drag. Deferred panel focus respects a control focused later. Save, open and switch requests abort after eight seconds; timeouts release the operation lock and keep the draft. Save and switch timeouts report an unknown result.
+The footer separates controls from a fixed 54-pixel, scrollable notice row. A fixed-width notes slot keeps control wrapping independent of note counts at desktop and phone widths; preview status cannot resize the canvas viewport. Gestures retain their status snapshot, and real viewport resizing still cancels a drag. Deferred panel focus respects a control focused later. Save, open and switch requests abort after eight seconds; timeouts release the operation lock and keep the draft. Save and switch timeouts report an unknown result.
 
-Both layout validators reject duplicate JSON object keys and share blank-text code points. Length limits count Unicode code points, preserving the existing saved-label contract. All 17 layout documents in `layouts/` and `public/`, including preset documents, validate in both languages. Initialization checks and writes now use the shared layout lock. Linux writes flush archive directories before active replacement and the active parent afterwards; directory syncing is skipped on other platforms.
+Both layout validators reject duplicate JSON object keys and share blank-text code points. Length limits count Unicode code points, preserving the existing saved-label contract. All 17 layout documents in `layouts/` and `public/`, including preset documents, validate in both languages. Initialization checks and writes use the shared layout lock; lock permission errors become seed errors so the server can still start. Linux writes flush archive directories before active replacement and the active parent afterwards. Archive flush errors prevent replacement; post-replace directory flush errors are logged without rejecting a landed save. Directory syncing is skipped on other platforms.
 
-Pillow is pinned to 13.0.0, browser CI installs the Python requirements, and Vite is 8.3.5. The frozen pnpm install passes and `pnpm audit` reports no known vulnerabilities. The production build and both TypeScript checks pass with the existing bundle-size warning.
+Python 3.11 is the supported minimum and CI tests 3.11 and 3.13. Pillow remains pinned to 13.0.0, browser CI installs the Python requirements, and Vite is 8.3.5. The frozen pnpm install passes and `pnpm audit` reports no known vulnerabilities. The production build and both TypeScript checks pass with the existing bundle-size warning.
 
 Final scratch-state checks on Linux:
 
 | Check | Passed | Failed | Skipped |
 |---|---:|---:|---:|
 | Domain, 21 files | 450 | 0 | 0 |
-| Python, 510 tests run | 508 | 0 | 2 |
-| Headless browser run 1 | 165 | 0 | 0 |
-| Headless browser run 2, immediately following run 1 | 165 | 0 | 0 |
+| Python 3.14, 512 tests run | 510 | 0 | 2 |
+| Python 3.11.18, 512 tests run | 510 | 0 | 2 |
+| Python 3.13.15, 512 tests run | 510 | 0 | 2 |
+| Headless browser run 1 | 172 | 0 | 0 |
+| Headless browser run 2, immediately following run 1 | 172 | 0 | 0 |
 
 The two existing Python skips require unavailable DejaVu and panel font installations. The four validator probes failed before correction; the first-start race probe also failed before correction. All five new browser regressions failed on a pre-fix build: human-pace connected drag, three hung panel operations and deferred Inspector focus during a short key gap. The durability ordering probe initially errored because the new flush helper did not exist; ordering, flush-failure preservation and non-Linux behavior pass after the fix.
 
 The first merged browser run exposed four integration failures, and a focused run exposed two remaining integration failures. These were fixed without relaxing tests. Logs and the detailed handoff are under `/tmp/turzx-fix-*` and are temporary. GitHub Actions execution, real power loss, native Windows/macOS execution, live services, the legacy dashboard environment and physical USB were not exercised. No live service was restarted and no layout was applied.
+
+Pre-merge follow-up: both footer sweeps fail on the `e278c4f` frontend and pass after correction. Each covers 47 widths, including 737–767 and 1130–1220 in three-pixel steps, notes counts through 100+ and short/long preview status. Small drags and Undo pass, including fresh-page checks at 1160 and 1163 pixels. Desktop fit checks cover 1280×800, 1280×600 and 1024×700 with a minimum 400×300 canvas, no page scrolling and no clipped controls. Final canvas sizes are 752×543, 752×343 and 496×363, each 18 pixels taller than baseline. Both new runtime failure probes error before their fixes and pass afterwards.
+
+An intermediate full suite passed 171 tests and failed the existing long-error height check; increasing the fixed notice slot from 36 to 54 pixels fixed it. A later run exposed stale catalog results after Clear search: the input updated before its deferred filter. Results and empty-state text now use the current query. The existing catalog test passed three focused repetitions, then both final full suites passed without code changes between them. No existing test was removed, skipped or relaxed. Detailed intermediate counts and logs are in `/tmp/turzx-fix2-report.md` and `/tmp/turzx-fix2-*.log`.
 
 ## Simpler workbench and widget clipboard, 20 October 2026
 
