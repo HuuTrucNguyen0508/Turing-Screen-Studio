@@ -80,3 +80,23 @@ for (const width of [1160, 1163]) {
   });
 }
 
+for (const size of [{ width: 1280, height: 800 }, { width: 1280, height: 600 }, { width: 1024, height: 700 }]) {
+  test(`every panel fits common desktop windows without page scrolling (${size.width}×${size.height})`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.goto('/');
+    await expect(page.getByRole('complementary', { name: 'Layers' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeVisible();
+    const viewport = await page.getByLabel('Canvas viewport', { exact: true }).boundingBox();
+    console.log(`fit ${size.width}×${size.height}: ${viewport?.width}×${viewport?.height}`);
+    expect(await page.locator('.stage-controls').evaluate(row => {
+      const bounds = row.getBoundingClientRect();
+      return [...row.children].every(child => child.getBoundingClientRect().right <= bounds.right + 1);
+    })).toBe(true);
+    expect(viewport?.width).toBeGreaterThanOrEqual(400);
+    expect(viewport?.height).toBeGreaterThanOrEqual(300);
+    expect(await page.evaluate(() => ({
+      x: document.documentElement.scrollWidth > innerWidth,
+      y: document.documentElement.scrollHeight > innerHeight,
+    }))).toEqual({ x: false, y: false });
+  });
+}
