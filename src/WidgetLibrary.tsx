@@ -1,5 +1,5 @@
 import { paletteStyle, widgetColorStyle } from './paletteStyles';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { CardContent } from './WidgetContent';
 import type { Palette, Widget } from './domain/layout';
@@ -73,12 +73,11 @@ export default function WidgetLibrary({ entries, groups, palette, onAdd, onClose
 }) {
   const [query, setQuery] = useState('');
   const [groupId, setGroupId] = useState<string>(ALL);
-  const deferredQuery = useDeferredValue(query);
   const searchInput = useRef<HTMLInputElement>(null);
   const body = useRef<HTMLDivElement>(null);
 
   const groupNames = useMemo(() => new Map(groups.map((group) => [group.id, group.name])), [groups]);
-  const search = deferredQuery.trim().toLowerCase();
+  const search = query.trim().toLowerCase();
   const matches = useMemo(() => {
     const terms = search.split(/\s+/).filter(Boolean);
     return entries.filter((entry) => {
@@ -139,7 +138,7 @@ export default function WidgetLibrary({ entries, groups, palette, onAdd, onClose
         </div>
       </section>)}
       {shown === 0 && <div className="library-empty">
-        <strong>{deferredQuery.trim() ? `No widgets match “${deferredQuery.trim()}”${activeGroupName ? ` in ${activeGroupName}` : ''}.` : 'This category has no widgets.'}</strong>
+        <strong>{query.trim() ? `No widgets match “${query.trim()}”${activeGroupName ? ` in ${activeGroupName}` : ''}.` : 'This category has no widgets.'}</strong>
         <p>Try a source such as cpu or network, a size such as wide or compact, or a type such as gauge.</p>
         <div>
           {query && <button onClick={clearSearch}>Clear search</button>}
