@@ -561,6 +561,7 @@ test('live sources keep sample-only fields aside and trend toggles stay valid', 
   await page.locator('[data-widget-row="cpu"]').click();
   const trend = page.getByRole('checkbox', { name: 'Trend chart', exact: true });
   await expect(trend).not.toBeChecked();
+  await expect(page.locator('.content-fields input:not([type="checkbox"]):not([aria-label])')).toHaveCount(0);
   await trend.check();
   await expect(page.locator('[data-widget-id="cpu"] [data-trend="true"]')).toHaveCount(1);
   await page.getByLabel('Panel data source', { exact: true }).selectOption('cpu');

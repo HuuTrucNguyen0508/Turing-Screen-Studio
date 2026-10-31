@@ -62,6 +62,7 @@ type Gesture = {
   handle?: ResizeHandle;
   element?: string;
   toolbarDocked: boolean;
+  previewStatus: Pick<Props, 'previewNotice' | 'onPreviewRetry'>;
 };
 
 const handles: { id: ResizeHandle; name: string; x: number; y: number; cursor: string }[] = [
@@ -164,7 +165,7 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
     const currentScale = fitCanvas(original.canvas.width, original.canvas.height, viewport.width, viewport.height).scale * zoom;
     setSize({ width: viewport.width, height: viewport.height });
     gestureRef.current = { viewportWidth: viewport.width, viewportHeight: viewport.height, pointerId: event.pointerId, target: event.currentTarget, startX: event.clientX, startY: event.clientY, scale: currentScale,
-      document: original, ids: [...ids], widget: currentWidget, mode, pan, handle, element, toolbarDocked };
+      document: original, ids: [...ids], widget: currentWidget, mode, pan, handle, element, toolbarDocked, previewStatus: { previewNotice, onPreviewRetry } };
     setGesturing(true);
   }
 
@@ -262,6 +263,7 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
   const toolbarPlacement = toolbarPosition();
   // Keep the viewport size stable throughout a drag, even if free space changes.
   const toolbarDocked = gestureRef.current?.toolbarDocked ?? toolbarPlacement.docked;
+  const previewStatus = gestureRef.current?.previewStatus ?? { previewNotice, onPreviewRetry };
   useLayoutEffect(() => {
     // Selection and optional tools can change the available height in this commit.
     // Update the letterbox before paint so cards do not jump on the next pointer event.
@@ -356,7 +358,7 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
       setResizeOpen(false);
       requestAnimationFrame(() => viewportRef.current?.querySelector<HTMLElement>('[data-primary="true"]')?.focus({ preventScroll: true }));
     }} />}
-    <div className="stage-footer" aria-label="Canvas view" role="group" data-alert={Boolean(onPreviewRetry)}>
+    <div className="stage-footer" aria-label="Canvas view" role="group" data-alert={Boolean(previewStatus.onPreviewRetry)}>
       <label className="snap-toggle" title="Snap edges, centers and 24 px gutters while moving and resizing"><input type="checkbox" aria-label="Snapping" checked={snapping} onChange={(event) => {
         finish(true); setSnapping(event.target.checked);
         try { localStorage.setItem(SNAP_PREFERENCE, event.target.checked ? 'on' : 'off'); } catch { /* The current tab still keeps the choice. */ }
@@ -364,7 +366,7 @@ export default function CanvasPreview({ document, palette, selectedId, selectedI
       {previewControls}
       {/* The slot keeps its size when notes come and go, so a drag never resizes the canvas. */}
       <details className="canvas-warnings" data-empty={warnings.length === 0} aria-hidden={warnings.length === 0 || undefined}><summary tabIndex={warnings.length === 0 ? -1 : undefined}>{warnings.length === 100 ? '100+' : warnings.length} layout {warnings.length === 1 ? 'note' : 'notes'}</summary><div className="canvas-warning-content"><p>Informational. You can still export and save this layout.</p><ul>{warnings.slice(0, 8).map((warning, index) => <li key={index}>{warning.message}</li>)}</ul>{warnings.length > 8 && <p>{warnings.length - 8} more notes. Review overlapping or small cards.</p>}</div></details>
-      <span className="preview-notice" title={previewNotice}>{previewNotice}{onPreviewRetry && <button className="text-link" onClick={onPreviewRetry}>Retry preview</button>}</span>
+      <span className="preview-notice canvas-status-notice" role={previewStatus.onPreviewRetry ? 'status' : undefined} title={previewStatus.previewNotice}>{previewStatus.previewNotice}{previewStatus.onPreviewRetry && <button className="text-link" onClick={previewStatus.onPreviewRetry}>Retry preview</button>}</span>
       <div className="zoom-controls"><button aria-label="Zoom out" disabled={zoom <= .25} onClick={() => view(zoom / 1.25)}>−</button><span aria-label="Canvas zoom" title={`Scale ${Math.round(scale * 100)}% of panel pixels`}>{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" disabled={zoom >= 4} onClick={() => view(zoom * 1.25)}>+</button><button onClick={() => view(1, true)}>Fit</button></div>
       <ShortcutsHelp panel={panelShortcuts} />
     </div>
