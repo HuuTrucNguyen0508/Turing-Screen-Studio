@@ -84,7 +84,7 @@ The clean drafts in [system-overview-clean.json](layouts/system-overview-clean.j
 
 ## Optional Linux Studio API
 
-The local Python API provides PIL previews and saved-layout tools. It is currently supported on Linux with Python 3.10 or newer and Pillow. It can run without the legacy dashboard or a USB device, but live sensor readings and panel acknowledgements require the existing runtime.
+The local Python API provides PIL previews and saved-layout tools. It is currently supported on Linux with Python 3.10 or newer and Pillow 13.0.0. It can run without the legacy dashboard or a USB device, but live sensor readings and panel acknowledgements require the existing runtime.
 
 From the repository root, after the JavaScript setup:
 
@@ -102,7 +102,7 @@ TURZX_PYTHON=/absolute/path/to/python pnpm studio
 
 The API keeps local state under `~/.local/share/turzx-studio/`. Its active panel layout and saved dashboard library accept only 1280 × 800. Custom sizes remain editor drafts for export and preview.
 
-Connected features include live preview, Data sources, Library, History in the Layout menu and custom widget storage. Live preview uses the existing runtime's readings and falls back to samples when fresh data is unavailable. Library edits and panel saves use separate revision checks. A conflict keeps your draft and offers a comparison. Every changed panel save, library replacement or removal archives the previous document under `older-config/`. History can reopen an archive as a draft or download its JSON.
+Connected features include live preview, Data sources, Library, History in the Layout menu and custom widget storage. Live preview uses the existing runtime's readings and falls back to samples when fresh data is unavailable. Library edits and panel saves use separate revision checks. A conflict keeps your draft and offers a comparison. Panel save, open and switch requests time out after eight seconds. A timed-out write has an unknown result; the editor keeps your draft so you can open the panel dashboard to check before retrying. Every changed panel save, library replacement or removal archives the previous document under `older-config/`. History can reopen an archive as a draft or download its JSON.
 
 Saved layouts supports up to 12 dashboards. Previous and Next reach the full list; Ctrl+F9 through Ctrl+F12 select the first four when the legacy desktop shortcuts are installed. Reordering changes those assignments. Saving the library alone does not switch the panel, and switching leaves an unsaved editor draft intact.
 

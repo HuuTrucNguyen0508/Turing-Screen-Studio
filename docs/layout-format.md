@@ -77,3 +77,7 @@ A graph plots the last 120 readings of one or two sources, like a trend metric. 
 A calendar shows one month with today highlighted. Offline, and with `source: "sample"`, it shows 6 October 2026, the same date as the clock sample. With `source: "clock"`, the panel takes the day and month from its clock and chooses the nearest year. If the clock cannot be read, the card shows "Date unavailable".
 
 These three types need a runtime that lists them in `supportedWidgetTypes`. A layout using them cannot be saved to the panel until `turzx-dashboard.service` restarts with the current Studio adapter.
+
+## Text and JSON rules
+
+Both parsers reject duplicate object keys, including escaped spellings of the same key. Blank required text uses the shared code-point list in `public/text-contract.json`, which includes U+0085 and U+FEFF. Length limits count Unicode code points, matching the existing list and graph label contract. Mount paths use the same rule, so `/` followed by 128 emoji is 129 characters in both validators.

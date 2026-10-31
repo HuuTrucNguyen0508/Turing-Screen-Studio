@@ -1,3 +1,26 @@
+## Audit fixes and polish merge, 31 October 2026
+
+Merged `studio-polish` into `audit-fixes`, retaining the simplified workbench, clipboard, shutdown and short storage labels alongside list, graph and calendar cards, collapsible Inspector sections, grouped sample controls and the trend checkbox.
+
+Preview status now reserves a fixed wrapping notice row so pending, success and error states cannot resize the canvas viewport. Gestures retain their status snapshot, and real viewport resizing still cancels a drag. Deferred panel focus respects a control focused later. Save, open and switch requests abort after eight seconds; timeouts release the operation lock and keep the draft. Save and switch timeouts report an unknown result.
+
+Both layout validators reject duplicate JSON object keys and share blank-text code points. Length limits count Unicode code points, preserving the existing saved-label contract. All 17 layout documents in `layouts/` and `public/`, including preset documents, validate in both languages. Initialization checks and writes now use the shared layout lock. Linux writes flush archive directories before active replacement and the active parent afterwards; directory syncing is skipped on other platforms.
+
+Pillow is pinned to 13.0.0, browser CI installs the Python requirements, and Vite is 8.3.5. The frozen pnpm install passes and `pnpm audit` reports no known vulnerabilities. The production build and both TypeScript checks pass with the existing bundle-size warning.
+
+Final scratch-state checks on Linux:
+
+| Check | Passed | Failed | Skipped |
+|---|---:|---:|---:|
+| Domain, 21 files | 450 | 0 | 0 |
+| Python, 510 tests run | 508 | 0 | 2 |
+| Headless browser run 1 | 165 | 0 | 0 |
+| Headless browser run 2, immediately following run 1 | 165 | 0 | 0 |
+
+The two existing Python skips require unavailable DejaVu and panel font installations. The four validator probes failed before correction; the first-start race probe also failed before correction. All five new browser regressions failed on a pre-fix build: human-pace connected drag, three hung panel operations and deferred Inspector focus during a short key gap. The durability ordering probe initially errored because the new flush helper did not exist; ordering, flush-failure preservation and non-Linux behavior pass after the fix.
+
+The first merged browser run exposed four integration failures, and a focused run exposed two remaining integration failures. These were fixed without relaxing tests. Logs and the detailed handoff are under `/tmp/turzx-fix-*` and are temporary. GitHub Actions execution, real power loss, native Windows/macOS execution, live services, the legacy dashboard environment and physical USB were not exercised. No live service was restarted and no layout was applied.
+
 ## Simpler workbench and widget clipboard, 20 October 2026
 
 The header now holds the layout name, Library, Undo and Redo, the panel status, a Layout menu, a Settings menu and one primary action. Layers and the Inspector are docked beside the canvas and fold into narrow strips instead of using three Show toggles. Arrange tools and Arrows move live in the Inspector. Snapping, preview data, layout notes, zoom and a **?** shortcut list sit below the canvas.
