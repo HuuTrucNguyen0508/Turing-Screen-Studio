@@ -137,7 +137,7 @@
 .stage-controls > * { flex-shrink: 0; }
 .stage-footer .canvas-warnings { width: 140px; }
 .stage-footer .canvas-warnings summary { white-space: nowrap; }
-.stage-footer .preview-notice { flex: 0 0 36px; height: 36px; line-height: 18px; white-space: normal; overflow: auto; overflow-wrap: anywhere; }
+.stage-footer .preview-notice { flex: 0 0 54px; height: 54px; line-height: 18px; white-space: normal; overflow: auto; overflow-wrap: anywhere; }
 .stage-footer[data-alert='true'] .preview-notice { color: var(--secondary); }
 .preview-notice .text-link { margin-left: 8px; min-height: 0; padding: 2px 4px; }
 .preview-notice { min-width: 0; flex: 1 1 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
