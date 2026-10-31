@@ -1,3 +1,4 @@
+import { cardPadding } from './cardText';
 export { formatClockTime } from './design';
 import sharedCatalog from '../../public/widget-catalog.json';
 import { createSampleLayout, metricSources, validateLayout } from './layout';
@@ -23,8 +24,8 @@ export const sourceLabels: Record<string, string> = {
 
 export function widgetSources(widget: Widget): readonly string[] {
   if (widget.type === 'storage') return ['sample', 'mounted-storage'];
-  if (widget.type === 'text' || widget.type === 'image') return [];
-  if (widget.type === 'clock') return ['sample', 'clock'];
+  if (widget.type === 'text' || widget.type === 'image' || widget.type === 'list' || widget.type === 'graph') return [];
+  if (widget.type === 'clock' || widget.type === 'calendar') return ['sample', 'clock'];
   if (widget.type === 'weather') return ['sample', 'weather'];
   if (widget.type === 'metric' && widget.settings.trend) return ['sample', ...trendSources];
   if (widget.type === 'gauge') return metricSources.filter((source) => !isUsageSummary(source) && !isDashboardSource(source));
@@ -171,7 +172,7 @@ export function gaugeFraction(value: number, min: number, max: number): number {
 
 // New instruments share bounded document coordinates; the legacy arc keeps its geometry.
 export function instrumentGeometry(width: number, height: number) {
-  const padding = Math.min(29, Math.floor(width / 6));
+  const padding = cardPadding(width);
   const available = Math.max(1, width - 2 * padding);
   const radius = Math.floor(Math.min((available - 10) / 2, (height - 128) / 2));
   const meterY = Math.floor(63 + Math.max(0, height - 127) * .58);

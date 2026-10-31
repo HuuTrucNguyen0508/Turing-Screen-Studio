@@ -10,8 +10,8 @@ from pathlib import Path
 import struct
 import time
 
-from .layout import GAUGE_STYLES, effective_palette
-from .renderer import LayoutRenderer
+from .layout import GAUGE_STYLES, WIDGET_TYPES, effective_palette
+from .renderer import LayoutRenderer, rendered_content
 from .watch import LayoutWatcher
 from .storage import Paths, PaletteWatcher, atomic_write
 from .t3_refresh import UsageRefresher, token_path
@@ -102,7 +102,7 @@ class RuntimeIntegration:
         self.live_identity = process_start(os.getpid())
         self.invalidate_frame(pid=os.getpid(), processStart=process_start(os.getpid()),
                               connected=False, view='stats', error=None,
-                              supportedWidgetTypes=['metric', 'weather', 'clock', 'text', 'gauge', 'storage', 'image'],
+                              supportedWidgetTypes=list(WIDGET_TYPES),
                               supportedGaugeStyles=list(GAUGE_STYLES),
                               supportedDesignTypes=['clock'],
                               supportedTrendWidgets=True,
@@ -248,7 +248,12 @@ class RuntimeIntegration:
                 displayed = [dashboard_content(widget, transient) for widget in owner.document['widgets']
                              if widget['settings'].get('source') in DASHBOARD_SOURCES]
                 key = (*key, hashlib.sha256(json.dumps(displayed, sort_keys=True).encode()).hexdigest())
-            if owner.document and any(widget['settings'].get('trend') for widget in owner.document['widgets']):
+            if owner.document:
+                displayed = [rendered_content(widget, stats) for widget in owner.document['widgets']
+                             if widget['type'] in ('list', 'calendar')]
+                if displayed:
+                    key = (*key, hashlib.sha256(json.dumps(displayed, sort_keys=True).encode()).hexdigest())
+            if owner.document and any(widget['settings'].get('trend') or widget['type'] == 'graph' for widget in owner.document['widgets']):
                 key = (*key, owner.live.observed_at)
             if sources.intersection(USAGE_SOURCES) - {'storage'}:
                 # T3 persists token usage only when asked for a summary.

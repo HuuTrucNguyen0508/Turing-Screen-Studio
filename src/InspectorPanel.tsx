@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SetStateAction } from 'react';
+import InspectorSection from './InspectorSection';
 import CanvasTools from './CanvasTools';
 import ContentEditor from './ContentEditor';
 import DesignEditor from './DesignEditor';
@@ -68,20 +69,20 @@ export default function InspectorPanel({ document, selected, selectedIds, palett
         <h3>{selectedIds.length > 1 ? `${selectedIds.length} cards` : widgetLabel(selected)}</h3>
         <p>{selectedIds.length > 1 ? <>Fields edit {widgetLabel(selected)}, the size reference.</> : <>{selected.type} card <span className="widget-id">{selected.id}</span></>}</p>
       </div>
-      <div className="inspector-section"><h4>Position and size</h4><div className="geometry-grid">
+      <InspectorSection id="geometry" title="Position and size"><div className="geometry-grid">
         {(Object.keys(geometryLabels) as (keyof Geometry)[]).map((field) => <GeometryField key={field} field={field} value={selected[field]} disabled={selectedIds.length > 1 && (field === 'width' || field === 'height')}
           max={field === 'x' ? document.canvas.width - selected.width : field === 'y' ? document.canvas.height - selected.height : field === 'width' ? document.canvas.width - selected.x : document.canvas.height - selected.y}
           onCommit={(value) => onChange((current) => updateGeometry(current, selected.id, { [field]: value }))} />)}
       </div>
         <MovementControls widget={selected} count={selectedIds.length} element={activeElement} onTarget={onMoveTarget} onNudge={onNudge} busy={busy} />
-      </div>
-      <div className="inspector-section"><h4>Arrange</h4><CanvasTools document={document} selectedIds={selectedIds} selectedId={selected.id} busy={busy} onChange={onChange} /></div>
-      {selected.type !== 'text' && selected.type !== 'image' && <div className="inspector-section"><h4>Panel data</h4>
+      </InspectorSection>
+      <InspectorSection id="arrange" title="Arrange"><CanvasTools document={document} selectedIds={selectedIds} selectedId={selected.id} busy={busy} onChange={onChange} /></InspectorSection>
+      {selected.type !== 'text' && selected.type !== 'image' && selected.type !== 'list' && selected.type !== 'graph' && <InspectorSection id="data" title="Panel data">
         <label className="source-field">Source<select aria-label="Panel data source" value={selected.settings.source ?? 'sample'} onChange={(event) => onChange((current) => updateWidgetSettings(current, selected.id, { source: event.target.value }))}>{widgetSources(selected).map((source) => <option key={source} value={source}>{sourceLabels[source]}</option>)}</select></label>
         {selected.type === 'storage' && <p className="panel-note">Physical drives combine mounted partition usage against the drive's full capacity. The partitions view can show selected mount paths. Shared filesystems are counted once.</p>}
         {selected.type === 'gauge' && <p className="panel-note">Memory gauges use %. Network gauges use KB/s.</p>}
         {selected.type === 'metric' && selected.settings.source === 'game-resources' && <button onClick={onGameTimers}>Set game timers</button>}
-      </div>}
+      </InspectorSection>}
       <ContentEditor widget={selected} onCommit={(patch) => onChange((current) => updateWidgetSettings(current, selected.id, patch))} />
       <WidgetColorEditor document={document} widget={selected} palette={palette} onChange={onChange} />
       <DesignEditor widget={selected} palette={effectiveWidgetPalette(palette, selected)} onInspect={onInspect} onMove={onMoveTarget} onCommit={(patch) => onChange((current) => updateWidgetDesign(current, selected.id, patch))} />

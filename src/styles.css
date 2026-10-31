@@ -267,3 +267,16 @@ select:focus-visible, textarea:focus-visible { outline: 2px solid var(--primary)
 .panel-close { padding: 2px 8px; min-width: 30px; min-height: 30px; font-size: 19px; }
 .panel-heading .count-badge { vertical-align: middle; margin-left: 5px; }
 @media (max-width: 560px) { .panel-close { min-width: 42px; min-height: 42px; } }
+
+details.inspector-section > summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; border-radius: 6px; }
+details.inspector-section > summary::-webkit-details-marker { display: none; }
+details.inspector-section > summary::before { content: ''; width: 5px; height: 5px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); margin: 0 3px 0 1px; transition: transform .12s; }
+details.inspector-section[open] > summary::before { transform: rotate(45deg); }
+details.inspector-section > summary h4 { margin: 0; }
+details.inspector-section > summary :is(.mono, .section-detail) { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--font-size-xs); }
+details.inspector-section > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+details.inspector-section[open] > summary { margin-bottom: 16px; }
+.sample-values { margin-top: 14px; border: 1px solid var(--outline); border-radius: var(--radius); padding: 0 10px; }
+.sample-values > summary { padding: 9px 0; font-size: var(--font-size-sm); color: var(--muted); cursor: pointer; }
+.sample-values[open] { padding-bottom: 12px; }
+.sample-values > .panel-note { margin-top: 0; margin-bottom: 12px; }

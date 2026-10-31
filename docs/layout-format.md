@@ -8,7 +8,7 @@ Version 1 is a JSON document with these required fields. Unknown fields are reje
 | `name` | Nonempty layout name. |
 | `canvas.width`, `canvas.height` | Positive safe integers up to 16384. The sample is 1280 by 800. |
 | `palette` | A name and eight preview color roles, each a six-digit `#rrggbb` string. |
-| `widgets` | Array of metric, weather, clock, text, gauge, storage or image widgets. Array order is paint order, and overlaps are allowed. |
+| `widgets` | Array of metric, weather, clock, text, gauge, storage, image, list, graph or calendar widgets. Array order is paint order, and overlaps are allowed. |
 
 Every widget has a unique nonempty `id`, a `type`, integer `x`, `y`, `width`, `height`, and type-specific `settings`. Positions are nonnegative, sizes are positive, and `x + width` and `y + height` must fit within the canvas. A one-pixel card is valid even when its content is too small to read.
 
@@ -23,6 +23,9 @@ Widget settings are required unless marked optional. Unknown settings are reject
 | `storage` | String `label`; `style` of `bars` or `table`; optional `source` of `sample` or `mounted-storage`, `grouping` of `drives` or `partitions`, and `mounts` with 1 to 32 unique absolute paths for the partitions view. Readings are transient. |
 | `gauge` | String `label`, `unit`, `detail`; finite numbers `value`, `min`, `max`; optional metric `source` and `style` of `arc`, `ring`, `bar`, `segments`, `thermometer` or `number`. Require `min < max` and `min <= value <= max`. |
 | `image` | String `label`; `data` containing an embedded static PNG data URI; `fit` of `contain`, `cover` or `stretch`; integer `opacity` from 0 to 100. No live source or internal design. |
+| `list` | String `label` of at most 64 characters; `rows` with 1 to 6 objects, each with a sensor `source`, a `label` of at most 32 characters, a sample `value` of at most 16 and a `unit` of at most 8; boolean `bars`. Row sources must differ. |
+| `graph` | String `label` of at most 64 characters; `style` of `area` or `line`; `sources` with one or two different sensor sources. |
+| `calendar` | String `label` of at most 64 characters; `source` of `sample` or `clock`; `weekStart` of `monday` or `sunday`. |
 
 A gauge without `style` keeps the original arc. The editor can switch styles while retaining geometry, settings, source and range. The renderer uses the same clamped progress for arcs, rings, bars, segments and thermometers. The number style shows the reading without a chart. Explicit style fields remain present after export/reopen; omitted fields stay omitted.
 
@@ -46,7 +49,7 @@ The UI limits imported files to 1 MB. A failed import leaves the current documen
 
 Each image data URI is at most 512 KiB and must use canonical PNG base64. PNG dimensions are at most 4096 per side and 16 million pixels. Structure checks reject malformed chunks, checksums and animation; Pillow additionally verifies decoded pixels. Images contain no external paths or URLs. The UI normalizes selected PNG, JPEG and WebP files to PNG. Contain centers the complete image; cover crops to fill; stretch changes its aspect ratio. Transparent pixels and opacity preserve underlying layers. Browser and PIL exports enforce the complete 1 MiB JSON limit. The PIL decode cache holds at most four images and 16 MiB of pixels.
 
-[layout.schema.json](../public/layout.schema.json) describes the machine-readable structure. [widget-catalog.json](../public/widget-catalog.json) supplies 112 deterministic widget choices with catalog-only families, groups and descriptions, and [layout-presets.json](../public/layout-presets.json) contains complete designed layouts. See [the agent workflow](ai-layouts.md) for generation, previews and restore commands.
+[layout.schema.json](../public/layout.schema.json) describes the machine-readable structure. [widget-catalog.json](../public/widget-catalog.json) supplies 121 deterministic widget choices with catalog-only families, groups and descriptions, and [layout-presets.json](../public/layout-presets.json) contains complete designed layouts. See [the agent workflow](ai-layouts.md) for generation, previews and restore commands.
 
 This contract contains document coordinates and preview colors. It has no React state, browser scale, USB orientation, service configuration, or transport settings. Runtime integration must preserve the documented 270-degree rotation and exclusive USB ownership independently.
 
@@ -66,3 +69,11 @@ Metric settings accept optional `trend: boolean`. `true` replaces the decorative
 Multi-selection, snap guides, canvas zoom and pan are editor state. They never add fields to saved documents. Layer order is the existing order of `widgets`, with later entries drawn in front.
 
 Metric cards also accept `t3-threads` and `game-resources`. These sources reject `trend: true`, and gauges reject them. `settings.detail` contains bounded JSON display rows for deterministic samples. Live rows are transient and never change exported layouts. The runtime must advertise `supportedDashboardSources` before a changed layout using these sources can be saved. Shared game anchors are independent of the saved document. See [thread and timer data](thread-game-data.md).
+
+List, graph and calendar cards use the sensor sources `cpu`, `gpu`, `memory`, `disk`, `network-down`, `network-up`, `cpu-temperature` and `gpu-temperature`. Character limits count Unicode code points. A list row shows its label, value and unit. On the panel, each row's value and unit come from the live reading. Memory is shown as a percentage. Network speeds switch from KB/s to MB/s at 1024 KB/s. With `bars`, percentage rows draw a bar from 0 to 100 % and temperature rows from 0 to 100 °C; network rows have no bar. Rows that do not fit the card's height are left out.
+
+A graph plots the last 120 readings of one or two sources, like a trend metric. Two sources with the same unit share one scale; otherwise each series has its own range. The first series uses the primary color, and `area` style fills under it. The second series is a dashed line in the secondary color, because many palettes make the two colors nearly equal. The editor and offline previews use the deterministic demo history.
+
+A calendar shows one month with today highlighted. Offline, and with `source: "sample"`, it shows 6 October 2026, the same date as the clock sample. With `source: "clock"`, the panel takes the day and month from its clock and chooses the nearest year. If the clock cannot be read, the card shows "Date unavailable".
+
+These three types need a runtime that lists them in `supportedWidgetTypes`. A layout using them cannot be saved to the panel until `turzx-dashboard.service` restarts with the current Studio adapter.

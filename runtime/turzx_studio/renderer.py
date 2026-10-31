@@ -8,14 +8,18 @@ import re
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .card_text import card_padding
 from .layout import _palette, effective_widget_palette, validate_layout
 from .design import clock_time, resolve_elements
 from .usage_display import USAGE_SOURCES, usage_content
 from .dashboard_display import (DASHBOARD_SOURCES, dashboard_content, dashboard_rows,
                                 dashboard_geometry, short_dashboard_text)
 from .storage_display import storage_content, storage_geometry, storage_size, storage_short, storage_row_name
-from .trend import widget_trend, trend_unit
+from .trend import gauge_number, trend_caption, widget_trend, trend_unit
 from .image_assets import render_image
+from .list_display import list_bar_role, list_content, list_layout
+from .graph_display import GRAPH_AREA_MIX, graph_area, widget_graph
+from .calendar_display import calendar_content, calendar_geometry, calendar_month
 
 MAX_RENDER_PIXELS = 16_000_000
 _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
@@ -59,15 +63,8 @@ def gauge_geometry(width: int, height: int) -> dict:
             "size": max(24, min(58, math.floor(radius * .48)))}
 
 
-def gauge_number(value: float) -> str:
-    if abs(value) > 1e14:
-        return str(value)
-    rounded = math.floor(value * 10 + .5) / 10
-    return str(int(rounded)) if rounded.is_integer() else str(rounded)
-
-
 def instrument_geometry(width: int, height: int) -> dict:
-    padding = min(29, width // 6)
+    padding = card_padding(width)
     available = max(1, width - 2 * padding)
     radius = math.floor(min((available - 10) / 2, (height - 128) / 2))
     return {"padding": padding, "available": available, "radius": radius,
@@ -77,7 +74,7 @@ def instrument_geometry(width: int, height: int) -> dict:
             "show_shape": width >= 120 and height >= 160}
 
 
-def rendered_content(widget: dict, stats: object = None) -> dict:
+def rendered_content(widget: dict, stats: object = None, today=None) -> dict:
     """Return detached display settings without reading sensors or changing input.
 
     An absent source behaves as sample. Live sources use DashboardStats
@@ -88,6 +85,10 @@ def rendered_content(widget: dict, stats: object = None) -> dict:
     source = settings.get("source", "sample")
     if widget["type"] == "storage":
         return storage_content(widget, getattr(stats, "ai_usage", None), preview=stats is None)
+    if widget["type"] == "list":
+        return list_content(settings, stats)
+    if widget["type"] == "calendar":
+        return calendar_content(settings, stats, today)
     if stats is None or source == "sample":
         return settings
     if source in DASHBOARD_SOURCES:
@@ -744,6 +745,122 @@ class LayoutRenderer:
         footer = f'+{hidden} {noun} · enlarge card' if hidden else '* Stale readings' if any(row.get('stale') for row in rows) else '+ Mounted usage only · GiB / TiB' if drives else 'Shared mounts grouped · GiB / TiB'
         text(padding, height - 19, storage_short(footer, max(1, math.floor(available / 6.7))), 'muted')
 
+    @staticmethod
+    def _mix(color: str, base: str, amount: float) -> str:
+        channels = [round(int(base[i:i + 2], 16) + (int(color[i:i + 2], 16) - int(base[i:i + 2], 16)) * amount)
+                    for i in (1, 3, 5)]
+        return '#' + ''.join(f'{channel:02x}' for channel in channels)
+
+    def _kicker(self, draw: ImageDraw.ImageDraw, x: int, text: str, palette: dict) -> None:
+        if text:
+            self._draw_text(draw, (x, 42), text, palette['muted'], 15, 'summary-sans', 'ls')
+
+    def _reading(self, draw: ImageDraw.ImageDraw, xy: tuple[float, float], value: str, unit: str,
+                 color: str, unit_color: str, size: int, unit_size: int, gap: int, anchor: str = 'ls') -> None:
+        """A mono value and sans unit sharing one baseline; 'rs' right-aligns the whole run."""
+        x, y = xy
+        value_width = draw.textlength(self._safe_text(value), font=self._font('summary-mono', size))
+        unit_width = draw.textlength(self._safe_text(unit), font=self._font('summary-sans', unit_size)) if unit else 0
+        if anchor == 'rs':
+            x -= value_width + (gap + unit_width if unit else 0)
+        self._draw_text(draw, (x, y), value, color, size, 'summary-mono', 'ls')
+        if unit:
+            self._draw_text(draw, (x + value_width + gap, y), unit, unit_color, unit_size, 'summary-sans', 'ls')
+
+    def _list_card(self, draw: ImageDraw.ImageDraw, width: int, height: int,
+                   settings: dict, palette: dict) -> None:
+        layout = list_layout(width, height, settings['label'], settings['rows'], settings['bars'])
+        left, right = layout['padding'], width - layout['padding']
+        self._kicker(draw, left, layout['kicker'], palette)
+        for source, row in zip((row['source'] for row in settings['rows']), layout['rows']):
+            y = row['baseline']
+            self._draw_text(draw, (left, y), row['label'], palette['text'], layout['labelSize'], 'summary-sans', 'ls')
+            self._reading(draw, (right, y), row['value'], row['unit'], palette['text'], palette['muted'],
+                          layout['valueSize'], layout['unitSize'], 4, 'rs')
+            if row['barY'] is not None and right > left:
+                bar = row['barY']
+                draw.rounded_rectangle((left, bar, right - 1, bar + 5), radius=3, fill=palette['outline'])
+                fill = math.floor((right - left) * row['fraction'] + .5)
+                if fill > 0:
+                    draw.rounded_rectangle((left, bar, left + fill - 1, bar + 5), radius=3,
+                                           fill=palette[list_bar_role(source)])
+
+    def _graph_card(self, draw: ImageDraw.ImageDraw, width: int, height: int,
+                    settings: dict, palette: dict, stats: object) -> None:
+        chart = widget_graph(settings, stats, width, height)
+        left, right = chart['left'], chart['right']
+        self._kicker(draw, left, chart['kicker'], palette)
+        for series in chart['series']:
+            legend, color = series['legend'], palette[series['role']]
+            if legend['nameY'] is not None:
+                swatch = (legend['x'], legend['nameY'] - 10, legend['x'] + 9, legend['nameY'] - 1)
+                if series['primary']:
+                    draw.rectangle(swatch, fill=color)
+                else:
+                    draw.rectangle(swatch, outline=color, width=2)
+                self._draw_text(draw, (legend['x'] + 16, legend['nameY']), series['name'], palette['muted'], 13, 'summary-sans', 'ls')
+            self._reading(draw, (legend['x'], legend['valueY']), series['reading']['value'], series['reading']['unit'],
+                          color, palette['muted'], legend['valueSize'], legend['unitSize'], 6)
+        if chart['showChart']:
+            self._draw_text(draw, (right, chart['rangeY']), chart['range'], palette['muted'], 11, 'summary-sans', 'rs')
+            for y in (chart['top'], chart['middle'], chart['bottom']):
+                draw.line((left, y, right, y), fill=palette['outline'])
+            if settings['style'] == 'area':
+                series = chart['series'][0]
+                fill = self._mix(palette[series['role']], palette['surface'], GRAPH_AREA_MIX)
+                for points in series['segments']:
+                    if len(points) > 1:
+                        draw.polygon([(point['x'], point['y']) for point in graph_area(points, chart['bottom'])], fill=fill)
+            for series in chart['series']:
+                color = palette[series['role']]
+                for points in series['lines']:
+                    draw.line([(point['x'], point['y']) for point in points], fill=color, width=2 if series['primary'] else 1)
+                for points in series['segments']:
+                    if len(points) == 1:
+                        x, y = points[0]['x'], points[0]['y']
+                        draw.ellipse((x - 1, y - 1, x + 1, y + 1), fill=color)
+            for series in chart['series']:
+                if series['last']:
+                    x, y = series['last']['x'], series['last']['y']
+                    draw.ellipse((x - 6, y - 6, x + 6, y + 6), fill=palette['surface'])
+                    if series['primary']:
+                        draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=palette[series['role']])
+                    else:
+                        draw.ellipse((x - 4, y - 4, x + 4, y + 4), outline=palette[series['role']], width=2)
+            if chart['state']:
+                self._draw_text(draw, (left, chart['middle'] - 8), chart['state'], palette['muted'], 13, 'summary-sans', 'ls')
+        self._draw_text(draw, (left, chart['captionY']), trend_caption(stats is None), palette['muted'], 12, 'summary-sans', 'ls')
+
+    def _calendar_card(self, draw: ImageDraw.ImageDraw, width: int, height: int,
+                       settings: dict, palette: dict) -> None:
+        month = calendar_month(settings['date'], settings['weekStart'])
+        g = calendar_geometry(width, height, settings['label'], len(month['weeks']) if month else 6)
+        self._kicker(draw, g['padding'], g['kicker'], palette)
+        if month is None:
+            self._draw_text(draw, (g['padding'], g['titleY']), 'Date unavailable', palette['muted'], 15, 'summary-sans', 'ls')
+            return
+        self._draw_text(draw, (g['padding'], g['titleY']), month['title'], palette['text'], g['titleSize'], 'summary-sans', 'ls')
+        self._draw_text(draw, (width - g['padding'], g['titleY']), month['year'], palette['muted'], 15, 'summary-mono', 'rs')
+        if not g['showGrid']:
+            return
+        cell_width, cell_height = g['cellWidth'], g['cellHeight']
+        for column, weekday in enumerate(month['weekdays']):
+            self._draw_text(draw, (g['gridLeft'] + column * cell_width + cell_width // 2, g['headerY']),
+                            weekday['name'], palette['muted'], 12, 'summary-sans', 'ms')
+        for row, week in enumerate(month['weeks']):
+            top = g['gridTop'] + row * cell_height
+            for column, day in enumerate(week):
+                if day is None:
+                    continue
+                cell_left = g['gridLeft'] + column * cell_width
+                color = palette['muted'] if month['weekdays'][column]['weekend'] else palette['text']
+                if day == month['today']:
+                    draw.rounded_rectangle((cell_left + 2, top + 2, cell_left + cell_width - 3, top + cell_height - 3),
+                                           radius=g['todayRadius'], fill=palette['primary'])
+                    color = palette['surface']
+                self._draw_text(draw, (cell_left + cell_width // 2, top + cell_height // 2 + math.floor(g['daySize'] * .36)),
+                                str(day), color, g['daySize'], 'summary-mono', 'ms')
+
     def render(self, document: object, stats: object = None, palette: object = None) -> Image.Image:
         """Return RGB pixels in document dimensions, rejecting huge allocations."""
         doc = validate_layout(document)
@@ -790,8 +907,16 @@ class LayoutRenderer:
                 self._storage_card(card_draw, w, h, settings, card_colors)
             elif widget["type"] == "text":
                 self._text_card(card_draw, w, h, settings, card_colors)
-            else:
+            elif widget["type"] == "list":
+                self._list_card(card_draw, w, h, settings, card_colors)
+            elif widget["type"] == "graph":
+                self._graph_card(card_draw, w, h, settings, card_colors, stats)
+            elif widget["type"] == "calendar":
+                self._calendar_card(card_draw, w, h, settings, card_colors)
+            elif widget["type"] == "gauge":
                 self._gauge(card_draw, w, h, settings, card_colors)
+            else:
+                raise ValueError(f"{widget['type']} cards have no panel renderer")
             radius = min(18, (w - 1) // 2, (h - 1) // 2)
             bounds = (0, 0, w - 1, h - 1)
             mask = Image.new("L", (w, h), 255 if min(w, h) == 1 else 0)

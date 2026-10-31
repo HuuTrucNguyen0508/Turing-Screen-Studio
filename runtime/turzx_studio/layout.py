@@ -6,9 +6,12 @@ import hashlib
 import json
 import math
 import re
+import unicodedata
+
 from .usage_display import USAGE_SOURCES
 from .dashboard_display import DASHBOARD_SOURCES
 from .design import validate_widget_design
+from .trend import TREND_SOURCES
 
 MAX_CANVAS_SIZE = 16384
 MAX_LAYOUT_BYTES = 1024 * 1024
@@ -25,6 +28,11 @@ METRIC_SOURCES = (
     "sample", "cpu", "gpu", "memory", "disk", "network-down", "network-up",
     "cpu-temperature", "gpu-temperature", *USAGE_SOURCES, *DASHBOARD_SOURCES,
 )
+WIDGET_TYPES = ("metric", "weather", "clock", "text", "gauge", "storage", "image", "list", "graph", "calendar")
+GRAPH_STYLES = ("area", "line")
+CALENDAR_WEEK_STARTS = ("monday", "sunday")
+LIST_MAX_ROWS = 6
+MAX_CARD_LABEL, MAX_ROW_LABEL, MAX_ROW_VALUE, MAX_ROW_UNIT = 64, 32, 16, 8
 _HEX = re.compile(r"#[0-9a-fA-F]{6}\Z")
 
 
@@ -70,6 +78,67 @@ def _integer(value: object, path: str, minimum: int,
     return int(value)
 
 
+def _bounded(value: object, path: str, maximum: int) -> str:
+    text = _string(value, path)
+    if any(unicodedata.category(character) in ('Cc', 'Zl', 'Zp') for character in text):
+        _fail(path, 'must not contain control characters')
+    if len(text) > maximum:
+        _fail(path, f"must be at most {maximum} characters")
+    return text
+
+
+def _sensor_source(value: object, path: str) -> str:
+    if not isinstance(value, str) or value not in TREND_SOURCES:
+        _fail(path, f"expected {', '.join(TREND_SOURCES)}")
+    return value
+
+
+def _choice(settings: dict, key: str, path: str, choices: tuple[str, ...]) -> str:
+    value = settings[key]
+    if not isinstance(value, str) or value not in choices:
+        _fail(f"{path}.{key}", f"expected {', '.join(choices)}")
+    return value
+
+
+def _composite_settings(kind: str, settings: dict, path: str) -> dict:
+    """List, graph and calendar settings, mirroring src/domain/layout.ts."""
+    if kind == "list":
+        _keys(settings, ("label", "rows", "bars"), path)
+        label = _bounded(settings["label"], f"{path}.label", MAX_CARD_LABEL)
+        rows = settings["rows"]
+        if type(rows) is not list or not 1 <= len(rows) <= LIST_MAX_ROWS:
+            _fail(f"{path}.rows", f"expected 1 to {LIST_MAX_ROWS} rows")
+        result = []
+        for index, entry in enumerate(rows):
+            row_path = f"{path}.rows[{index}]"
+            row = _object(entry, row_path)
+            _keys(row, ("source", "label", "value", "unit"), row_path)
+            result.append({"source": _sensor_source(row["source"], f"{row_path}.source"),
+                           "label": _bounded(row["label"], f"{row_path}.label", MAX_ROW_LABEL),
+                           "value": _bounded(row["value"], f"{row_path}.value", MAX_ROW_VALUE),
+                           "unit": _bounded(row["unit"], f"{row_path}.unit", MAX_ROW_UNIT)})
+        if len({row["source"] for row in result}) != len(result):
+            _fail(f"{path}.rows", "each row needs a different source")
+        if type(settings["bars"]) is not bool:
+            _fail(f"{path}.bars", "expected a boolean")
+        return {"label": label, "rows": result, "bars": settings["bars"]}
+    if kind == "graph":
+        _keys(settings, ("label", "style", "sources"), path)
+        label = _bounded(settings["label"], f"{path}.label", MAX_CARD_LABEL)
+        style = _choice(settings, "style", path, GRAPH_STYLES)
+        sources = settings["sources"]
+        if type(sources) is not list or not 1 <= len(sources) <= 2:
+            _fail(f"{path}.sources", "expected one or two sources")
+        sources = [_sensor_source(source, f"{path}.sources[{index}]") for index, source in enumerate(sources)]
+        if len(set(sources)) != len(sources):
+            _fail(f"{path}.sources", "expected different sources")
+        return {"label": label, "style": style, "sources": sources}
+    _keys(settings, ("label", "source", "weekStart"), path)
+    return {"label": _bounded(settings["label"], f"{path}.label", MAX_CARD_LABEL),
+            "source": _choice(settings, "source", path, ("sample", "clock")),
+            "weekStart": _choice(settings, "weekStart", path, CALENDAR_WEEK_STARTS)}
+
+
 def _color(value: object, path: str) -> str:
     color = _string(value, path)
     if not _HEX.fullmatch(color):
@@ -100,23 +169,7 @@ def effective_widget_palette(base: dict, widget: dict) -> dict:
     return {**base, **widget.get("colors", {})}
 
 
-def _widget(value: object, path: str, canvas: dict) -> dict:
-    value = _object(value, path)
-    _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path, ("design", "colors"))
-    widget_id = _string(value["id"], f"{path}.id", nonempty=True)
-    kind = value["type"]
-    if kind not in ("metric", "weather", "clock", "text", "gauge", "storage", "image"):
-        _fail(f"{path}.type", 'unsupported widget type; expected metric, weather, clock, text, gauge, storage, image')
-    geometry = {
-        key: _integer(value[key], f"{path}.{key}", 0 if key in ("x", "y") else 1)
-        for key in ("x", "y", "width", "height")
-    }
-    if geometry["x"] > canvas["width"] - geometry["width"]:
-        _fail(f"{path}.width", "x + width must fit inside canvas.width")
-    if geometry["y"] > canvas["height"] - geometry["height"]:
-        _fail(f"{path}.height", "y + height must fit inside canvas.height")
-    settings_path = f"{path}.settings"
-    settings = _object(value["settings"], settings_path)
+def _settings(kind: str, settings: dict, settings_path: str) -> dict:
     fields = {"metric": METRIC_SETTINGS, "weather": WEATHER_SETTINGS,
               "clock": ("label", "time", "date", "format", "showDate"),
               "text": ("label", "text"), "storage": ("label", "style"),
@@ -196,6 +249,28 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
         if type(settings["trend"]) is not bool:
             _fail(f"{settings_path}.trend", "expected a boolean")
         result["trend"] = settings["trend"]
+    return result
+
+
+def _widget(value: object, path: str, canvas: dict) -> dict:
+    value = _object(value, path)
+    _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path, ("design", "colors"))
+    widget_id = _string(value["id"], f"{path}.id", nonempty=True)
+    kind = value["type"]
+    if kind not in WIDGET_TYPES:
+        _fail(f"{path}.type", f"unsupported widget type; expected {', '.join(WIDGET_TYPES)}")
+    geometry = {
+        key: _integer(value[key], f"{path}.{key}", 0 if key in ("x", "y") else 1)
+        for key in ("x", "y", "width", "height")
+    }
+    if geometry["x"] > canvas["width"] - geometry["width"]:
+        _fail(f"{path}.width", "x + width must fit inside canvas.width")
+    if geometry["y"] > canvas["height"] - geometry["height"]:
+        _fail(f"{path}.height", "y + height must fit inside canvas.height")
+    settings_path = f"{path}.settings"
+    settings = _object(value["settings"], settings_path)
+    result = (_composite_settings(kind, settings, settings_path) if kind in ("list", "graph", "calendar")
+              else _settings(kind, settings, settings_path))
     widget = {"id": widget_id, "type": kind, **geometry, "settings": result}
     if "design" in value:
         widget["design"] = validate_widget_design(value["design"], kind, f"{path}.design")

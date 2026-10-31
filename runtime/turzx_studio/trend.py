@@ -2,7 +2,10 @@
 
 import math
 
+from .card_text import card_padding
+
 TREND_CAPACITY = 120
+TREND_SOURCES = ('cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature')
 PERCENTAGE_SOURCES = ('sample', 'cpu', 'gpu', 'memory', 'disk')
 
 
@@ -34,12 +37,15 @@ def trend_unit(source):
     return '%' if source in PERCENTAGE_SOURCES else 'KB/s' if source.startswith('network-') else '°C' if source.endswith('-temperature') else ''
 
 
-def trend_chart(source, value, width, height):
-    history = trend_history(value)
+def trend_range(source, history):
+    if source in PERCENTAGE_SOURCES:
+        return 0, 100
     numbers = [item for item in history if item is not None]
-    minimum, maximum = (0, 100) if source in PERCENTAGE_SOURCES else (min([0, *numbers]), max([1, *numbers]))
-    padding = min(29, width // 6)
-    left, right, top, bottom = padding, width - padding, 120, height - 66
+    return min([0, *numbers]), max([1, *numbers])
+
+
+def trend_segments(history, value_range, box):
+    minimum, maximum = value_range
     segments, segment = [], []
     scale = max(abs(minimum), abs(maximum), 1)
     for index, item in enumerate(history):
@@ -49,14 +55,53 @@ def trend_chart(source, value, width, height):
             segment = []
             continue
         fraction = min(1, max(0, (item / scale - minimum / scale) / (maximum / scale - minimum / scale)))
-        segment.append({'x': math.floor(left + (TREND_CAPACITY - len(history) + index) * (right - left) / (TREND_CAPACITY - 1) + .5),
-                        'y': math.floor(bottom - fraction * (bottom - top) + .5)})
+        segment.append({'x': math.floor(box['left'] + (TREND_CAPACITY - len(history) + index) * (box['right'] - box['left']) / (TREND_CAPACITY - 1) + .5),
+                        'y': math.floor(box['bottom'] - fraction * (box['bottom'] - box['top']) + .5)})
     if segment:
         segments.append(segment)
-    state = 'No history yet' if not numbers else '' if any(len(points) > 1 for points in segments) else 'Collecting history'
-    return {'left': left, 'right': right, 'top': top, 'bottom': bottom,
-            'captionY': height - 29, 'showChart': width >= 160 and height >= 216,
-            'min': minimum, 'max': maximum, 'segments': segments, 'count': len(numbers), 'state': state}
+    return segments
+
+
+def trend_state(histories, segments):
+    if all(item is None for history in histories for item in history):
+        return 'No history yet'
+    return '' if any(len(points) > 1 for points in segments) else 'Collecting history'
+
+
+def trend_chart(source, value, width, height):
+    history = trend_history(value)
+    minimum, maximum = trend_range(source, history)
+    padding = card_padding(width)
+    box = {'left': padding, 'right': width - padding, 'top': 120, 'bottom': height - 66}
+    segments = trend_segments(history, (minimum, maximum), box)
+    return {**box, 'captionY': height - 29, 'showChart': width >= 160 and height >= 216,
+            'min': minimum, 'max': maximum, 'segments': segments,
+            'count': sum(item is not None for item in history), 'state': trend_state([history], segments)}
+
+
+def gauge_number(value: float) -> str:
+    if abs(value) > 1e14:
+        return str(value)
+    rounded = math.floor(value * 10 + .5) / 10
+    return str(int(rounded)) if rounded.is_integer() else str(rounded)
+
+
+def fixed_number(value, places):
+    factor = 10 ** places
+    return f"{math.floor(value * factor + .5) / factor:.{places}f}"
+
+
+def format_reading(source, value):
+    unit = trend_unit(source)
+    try:
+        valid = type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        valid = False
+    if not valid:
+        return {'value': '—', 'unit': unit}
+    if unit == 'KB/s' and value >= 1024:
+        return {'value': fixed_number(value / 1024, 1), 'unit': 'MB/s'}
+    return {'value': fixed_number(value, 0), 'unit': unit}
 
 
 def trend_caption(demo):

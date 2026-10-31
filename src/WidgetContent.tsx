@@ -7,13 +7,16 @@ import './widget-styles.css';
 import StorageContent from './StorageContent';
 import UsageContent from './UsageContent';
 import DashboardContent from './DashboardContent';
+import ListContent from './ListContent';
+import GraphContent from './GraphContent';
+import CalendarContent from './CalendarContent';
 import { isDashboardSource } from './domain/dashboardData';
 import { dashboardHeading, isUsageSource } from './domain/usage';
 
 export function widgetLabel(widget: Widget): string {
   if (widget.type === 'weather') return widget.settings.location || 'Weather';
   if (widget.type === 'text') return widget.settings.label || widget.settings.text.slice(0, 24) || 'Text';
-  return widget.settings.label || (widget.type === 'clock' ? 'Clock' : widget.type === 'gauge' ? 'Gauge' : widget.type === 'storage' ? 'Mounted storage' : widget.type === 'image' ? 'Image' : 'Metric');
+  return widget.settings.label || (widget.type === 'list' ? 'Multi-metric list' : widget.type === 'graph' ? 'History graph' : widget.type === 'calendar' ? 'Calendar' : widget.type === 'clock' ? 'Clock' : widget.type === 'gauge' ? 'Gauge' : widget.type === 'storage' ? 'Mounted storage' : widget.type === 'image' ? 'Image' : 'Metric');
 }
 
 function arc(cx: number, cy: number, radius: number, fraction: number): string {
@@ -113,6 +116,9 @@ export function CardContent({ widget }: { widget: Widget }) {
   if (widget.type === 'image') return <img className="image-content" src={widget.settings.data} alt={widget.settings.label} draggable={false} style={{ objectFit: widget.settings.fit === 'stretch' ? 'fill' : widget.settings.fit, opacity: widget.settings.opacity / 100 }} />;
   if (widget.type === 'clock') return <DesignedCard widget={widget} />;
   if (widget.type === 'storage') return <StorageContent widget={widget} />;
+  if (widget.type === 'list') return <ListContent widget={widget} />;
+  if (widget.type === 'graph') return <GraphContent widget={widget} />;
+  if (widget.type === 'calendar') return <CalendarContent widget={widget} />;
   if (widget.type === 'text') return <div className="text-content">
     {widget.settings.label && <span className="card-kicker">{widget.settings.label}</span>}
     <p style={{ top: widget.settings.label ? 58 : 27, height: Math.max(0, Math.floor((widget.height - 20 - (widget.settings.label ? 58 : 27)) / 28) * 28) }}>{widget.settings.text}</p>

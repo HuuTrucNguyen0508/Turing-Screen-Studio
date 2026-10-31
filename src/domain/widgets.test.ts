@@ -62,8 +62,11 @@ describe('widget editing', () => {
     expect(widgetCatalog.map(({ widget, ...metadata }) => ({ ...metadata, type: widget.type, width: widget.width, height: widget.height, settings: widget.settings, ...(widget.design ? { design: widget.design } : {}) }))).toEqual(catalog.widgets);
     expect(widgetCatalog.every(({ id, widget }) => widget.id === id && widget.x === 0 && widget.y === 0)).toBe(true);
   });
-  it('keeps all 112 choices, ten unique groups and the original IDs', () => {
-    expect(widgetCatalog).toHaveLength(112);
+  it('keeps all 121 choices, ten unique groups and the original IDs', () => {
+    expect(widgetCatalog).toHaveLength(121);
+    expect(widgetCatalog.slice(-10, -1).map(({ id }) => id)).toEqual([
+      'system-list', 'system-list-tall', 'network-list', 'cpu-graph', 'network-graph', 'temperature-graph', 'calendar', 'calendar-sunday', 'calendar-large',
+    ]);
     expect(new Set(widgetCatalog.map(({ id }) => id)).size).toBe(widgetCatalog.length);
     expect(widgetGroups.map(({ id }) => id)).toEqual(['system', 'network', 'temperature', 'gauge', 'clock', 'weather', 'text', 'ai-usage', 'storage', 'games']);
     expect(new Set(widgetGroups.map(({ id }) => id)).size).toBe(widgetGroups.length);
@@ -73,7 +76,7 @@ describe('widget editing', () => {
     expect(sharedCatalog.metricSources).toEqual(metricSources);
     for (const { widget, group } of widgetCatalog) {
       expect(widgetGroups.some(({ id }) => id === group)).toBe(true);
-      if (widget.type !== 'text' && widget.type !== 'image') expect(widgetSources(widget)).toContain(widget.settings.source);
+      if ('source' in widget.settings) expect(widgetSources(widget)).toContain(widget.settings.source);
       if (widget.type === 'gauge') {
         expect(widget.settings.min).toBeLessThan(widget.settings.max);
         expect(widget.settings.value).toBeGreaterThanOrEqual(widget.settings.min);
@@ -188,7 +191,7 @@ describe('expanded v1 contract shared with Python', () => {
         patches.push([{ value: widget.settings.max + 1 }, 'value'], [{ min: widget.settings.max }, 'max']);
       }
       if (widget.type === 'metric' || widget.type === 'gauge') patches.push([{ source: 'weather' }, 'source']);
-      else if (widget.type === 'clock' || widget.type === 'weather' || widget.type === 'storage') patches.push([{ source: 'cpu' }, 'source']);
+      else if (widget.type === 'clock' || widget.type === 'weather' || widget.type === 'storage' || widget.type === 'calendar') patches.push([{ source: 'cpu' }, 'source']);
       else patches.push([{ source: 'sample' }, 'source']);
       for (const [patch, field] of patches) {
         const doc = addWidget(empty(), id);

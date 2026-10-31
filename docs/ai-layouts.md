@@ -43,11 +43,11 @@ These connected commands use the loopback Studio API. A switch reads the latest 
 
 ## Browse the widget library
 
-Studio’s **Add widget** library supports scrolling, search and category filters. The local catalog contains 112 ready-made choices: standard and wide metric cards, source-specific arc, ring, bar, segmented, thermometer and number designs, standard/compact/large/12-hour clocks, regular/slim weather, and standard/compact/large notes. It is the same catalog used by the editor and the agent commands.
+Studio’s **Add widget** library supports scrolling, search and category filters. The local catalog contains 121 ready-made choices: standard and wide metric cards, source-specific arc, ring, bar, segmented, thermometer and number designs, standard/compact/large/12-hour clocks, regular/slim weather, standard/compact/large notes, multi-metric lists, history graphs and month calendars. It is the same catalog used by the editor and the agent commands.
 
 Gauge settings can include `style`: `arc`, `ring`, `bar`, `segments`, `thermometer` or `number`. Omitting it preserves the original arc. A style changes the drawing; sources and ranges keep their meaning. Wide and compact variants describe geometry. They are not separate drawing styles.
 
-Each template has a stable `id`, `family`, `variant`, `group`, description, size and settings. Choose its exact ID in a spec. For example, `cpu` is a standard metric, `cpu-wide` is a wider metric, and `cpu-gauge` is an arc gauge. `cpu-ring`, `cpu-bar`, `cpu-segments` and `cpu-number` render the same CPU reading in different forms. `cpu-temperature-thermometer` uses a vertical thermometer. `clock-compact` fits a header; `clock-large` gives the time more space.
+Each template has a stable `id`, `family`, `variant`, `group`, description, size and settings. Choose its exact ID in a spec. For example, `cpu` is a standard metric, `cpu-wide` is a wider metric, and `cpu-gauge` is an arc gauge. `cpu-ring`, `cpu-bar`, `cpu-segments` and `cpu-number` render the same CPU reading in different forms. `cpu-temperature-thermometer` uses a vertical thermometer. `clock-compact` fits a header; `clock-large` gives the time more space. `system-list` shows CPU, GPU, memory and disk as rows with bars, and `system-list-tall` adds temperatures. `network-list` shows download and upload. `cpu-graph`, `network-graph` and `temperature-graph` chart the last 120 readings. `calendar`, `calendar-sunday` and `calendar-large` show the current month on the panel.
 
 ```bash
 pnpm layout catalog --search cpu

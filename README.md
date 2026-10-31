@@ -30,11 +30,13 @@ Open `http://127.0.0.1:4173`. Keep that local server running when using the edit
 
 ## Make a layout
 
-Use Create layout for a designed starting point, open [the sample layout](public/sample-layout.json), or add widgets from the searchable catalog. It includes metric, weather, clock, text, storage and gauge cards, plus AI usage summaries, T3 threads and game timers. Gauge designs include arc, ring, bar, segmented meter, thermometer and number. Browser previews use deterministic samples.
+Use Create layout for a designed starting point, open [the sample layout](public/sample-layout.json), or add widgets from the searchable catalog. It includes metric, weather, clock, text, storage, gauge, list, graph and calendar cards, plus AI usage summaries, T3 threads and game timers. Gauge designs include arc, ring, bar, segmented meter, thermometer and number. Browser previews use deterministic samples.
 
 The header holds the layout name, Library, Undo and Redo, the panel status and one primary action: Save to panel when the Studio API is connected, or Export JSON offline. Less frequent actions sit in two menus. Layout has Create layout, Open layout, Export JSON, Open panel dashboard, View panel frame, History and Recover drafts. Settings has Colors and Game timers. When connected, it also has **Shut down Studio…**.
 
 Layers sit to the left of the canvas and the Inspector to the right. Use the arrow in either heading to fold it into a narrow strip, and the strip to bring it back. These choices are remembered in this browser and kept separate from layout JSON. Add widget, Import and Clipboard stay above the canvas. Snapping, Sample or Live preview data, Data sources, layout notes, zoom and the **?** shortcut list sit below it. On phones the Inspector and Layers follow the canvas.
+
+Inspector sections collapse and remember their state. Live sources group editable sample fields under Sample values (preview only). Metric cards offer a Trend chart checkbox.
 
 Select a card and drag to move it, or drag any edge or corner handle to resize. The opposite edge stays fixed, and a readout shows dimensions during the drag. Focus a handle to resize its edge with arrow keys. Arrow keys nudge one document pixel; Shift moves ten. Numeric fields commit on Enter or when you leave the field. Invalid values leave the document unchanged. Escape cancels an unfinished drag or field edit.
 
