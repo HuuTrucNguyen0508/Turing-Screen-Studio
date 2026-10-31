@@ -17,7 +17,7 @@ export function storageRows(settings: StorageWidget['settings'], data: { mounts?
 export function storageRowName(row: StorageRow, filtered = false): string {
   if (!filtered) return [row.mount, ...row.aliases].join(' · ');
   const name = row.mount === '/' ? row.driveKind ?? 'System' : row.mount.split('/').at(-1) ?? row.mount;
-  return name.toLowerCase() === 'nvme' ? 'NVMe partition' : name.toLowerCase() === 'games' ? 'Games partition' : name;
+  return name.toLowerCase() === 'nvme' ? 'NVMe' : name.toLowerCase() === 'games' ? 'Games' : name;
 }
 export function storageGeometry(width: number, height: number, style: 'bars' | 'table') {
   const table = style === 'table' && width >= 460;

@@ -18,8 +18,8 @@ test('drive totals and selected partitions remain editable, undoable and reusabl
   await paths.fill('/\n/mnt/nvme\n/mnt/games');
   await paths.press('Tab');
   await expect(card).toContainText('3 filesystems');
-  await expect(card).toContainText('NVMe partition');
-  await expect(card).toContainText('Games partition');
+  await expect(card).toContainText('NVMe');
+  await expect(card).toContainText('Games');
   await expect(card).not.toContainText('/boot');
   await expect(card).not.toContainText('/mnt/hdd');
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
@@ -42,7 +42,7 @@ test('drive totals and selected partitions remain editable, undoable and reusabl
   await catalog.getByRole('button', { name: 'Add SSD and NVMe partitions', exact: true }).click();
   const custom = page.getByRole('group', { name: 'Mounted storage card' }).last();
   await expect(custom).toContainText('3 filesystems');
-  await expect(custom).toContainText('Games partition');
+  await expect(custom).toContainText('Games');
   await expect(card).toContainText('3 drives');
   await page.screenshot({ path: 'artifacts/storage-views-editor.png', fullPage: true });
 });

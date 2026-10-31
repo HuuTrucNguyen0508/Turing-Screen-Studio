@@ -54,7 +54,7 @@ def storage_row_name(row: dict, filtered: bool = False) -> str:
     if not filtered:
         return ' · '.join([row['mount'], *row.get('aliases', [])])
     name = row.get('driveKind', 'System') if row['mount'] == '/' else row['mount'].rsplit('/', 1)[-1]
-    return 'NVMe partition' if name.lower() == 'nvme' else 'Games partition' if name.lower() == 'games' else name
+    return 'NVMe' if name.lower() == 'nvme' else 'Games' if name.lower() == 'games' else name
 
 
 def storage_content(widget: dict, snapshot: object = None, *, preview: bool = False) -> dict:
