@@ -2,7 +2,7 @@ import { widgetLabel } from './WidgetContent';
 import { sourceLabels } from './domain/widgets';
 import type { LayoutDocument, Palette } from './domain/layout';
 
-const icons = { metric: '▤', weather: '☀', clock: '◷', text: '¶', gauge: '◔', storage: '▣', image: '▧' };
+const icons = { metric: '▤', weather: '☀', clock: '◷', text: '¶', gauge: '◔', storage: '▣', image: '▧', list: '☷', graph: '⌁', calendar: '▦' };
 
 export default function LayersPanel({ document, selectedIds, palette, busy, onSelect, onSelectAll, onColors, onHide, hidden }: {
   document: LayoutDocument; selectedIds: readonly string[]; palette: Palette; busy: boolean;
@@ -20,7 +20,7 @@ export default function LayersPanel({ document, selectedIds, palette, busy, onSe
       className={`widget-row${selectedIds.includes(widget.id) ? ' active' : ''}`}
       data-widget-row={widget.id} aria-pressed={selectedIds.includes(widget.id)} onClick={(event) => onSelect(widget.id, event.shiftKey)}>
       <span className="widget-icon" aria-hidden="true">{icons[widget.type]}</span>
-      <span><strong>{widgetLabel(widget)}</strong><small>{widget.type}{widget.type === 'text' || widget.type === 'image' ? '' : `, ${sourceLabels[widget.settings.source ?? 'sample'].toLowerCase()}`}</small></span>
+      <span><strong>{widgetLabel(widget)}</strong><small>{widget.type}{widget.type === 'text' || widget.type === 'image' || widget.type === 'list' || widget.type === 'graph' ? '' : `, ${sourceLabels[widget.settings.source ?? 'sample'].toLowerCase()}`}</small></span>
     </button>)}</div>
     {document.widgets.length === 0 && <p className="panel-note">This canvas is empty. Add a widget, paste from the clipboard, or create a layout from a preset.</p>}
     <button className="palette-button" onClick={onColors} aria-label={`Dashboard colors, ${palette.name}${document.paletteMode === 'live' ? ', following the desktop' : ''}`}>

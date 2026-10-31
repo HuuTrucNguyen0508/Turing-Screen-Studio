@@ -1,5 +1,5 @@
 import type { ReactNode, Ref } from 'react';
-import { ContentField } from './ContentEditor';
+import ContentField from './ContentField';
 import { Menu } from './Menu';
 import type { MenuEntry } from './Menu';
 import type { DraftTarget } from './domain/draft';
