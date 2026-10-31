@@ -37,6 +37,22 @@ class ArchiveTests(unittest.TestCase):
         with self.assertRaisesRegex(server.APIError, 'Cannot create the initial Studio layout'):
             app.layout()
 
+    def test_post_replace_directory_flush_error_keeps_save_revision_usable(self):
+        import turzx_studio.storage as storage
+        newer = {**self.document, 'name': 'Landed save'}
+        real_flush = storage.fsync_directory
+        def flush(directory):
+            if Path(directory) == self.paths.state_dir:
+                raise OSError('directory flush failed')
+            real_flush(directory)
+        with patch.object(storage, 'fsync_directory', side_effect=flush):
+            with self.assertLogs(storage.__name__, level='WARNING') as logs:
+                result = self.app.save(newer, revision(self.document))
+        self.assertIn('directory flush failed', '\n'.join(logs.output))
+        self.assertEqual(self.app.layout()['document'], newer)
+        result2 = self.app.save({**newer, 'name': 'Next save'}, result['revision'])
+        self.assertEqual(self.app.layout()['revision'], result2['revision'])
+
     def test_seed_rechecks_layout_after_acquiring_shared_lock(self):
         from contextlib import contextmanager
         from turzx_studio.archives import layout_write_lock

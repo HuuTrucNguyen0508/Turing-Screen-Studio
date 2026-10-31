@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import os
+import logging
 from pathlib import Path
 import tempfile
 import sys
@@ -62,7 +63,8 @@ def fsync_directory(path: str | Path) -> None:
 def atomic_write(path: str | Path, data: bytes) -> None:
     """Replace a file with flushed bytes, keeping both temp and final files private.
 
-    A failed write or replace leaves the previous destination intact. The temp
+    A failed write or replace leaves the previous destination intact. Directory
+    flush failures after replacement are logged because the write has landed. The temp
     file lives beside its destination so replacement stays on one filesystem.
     """
     path = Path(path)
@@ -75,7 +77,11 @@ def atomic_write(path: str | Path, data: bytes) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
-        fsync_directory(path.parent)
+        try:
+            fsync_directory(path.parent)
+        except OSError:
+            logging.getLogger(__name__).warning(
+                "Saved %s, but could not flush its directory", path, exc_info=True)
     finally:
         try:
             os.unlink(temporary)
