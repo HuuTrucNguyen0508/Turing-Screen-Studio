@@ -1,3 +1,4 @@
+import textContract from '../../public/text-contract.json' with { type: 'json' };
 import { isUsageSummary, usageSources } from './usage';
 import { dashboardSources, isDashboardSource } from './dashboardData';
 import { validateWidgetDesign } from './design';
@@ -180,7 +181,7 @@ function optionalChoice<T extends string>(input: Record<string, unknown>, key: s
 
 function string(input: unknown, path: string, nonempty = false): string {
   if (typeof input !== 'string') fail(path, 'expected a string');
-  if (nonempty && input.trim().length === 0) fail(path, 'must not be empty');
+  if (nonempty && [...input].every((character) => textContract.blankCodePoints.includes(character.codePointAt(0)!))) fail(path, 'must not be empty');
   return input;
 }
 
@@ -374,7 +375,7 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
     const grouping = optionalChoice(settings, 'grouping', settingsPath, ['drives', 'partitions'] as const);
     let mounts: string[] | undefined;
     if (Object.hasOwn(settings, 'mounts')) {
-      if (!Array.isArray(settings.mounts) || settings.mounts.length < 1 || settings.mounts.length > 32 || settings.mounts.some((mount) => typeof mount !== 'string' || !mount.startsWith('/') || mount.length > 256 || /[\u0000-\u001f\u007f]/.test(mount)) || new Set(settings.mounts).size !== settings.mounts.length) fail(`${settingsPath}.mounts`, 'expected 1 to 32 unique absolute mount paths');
+      if (!Array.isArray(settings.mounts) || settings.mounts.length < 1 || settings.mounts.length > 32 || settings.mounts.some((mount) => typeof mount !== 'string' || !mount.startsWith('/') || [...mount].length > 256 || /[\u0000-\u001f\u007f]/.test(mount)) || new Set(settings.mounts).size !== settings.mounts.length) fail(`${settingsPath}.mounts`, 'expected 1 to 32 unique absolute mount paths');
       if (grouping === 'drives') fail(`${settingsPath}.mounts`, 'mount filters require the partitions view');
       mounts = [...settings.mounts] as string[];
     }
@@ -495,7 +496,21 @@ export function validateLayout(input: unknown): LayoutDocument {
 
 function parseJson(text: string): unknown {
   try {
-    return JSON.parse(text) as unknown;
+    const result: unknown = JSON.parse(text);
+    const tokens = text.match(/"(?:\\.|[^"\\])*"|[{}\[\]:,]/g) ?? [];
+    const objects: Set<string>[] = [];
+    for (let index = 0; index < tokens.length; index++) {
+      const token = tokens[index];
+      if (token === '{') objects.push(new Set());
+      else if (token === '}') objects.pop();
+      else if (token.startsWith('"') && tokens[index + 1] === ':') {
+        const key: string = JSON.parse(token);
+        const keys = objects.at(-1)!;
+        if (keys.has(key)) fail('$', `duplicate object key: ${key}`);
+        keys.add(key);
+      }
+    }
+    return result;
   } catch (error) {
     fail('$', `invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }

@@ -246,3 +246,21 @@ describe('clock, gauge, and layout presets', () => {
     expect(() => parseLayoutPresets({})).toThrow('catalog');
   });
 });
+
+
+describe('audit JSON contract probes', () => {
+  for (const [name, transform] of [
+    ['duplicate version', (text: string) => text.replace('"version":1', '"version":1,"version":1')],
+    ['U+0085 blank name', (text: string) => JSON.stringify({ ...JSON.parse(text), name: '\u0085' })],
+    ['U+FEFF blank name', (text: string) => JSON.stringify({ ...JSON.parse(text), name: '\ufeff' })],
+    ['UTF-16 mount length', (text: string) => JSON.stringify({ ...JSON.parse(text), widgets: [{ id: 'storage', type: 'storage', x: 0, y: 0, width: 500, height: 300, settings: { label: 'Storage', style: 'bars', mounts: ['/' + '😀'.repeat(128)] } }] })],
+  ] as const) {
+    it(`agrees on ${name} in both parsers`, () => {
+      const text = transform(JSON.stringify(createSampleLayout()));
+      if (name === 'UTF-16 mount length') expect(parseLayout(text).widgets[0].type).toBe('storage');
+      else expect(() => parseLayout(text)).toThrow();
+      const script = "import sys,json; from turzx_studio.layout import parse_layout\ntry: parse_layout(sys.stdin.read()); print('accepted')\nexcept ValueError: print('rejected')";
+      expect(execFileSync('python3', ['-c', script], { input: text, encoding: 'utf8', env: { ...process.env, PYTHONPATH: 'runtime' } }).trim()).toBe(name === 'UTF-16 mount length' ? 'accepted' : 'rejected');
+    });
+  }
+});

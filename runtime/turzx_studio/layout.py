@@ -7,11 +7,20 @@ import json
 import math
 import re
 import unicodedata
+from pathlib import Path
 
 from .usage_display import USAGE_SOURCES
 from .dashboard_display import DASHBOARD_SOURCES
 from .design import validate_widget_design
 from .trend import TREND_SOURCES
+
+TEXT_CONTRACT = json.loads((Path(__file__).resolve().parents[2] / 'public/text-contract.json').read_text())
+BLANK_CHARACTERS = ''.join(chr(point) for point in TEXT_CONTRACT['blankCodePoints'])
+
+
+def _string_length(text: str) -> int:
+    return len(text)
+
 
 MAX_CANVAS_SIZE = 16384
 MAX_LAYOUT_BYTES = 1024 * 1024
@@ -59,7 +68,7 @@ def _keys(value: dict, required: tuple[str, ...], path: str,
 def _string(value: object, path: str, nonempty: bool = False) -> str:
     if not isinstance(value, str):
         _fail(path, "expected a string")
-    if nonempty and not value.strip():
+    if nonempty and not value.strip(BLANK_CHARACTERS):
         _fail(path, "must not be empty")
     return value
 
@@ -82,7 +91,7 @@ def _bounded(value: object, path: str, maximum: int) -> str:
     text = _string(value, path)
     if any(unicodedata.category(character) in ('Cc', 'Zl', 'Zp') for character in text):
         _fail(path, 'must not contain control characters')
-    if len(text) > maximum:
+    if _string_length(text) > maximum:
         _fail(path, f"must be at most {maximum} characters")
     return text
 
@@ -218,7 +227,7 @@ def _settings(kind: str, settings: dict, settings_path: str) -> dict:
     if kind == "storage" and "mounts" in settings:
         mounts = settings["mounts"]
         if (type(mounts) is not list or not 1 <= len(mounts) <= 32 or
-                any(not isinstance(mount, str) or not mount.startswith('/') or len(mount) > 256 or re.search(r'[\x00-\x1f\x7f]', mount) for mount in mounts) or len(set(mounts)) != len(mounts)):
+                any(not isinstance(mount, str) or not mount.startswith('/') or _string_length(mount) > 256 or re.search(r'[\x00-\x1f\x7f]', mount) for mount in mounts) or len(set(mounts)) != len(mounts)):
             _fail(f"{settings_path}.mounts", "expected 1 to 32 unique absolute mount paths")
         if settings.get('grouping') == 'drives':
             _fail(f"{settings_path}.mounts", "mount filters require the partitions view")
