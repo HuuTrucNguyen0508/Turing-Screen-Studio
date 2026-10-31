@@ -133,3 +133,23 @@ for (const viewport of [{ width: 360, height: 740 }, { width: 1280, height: 800 
     await page.screenshot({ path: `artifacts/ui-simplify/fix-sources-${viewport.width}x${viewport.height}.png` });
   });
 }
+
+
+test('deferred Inspector focus respects a card focused during a short key gap', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Hide Inspector', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Show Inspector', exact: true })).toBeFocused();
+  await page.evaluate(() => {
+    const original = window.requestAnimationFrame;
+    window.requestAnimationFrame = (callback) => original(() => { setTimeout(() => callback(performance.now()), 40); });
+    document.querySelector<HTMLButtonElement>('[data-panel-show="inspector"]')!.click();
+    window.requestAnimationFrame = original;
+    document.querySelector<HTMLElement>('[data-widget-id="cpu"]')!.focus();
+  });
+  await page.waitForTimeout(12);
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(60);
+  await expect(page.getByRole('group', { name: 'CPU load card' })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByLabel('X position')).toHaveValue('66');
+});

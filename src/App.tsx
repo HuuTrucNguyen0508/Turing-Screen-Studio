@@ -70,7 +70,9 @@ function StudioEditor({ onStopped }: { onStopped: (palette: Palette) => void }) 
   }, [panels]);
   function setPanel(name: keyof WorkspacePanels, open: boolean) {
     setPanels((current) => ({ ...current, [name]: open }));
+    const focusOwner = window.document.activeElement;
     requestAnimationFrame(() => {
+      if (window.document.activeElement !== focusOwner) return;
       if (!open) { window.document.querySelector<HTMLButtonElement>(`[data-panel-show="${name}"]`)?.focus(); return; }
       const pane = window.document.getElementById(`${name}-panel`);
       if (window.matchMedia('(max-width: 900px)').matches) pane?.scrollIntoView({ block: 'start' });
