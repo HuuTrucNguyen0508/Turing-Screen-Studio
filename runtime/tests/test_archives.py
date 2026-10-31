@@ -62,6 +62,20 @@ class ArchiveTests(unittest.TestCase):
         self.assertLess(events.index(('flush', self.paths.older_configs)), active)
         self.assertGreater(events.index(('flush', self.paths.state_dir), active), active)
 
+    def test_directory_flush_failure_blocks_active_replacement(self):
+        before = self.paths.layout.read_bytes()
+        with patch('turzx_studio.archives.fsync_directory', side_effect=OSError('directory flush failed')):
+            with self.assertRaisesRegex(server.APIError, 'directory flush failed'):
+                self.app.save({**self.document, 'name': 'Must stay a draft'}, revision(self.document))
+        self.assertEqual(self.paths.layout.read_bytes(), before)
+
+    def test_directory_flush_is_optional_outside_linux(self):
+        from turzx_studio.storage import fsync_directory
+        for platform in ('win32', 'darwin'):
+            with patch('turzx_studio.storage.sys.platform', platform), patch('turzx_studio.storage.os.open') as opened:
+                fsync_directory(self.paths.state_dir)
+                opened.assert_not_called()
+
     def test_replacement_preserves_exact_previous_bytes_and_restore_preserves_newer(self):
         # Existing user formatting is part of the preserved file.
         before = json.dumps(self.document, ensure_ascii=False).encode() + b'\n\n'

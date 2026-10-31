@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import sharedCatalog from '../../public/widget-catalog.json';
 import { createSampleLayout, gaugeStyles, metricSources, parseLayout, serializeLayout, validateLayout } from './layout';
@@ -262,5 +262,24 @@ describe('audit JSON contract probes', () => {
       const script = "import sys,json; from turzx_studio.layout import parse_layout\ntry: parse_layout(sys.stdin.read()); print('accepted')\nexcept ValueError: print('rejected')";
       expect(execFileSync('python3', ['-c', script], { input: text, encoding: 'utf8', env: { ...process.env, PYTHONPATH: 'runtime' } }).trim()).toBe(name === 'UTF-16 mount length' ? 'accepted' : 'rejected');
     });
+  }
+});
+
+
+it('validates all shipped layout documents in both languages', () => {
+  const documents: LayoutDocument[] = [];
+  function collect(value: unknown) {
+    if (typeof value !== 'object' || value === null) return;
+    if ('version' in value && value.version === 1 && 'canvas' in value && 'palette' in value && 'widgets' in value && 'name' in value) {
+      documents.push(validateLayout(value));
+    } else for (const child of Object.values(value)) collect(child);
+  }
+  for (const directory of ['layouts', 'public']) {
+    for (const filename of readdirSync(directory).filter((name) => name.endsWith('.json'))) collect(JSON.parse(readFileSync(`${directory}/${filename}`, 'utf8')));
+  }
+  expect(documents.length).toBeGreaterThanOrEqual(17);
+  for (const document of documents) {
+    expect(parseLayout(serializeLayout(document))).toEqual(document);
+    expect(pythonValidate(document)).toEqual({ valid: true, document });
   }
 });
