@@ -10,7 +10,7 @@ from pathlib import Path
 import struct
 import time
 
-from .layout import GAUGE_STYLES, WIDGET_TYPES, effective_palette
+from .layout import GAUGE_STYLES, METRIC_STYLES, WIDGET_TYPES, effective_palette
 from .renderer import LayoutRenderer, rendered_content
 from .watch import LayoutWatcher
 from .frost import ShellStyle
@@ -113,6 +113,7 @@ class RuntimeIntegration:
                               supportedTrendWidgets=True,
                               supportedChrome=True,
                               supportedSheet=True,
+                              supportedMetricStyles=list(METRIC_STYLES),
                               supportedStorageViews=['drives', 'partitions'],
                               supportedUsageSources=list(USAGE_SOURCES),
                               supportedDashboardSources=list(DASHBOARD_SOURCES),

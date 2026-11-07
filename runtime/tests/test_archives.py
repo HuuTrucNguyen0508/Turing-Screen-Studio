@@ -212,6 +212,30 @@ class ArchiveTests(unittest.TestCase):
         result = self.app.save(proposed, revision(self.document))
         self.assertIsNotNone(result['archive'])
 
+    def test_usage_sheet_styles_require_a_runtime_that_draws_them(self):
+        proposed = json.loads((Path(server.ROOT) / 'layouts/ai-usage-frost.json').read_text())
+        status = {'pid': os.getpid(), 'processStart': server.process_start(os.getpid()),
+                  'supportedWidgetTypes': ['metric', 'weather', 'clock', 'text', 'gauge', 'storage'],
+                  'supportedUsageSources': list(server.USAGE_SOURCES),
+                  'supportedDashboardSources': ['t3-threads'], 'supportedDesignTypes': ['clock'],
+                  'supportedChrome': True, 'supportedSheet': True}
+        self.paths.runtime_dir.mkdir()
+        before = self.paths.layout.read_bytes()
+        # A runtime from before figures and totals advertised sheets but drew only thread rows.
+        for supported in (None, ['rows'], 'figures'):
+            with self.subTest(supported=supported):
+                status.pop('supportedMetricStyles', None)
+                if supported is not None:
+                    status['supportedMetricStyles'] = supported
+                self.paths.status.write_text(json.dumps(status))
+                with self.assertRaisesRegex(server.APIError, 'usage or thread styles'):
+                    self.app.save(proposed, revision(self.document))
+                self.assertEqual(self.paths.layout.read_bytes(), before)
+                self.assertEqual(list_archives(self.paths), [])
+        status['supportedMetricStyles'] = ['rows', 'figures', 'total']
+        self.paths.status.write_text(json.dumps(status))
+        self.assertIsNotNone(self.app.save(proposed, revision(self.document))['archive'])
+
     def test_header_and_footer_options_require_runtime_support_before_archiving(self):
         proposed = {**self.document, 'chrome': 'none'}
         status = {'pid': os.getpid(), 'processStart': server.process_start(os.getpid())}

@@ -44,11 +44,17 @@ interface WidgetPresentation { design?: WidgetDesign; colors?: WidgetColors; fra
 export interface MetricWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'metric';
-  settings: { label: string; value: string; unit: string; detail: string; source?: MetricSource; trend?: boolean; style?: 'rows' };
+  settings: { label: string; value: string; unit: string; detail: string; source?: MetricSource; trend?: boolean; style?: MetricStyle };
 }
 
 export const metricSources = ['sample', 'cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature', ...usageSources, ...dashboardSources] as const;
 export type MetricSource = typeof metricSources[number];
+/** Frost sheet metric variants, each drawing one kind of source. */
+export const metricStyleSources = {
+  rows: ['t3-threads'], figures: ['usage-limits'], total: ['usage-tokens-30d', 'usage-cost-30d'],
+} as const satisfies Record<string, readonly MetricSource[]>;
+export type MetricStyle = keyof typeof metricStyleSources;
+export const metricStyles = Object.keys(metricStyleSources) as MetricStyle[];
 
 export interface WeatherWidget extends Geometry, WidgetPresentation {
   id: string;
@@ -430,8 +436,10 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
   if (value.type === 'metric') {
     exactKeys(settings, METRIC_SETTINGS, `${path}.settings`, ['source', 'trend', 'style']);
     const source = optionalChoice(settings, 'source', `${path}.settings`, metricSources);
-    const style = optionalChoice(settings, 'style', `${path}.settings`, ['rows'] as const);
-    if (style !== undefined && source !== 't3-threads') fail(`${path}.settings.style`, 'rows require the t3-threads source');
+    const style = optionalChoice(settings, 'style', `${path}.settings`, metricStyles);
+    if (style !== undefined && !(metricStyleSources[style] as readonly string[]).includes(source ?? '')) {
+      fail(`${path}.settings.style`, `${style} require the ${metricStyleSources[style].join(' or ')} source`);
+    }
     if (Object.hasOwn(settings, 'trend') && typeof settings.trend !== 'boolean') {
       fail(`${path}.settings.trend`, 'expected a boolean');
     }

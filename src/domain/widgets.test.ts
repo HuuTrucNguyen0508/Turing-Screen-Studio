@@ -25,6 +25,9 @@ describe('widget editing', () => {
       [(copy) => { (copy as unknown as Record<string, unknown>).ground = 'fog'; }, '$.ground'],
       [(copy) => { (copy.widgets[0] as unknown as Record<string, unknown>).frame = 'box'; }, '$.widgets[0].frame'],
       [(copy) => { const threads = copy.widgets.find((item) => item.id === 't3-threads')!; (threads.settings as Record<string, unknown>).source = 'cpu'; }, 'rows require the t3-threads source'],
+      [(copy) => { const threads = copy.widgets.find((item) => item.id === 't3-threads')!; (threads.settings as Record<string, unknown>).style = 'figures'; }, 'figures require the usage-limits source'],
+      [(copy) => { const threads = copy.widgets.find((item) => item.id === 't3-threads')!; (threads.settings as Record<string, unknown>).style = 'total'; }, 'total require the usage-tokens-30d or usage-cost-30d source'],
+      [(copy) => { const threads = copy.widgets.find((item) => item.id === 't3-threads')!; (threads.settings as Record<string, unknown>).style = 'grid'; }, '$.widgets[9].settings.style'],
     ];
     for (const [change, message] of invalid) {
       const copy = structuredClone(doc);
@@ -79,13 +82,14 @@ describe('widget editing', () => {
     expect(widgetCatalog.map(({ widget, ...metadata }) => ({ ...metadata, type: widget.type, width: widget.width, height: widget.height, settings: widget.settings, ...(widget.design ? { design: widget.design } : {}), ...(widget.frame ? { frame: widget.frame } : {}) }))).toEqual(catalog.widgets);
     expect(widgetCatalog.every(({ id, widget }) => widget.id === id && widget.x === 0 && widget.y === 0)).toBe(true);
   });
-  it('keeps all 127 choices, ten unique groups and the original IDs', () => {
-    expect(widgetCatalog).toHaveLength(127);
-    expect(widgetCatalog.slice(-16, -7).map(({ id }) => id)).toEqual([
+  it('keeps all 130 choices, ten unique groups and the original IDs', () => {
+    expect(widgetCatalog).toHaveLength(130);
+    expect(widgetCatalog.slice(-19, -10).map(({ id }) => id)).toEqual([
       'system-list', 'system-list-tall', 'network-list', 'cpu-graph', 'network-graph', 'temperature-graph', 'calendar', 'calendar-sunday', 'calendar-large',
     ]);
-    expect(widgetCatalog.slice(-7, -1).map(({ id }) => id)).toEqual([
+    expect(widgetCatalog.slice(-10, -1).map(({ id }) => id)).toEqual([
       'cpu-figure', 'mounted-storage-columns', 't3-threads-rows', 'weather-block', 'glass-sheet', 'hairline-rule',
+      'usage-limits-figures', 'usage-tokens-total', 'usage-cost-total',
     ]);
     expect(new Set(widgetCatalog.map(({ id }) => id)).size).toBe(widgetCatalog.length);
     expect(widgetGroups.map(({ id }) => id)).toEqual(['system', 'network', 'temperature', 'gauge', 'clock', 'weather', 'text', 'ai-usage', 'storage', 'games']);

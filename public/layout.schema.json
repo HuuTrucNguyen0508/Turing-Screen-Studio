@@ -192,8 +192,12 @@
                     "type": "boolean"
                   },
                   "style": {
-                    "const": "rows",
-                    "description": "Frost sheet thread rows; requires the t3-threads source."
+                    "enum": [
+                      "rows",
+                      "figures",
+                      "total"
+                    ],
+                    "description": "Frost sheet variants: rows require the t3-threads source, figures the usage-limits source, total the usage-tokens-30d or usage-cost-30d source."
                   }
                 },
                 "allOf": [

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import math
 from pathlib import Path
 import re
@@ -1003,12 +1003,8 @@ class LayoutRenderer:
         facts = settings.get("facts")
         if facts is None:
             facts = [(settings["detail"], "")] if settings["detail"] else []
-        gap = draw.textlength("  ", font=self._font("sans", 14))
         for index, (amount, word) in enumerate(facts[:2]):
-            y = baseline(112 + index * 20, 20, 14)
-            used = self._ink_text(ink, (0, y), self._fit(draw, amount, "medium", 14, width), 14, "medium")
-            if word and used + gap < width:
-                self._ink_text(ink, (used + gap, y), self._fit(draw, word, "sans", 14, width - used - gap), 14, alpha=INK2)
+            self._fact(ink, draw, (0, baseline(112 + index * 20, 20, 14)), amount, word, width)
         fraction = 0 if value is None else gauge_fraction(value, settings["min"], settings["max"])
         ink.bar((0, 160, width, 163), TRACK)
         ink.bar((0, 160, round(width * fraction), 163))
@@ -1068,6 +1064,110 @@ class LayoutRenderer:
             provider = providers.get(row["provider"], row["provider"])
             self._ink_text(ink, (width, baseline(top, 24, 14)), self._fit(draw, provider, "sans", 14, 70), 14, alpha=INK2, anchor="rs")
 
+    def _fact(self, ink: Ink, draw: ImageDraw.ImageDraw, xy: tuple[float, float], amount: str, word: str, width: float) -> None:
+        """One "value word" fact: the value in medium ink, the word after a two-space gap in ink2."""
+        x, y = xy
+        used = self._ink_text(ink, (x, y), self._fit(draw, amount, "medium", 14, width), 14, "medium") if amount else 0
+        gap = draw.textlength("\u00a0 ", font=self._font("sans", 14)) if amount else 0
+        if word and used + gap < width:
+            self._ink_text(ink, (x + used + gap, y), self._fit(draw, word, "sans", 14, width - used - gap), 14, alpha=INK2)
+
+    def _sheet_limits(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
+        """Quota limits as figure columns: provider over its first window, the window name,
+        the used share, the time until reset and a 3 px meter."""
+        lines = settings["detail"].split("\n")
+        rows = [line.split("\t") for line in lines[1:9]]
+        rows = [row for row in rows if len(row) == 5 and row[0] in ("Codex", "Claude")][:4]
+        if not rows:
+            self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width), 15, "medium")
+            self._ink_text(ink, (0, baseline(20, 20, 14)), "Quota limits unavailable", 14, alpha=INK2)
+            return
+        # The collector calls a limit stale after five minutes; the sheet dates only readings over an hour old.
+        observed = re.search(r"(\d\d \w{3}) (\d\d:\d\d) UTC$", lines[0])
+        if observed:
+            now = datetime.now(timezone.utc)
+            try:
+                stamp = datetime.strptime(f"{now.year} {observed.group(1)} {observed.group(2)}", "%Y %d %b %H:%M").replace(tzinfo=timezone.utc)
+            except ValueError:
+                stamp = None
+            if stamp is not None and stamp > now:
+                stamp = stamp.replace(year=now.year - 1)
+            observed = observed if stamp is not None and (now - stamp).total_seconds() > 3600 else None
+        column = (width - 24 * (len(rows) - 1)) // len(rows)
+        previous = None
+        for index, (provider, window, display, reset, state) in enumerate(rows):
+            left = index * (column + 24)
+            if provider != previous:
+                self._ink_text(ink, (left, baseline(0, 20, 15)), self._fit(draw, provider, "medium", 15, column), 15, "medium")
+            previous = provider
+            self._ink_text(ink, (left, baseline(20, 20, 14)), self._fit(draw, window, "sans", 14, column), 14, alpha=INK2)
+            try:
+                percent = float(display)
+            except ValueError:
+                percent = None
+            known = percent is not None and math.isfinite(percent) and 0 <= percent <= 100
+            self._ink_text(ink, (left, baseline(48, 56, 56)), f"{math.floor(percent + .5)}%" if known else "–", 56, "mono")
+            estimate = reset.endswith(" · estimate")
+            reset = reset.removesuffix(" · estimate")
+            if not known:
+                amount, word = "", "unavailable"
+            elif reset.startswith("resets "):
+                amount, word = ("~" if estimate else "") + reset.removeprefix("resets "), "until reset"
+            elif reset.startswith("reset time passed"):
+                amount, word = "", "reset pending"
+            else:
+                amount, word = "", "reset unknown"
+            self._fact(ink, draw, (left, baseline(112, 20, 14)), amount, word, column)
+            if known and "stale" in state and observed:
+                self._fact(ink, draw, (left, baseline(132, 20, 14)), "", f"as of {observed.group(2)} UTC", column)
+            ink.bar((left, 160, left + column, 163), TRACK)
+            if known:
+                ink.bar((left, 160, left + round(column * percent / 100), 163))
+
+    @staticmethod
+    def _dollars(amount: str) -> str:
+        """Whole US dollars with a thin space between thousands: "$2 032"."""
+        partial = amount.endswith("+")
+        try:
+            value = math.floor(float(amount.removesuffix("+")) + .5)
+        except ValueError:
+            return "—"
+        return "$" + f"{value:,}".replace(",", "\u2009") + ("+" if partial else "")
+
+    def _sheet_total(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
+        """A 30-day total: title, period, a 56 px figure and one fact per provider beside it."""
+        cost = settings["source"] == "usage-cost-30d"
+        lines = settings["detail"].split("\n")
+        note = lines[0]
+        rows = [line.split("\t") for line in lines[1:9]]
+        rows = [row for row in rows if len(row) == 3 and row[0] in ("Codex", "Claude", "Cursor")][:3]
+        value = str(settings["value"])
+        self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width), 15, "medium")
+        if value in ("—", ""):
+            figure, name = "—", "API estimate unavailable" if cost else "Usage unavailable"
+        else:
+            # An incomplete total says "Partial" in its name rather than "+" on the figure.
+            value = value.removesuffix("+")
+            if cost:
+                figure = self._dollars(value)
+            else:
+                figure = value + (settings["unit"][:1] if settings["unit"][:1] in ("K", "M", "B") else "")
+            period = "API estimate, last 30 days" if cost else "Last 30 days"
+            if note.startswith("Partial"):
+                period = "Partial API estimate, last 30 days" if cost else "Partial, last 30 days"
+            # Cost shares the token scan, so only the token total carries the staleness date.
+            stale = None if cost else re.search(r"stale as of (\d\d \w{3})", note)
+            name = period + (f", as of {stale.group(1).lstrip('0')}" if stale else "")
+        self._ink_text(ink, (0, baseline(20, 20, 14)), self._fit(draw, name, "sans", 14, width), 14, alpha=INK2)
+        self._ink_text(ink, (0, baseline(48, 56, 56)), figure, 56, "mono")
+        if figure == "—":
+            return
+        # Facts sit beside a 160 px figure box, or past a wider figure.
+        left = max(168, math.ceil(self._length(draw, figure, "mono", 56)) + 16)
+        for index, (provider, amount, _state) in enumerate(rows):
+            shown = "—" if amount == "—" else self._dollars(amount) if cost else amount
+            self._fact(ink, draw, (left, baseline(56 + index * 20, 20, 14)), shown, provider, width - left)
+
     def _sheet_weather(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
         """Weather on the fog, centred vertically in the widget: a 116 px temperature, a 34 px glyph
         beside the condition, then place and humidity. The block is 232 px tall."""
@@ -1105,7 +1205,8 @@ class LayoutRenderer:
     def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:
         """Draw a sheet variant; return False for widgets without one."""
         kind, style = widget["type"], settings.get("style")
-        if (kind, style) not in (("gauge", "figure"), ("storage", "columns"), ("metric", "rows"), ("weather", "block")):
+        if (kind, style) not in (("gauge", "figure"), ("storage", "columns"), ("metric", "rows"), ("metric", "figures"),
+                                 ("metric", "total"), ("weather", "block")):
             return False
         ink = Ink(card, palette["text"])
         draw, width, height = ink.direct, widget["width"], widget["height"]
@@ -1113,6 +1214,10 @@ class LayoutRenderer:
             self._sheet_figure(ink, draw, width, settings)
         elif kind == "storage":
             self._sheet_storage(ink, draw, width, settings)
+        elif style == "figures":
+            self._sheet_limits(ink, draw, width, settings)
+        elif style == "total":
+            self._sheet_total(ink, draw, width, settings)
         elif kind == "metric":
             self._sheet_threads(ink, draw, width, height, settings)
         else:

@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "name": "AI usage",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "frost",
+    "background": "#141518",
+    "surface": "#1a1b1e",
+    "surfaceRaised": "#252629",
+    "text": "#f4f4f3",
+    "muted": "#bababa",
+    "primary": "#f4f4f3",
+    "secondary": "#d5d5d4",
+    "outline": "#39393c"
+  },
+  "widgets": [
+    {
+      "id": "sheet",
+      "type": "text",
+      "x": 560,
+      "y": 64,
+      "width": 656,
+      "height": 672,
+      "settings": {
+        "label": "",
+        "text": ""
+      },
+      "frame": "glass"
+    },
+    {
+      "id": "clock",
+      "type": "clock",
+      "x": 56,
+      "y": 60,
+      "width": 480,
+      "height": 220,
+      "settings": {
+        "label": "",
+        "time": "23:46",
+        "date": "samedi 7 novembre",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "design": {
+        "padding": 0,
+        "elements": {
+          "label": {
+            "hidden": true
+          },
+          "time": {
+            "dy": 37,
+            "size": 176,
+            "color": "text"
+          },
+          "date": {
+            "dx": 8,
+            "dy": 17,
+            "size": 24,
+            "color": "text"
+          }
+        }
+      },
+      "frame": "none"
+    },
+    {
+      "id": "weather",
+      "type": "weather",
+      "x": 56,
+      "y": 280,
+      "width": 480,
+      "height": 452,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "°C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14",
+        "source": "weather",
+        "style": "block"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "usage-limits",
+      "type": "metric",
+      "x": 588,
+      "y": 92,
+      "width": 600,
+      "height": 164,
+      "settings": {
+        "label": "Quota limits",
+        "value": "",
+        "unit": "",
+        "detail": "Last observations · 07 Nov 22:57 UTC\nCodex\t5-hour\t0\tresets 2h 08m\tcached\nCodex\tWeekly\t90\tresets 3d 14h\tcached\nClaude\t5-hour\t32\tresets 3h 45m\tcached\nClaude\tWeekly\t6\tresets 6d 21h\tcached",
+        "source": "usage-limits",
+        "style": "figures"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "rule-1",
+      "type": "text",
+      "x": 588,
+      "y": 302,
+      "width": 600,
+      "height": 1,
+      "settings": {
+        "label": "",
+        "text": ""
+      },
+      "frame": "none"
+    },
+    {
+      "id": "usage-tokens",
+      "type": "metric",
+      "x": 588,
+      "y": 349,
+      "width": 288,
+      "height": 116,
+      "settings": {
+        "label": "Tokens",
+        "value": "5.9",
+        "unit": "B tokens",
+        "detail": "Last 30 days · stale as of 21 Oct 18:29 UTC\nCodex\t3.5B\tstale\nClaude\t2.4B\tstale",
+        "source": "usage-tokens-30d",
+        "style": "total"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "usage-cost",
+      "type": "metric",
+      "x": 900,
+      "y": 349,
+      "width": 288,
+      "height": 116,
+      "settings": {
+        "label": "API cost",
+        "value": "2031.86",
+        "unit": "USD",
+        "detail": "API estimate · Last 30 days · stale as of 21 Oct 18:29 UTC\nCodex\t960.76\tstale\nClaude\t1071.10\tstale",
+        "source": "usage-cost-30d",
+        "style": "total"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "rule-2",
+      "type": "text",
+      "x": 588,
+      "y": 499,
+      "width": 600,
+      "height": 1,
+      "settings": {
+        "label": "",
+        "text": ""
+      },
+      "frame": "none"
+    },
+    {
+      "id": "t3-threads",
+      "type": "metric",
+      "x": 588,
+      "y": 546,
+      "width": 600,
+      "height": 162,
+      "settings": {
+        "label": "Threads",
+        "value": "2",
+        "unit": "working",
+        "detail": "{\"working\":2,\"note\":\"Sample threads\",\"threads\":[{\"title\":\"TURZX Frost layout\",\"provider\":\"claudeAgent\",\"status\":\"running\"},{\"title\":\"Push Minimalist Wallpaper\",\"provider\":\"claudeAgent\",\"status\":\"running\"}]}",
+        "source": "t3-threads",
+        "style": "rows"
+      },
+      "frame": "none"
+    }
+  ],
+  "paletteMode": "live",
+  "chrome": "none",
+  "ground": "wallpaper"
+}

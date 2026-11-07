@@ -43,7 +43,7 @@ These connected commands use the loopback Studio API. A switch reads the latest 
 
 ## Browse the widget library
 
-Studio’s **Add widget** library supports scrolling, search and category filters. The local catalog contains 127 ready-made choices: standard and wide metric cards, source-specific arc, ring, bar, segmented, thermometer and number designs, standard/compact/large/12-hour clocks, regular/slim weather, standard/compact/large notes, multi-metric lists, history graphs, month calendars, and the Frost sheet pieces (`glass-sheet`, `hairline-rule`, `cpu-figure`, `mounted-storage-columns`, `t3-threads-rows`, `weather-block`). It is the same catalog used by the editor and the agent commands.
+Studio’s **Add widget** library supports scrolling, search and category filters. The local catalog contains 130 ready-made choices: standard and wide metric cards, source-specific arc, ring, bar, segmented, thermometer and number designs, standard/compact/large/12-hour clocks, regular/slim weather, standard/compact/large notes, multi-metric lists, history graphs, month calendars, and the Frost sheet pieces (`glass-sheet`, `hairline-rule`, `cpu-figure`, `mounted-storage-columns`, `t3-threads-rows`, `weather-block`, and for AI usage `usage-limits-figures`, `usage-tokens-total`, `usage-cost-total`). It is the same catalog used by the editor and the agent commands.
 
 Gauge settings can include `style`: `arc`, `ring`, `bar`, `segments`, `thermometer`, `number` or `figure`. Omitting it preserves the original arc. A style changes the drawing; sources and ranges keep their meaning. Wide and compact variants describe geometry. They are not separate drawing styles.
 

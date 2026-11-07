@@ -208,6 +208,12 @@ class StudioApplication:
         if isinstance(runtime, dict) and runtime_is_running(runtime):
             if sheet_features(document) and runtime.get('supportedSheet') is not True:
                 raise APIError(409, 'The panel runtime needs an update before saving sheet layouts (wallpaper ground, frameless or glass widgets). Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
+            # Runtimes from before figures and totals advertised sheets but drew only thread rows.
+            metric_styles = runtime.get('supportedMetricStyles', ['rows'] if runtime.get('supportedSheet') is True else [])
+            if any(widget['type'] == 'metric' and 'style' in widget['settings'] and
+                   (not isinstance(metric_styles, list) or widget['settings']['style'] not in metric_styles)
+                   for widget in document['widgets']):
+                raise APIError(409, 'The panel runtime needs an update before saving these usage or thread styles. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
             if 'chrome' in document and runtime.get('supportedChrome') is not True:
                 raise APIError(409, 'The panel runtime needs an update before saving header and footer options. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
             supported = runtime.get('supportedWidgetTypes', ['metric', 'weather'])

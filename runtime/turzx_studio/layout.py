@@ -35,7 +35,10 @@ STORAGE_STYLES = ("bars", "table", "columns")
 # Frost sheet layouts: a wallpaper ground, frameless or glass widgets and their variants
 GROUNDS = ("flat", "wallpaper")
 FRAMES = ("card", "none", "glass")
-METRIC_STYLES = ("rows",)
+METRIC_STYLES = ("rows", "figures", "total")
+# Each metric sheet style draws one kind of source.
+METRIC_STYLE_SOURCES = {"rows": ("t3-threads",), "figures": ("usage-limits",),
+                        "total": ("usage-tokens-30d", "usage-cost-30d")}
 WEATHER_STYLES = ("block",)
 METRIC_SETTINGS = ("label", "value", "unit", "detail")
 WEATHER_SETTINGS = ("location", "temperature", "unit", "condition", "high", "low")
@@ -269,8 +272,9 @@ def _settings(kind: str, settings: dict, settings_path: str) -> dict:
         styles = METRIC_STYLES if kind == "metric" else WEATHER_STYLES
         if settings["style"] not in styles:
             _fail(f"{settings_path}.style", f"expected {', '.join(styles)}")
-        if kind == "metric" and result.get("source") != "t3-threads":
-            _fail(f"{settings_path}.style", "rows require the t3-threads source")
+        if kind == "metric" and result.get("source") not in METRIC_STYLE_SOURCES[settings["style"]]:
+            sources = " or ".join(METRIC_STYLE_SOURCES[settings["style"]])
+            _fail(f"{settings_path}.style", f"{settings['style']} require the {sources} source")
         result["style"] = settings["style"]
     return result
 

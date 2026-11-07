@@ -2554,6 +2554,66 @@
       "frame": "none"
     },
     {
+      "id": "usage-limits-figures",
+      "name": "Quota figures",
+      "type": "metric",
+      "width": 600,
+      "height": 164,
+      "settings": {
+        "label": "Quota limits",
+        "value": "",
+        "unit": "",
+        "detail": "Demo quota readings\nCodex\t5-hour\t13\tresets 1h 29m\tdemo\nCodex\tWeekly\t92\tresets 3d 14h\tdemo\nClaude\t5-hour\t47\tresets 3h 06m\tdemo\nClaude\tWeekly\t8\tresets 6d 21h\tdemo",
+        "source": "usage-limits",
+        "style": "figures"
+      },
+      "group": "ai-usage",
+      "family": "usage-summary",
+      "variant": "Frost figures",
+      "description": "Frameless: one column per quota window with the used share, the time until reset and a thin meter.",
+      "frame": "none"
+    },
+    {
+      "id": "usage-tokens-total",
+      "name": "Token total",
+      "type": "metric",
+      "width": 288,
+      "height": 116,
+      "settings": {
+        "label": "Tokens",
+        "value": "32.4",
+        "unit": "M tokens",
+        "detail": "Demo, last 30 days\nCodex\t24.8M\tdemo\nClaude\t6.9M\tdemo\nCursor\t700K\tdemo",
+        "source": "usage-tokens-30d",
+        "style": "total"
+      },
+      "group": "ai-usage",
+      "family": "usage-summary",
+      "variant": "Frost total",
+      "description": "Frameless: the 30-day token total as a large figure with each provider's share beside it.",
+      "frame": "none"
+    },
+    {
+      "id": "usage-cost-total",
+      "name": "API cost total",
+      "type": "metric",
+      "width": 288,
+      "height": 116,
+      "settings": {
+        "label": "API cost",
+        "value": "148.20",
+        "unit": "USD",
+        "detail": "Demo API estimate, last 30 days\nCodex\t105.60\tdemo estimate\nClaude\t38.40\tdemo estimate\nCursor\t4.20\tdemo estimate",
+        "source": "usage-cost-30d",
+        "style": "total"
+      },
+      "group": "ai-usage",
+      "family": "usage-summary",
+      "variant": "Frost total",
+      "description": "Frameless: the 30-day API cost estimate in whole dollars with each provider's share beside it.",
+      "frame": "none"
+    },
+    {
       "id": "game-resources",
       "name": "Game timers",
       "type": "metric",

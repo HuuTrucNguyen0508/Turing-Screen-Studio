@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import tempfile
@@ -12,10 +13,12 @@ from turzx_studio.ground import WallpaperGround, make_ground
 from turzx_studio.layout import parse_layout, serialize_layout, validate_layout
 from turzx_studio.renderer import LayoutRenderer
 from turzx_studio.dashboard_display import DashboardStats
+from turzx_studio.usage_display import UsageStats
 from server import sheet_features
 
 ROOT = Path(__file__).resolve().parents[2]
 SHEET = json.loads((ROOT / "layouts/frost-sheet.json").read_text())
+AI = json.loads((ROOT / "layouts/ai-usage-frost.json").read_text())
 SAMPLE = json.loads((ROOT / "public/sample-layout.json").read_text())
 FOG = (70, 70, 72)
 
@@ -147,6 +150,114 @@ class SheetRenderTests(unittest.TestCase):
     def test_frost_without_sheet_fields_ignores_the_ground_provider(self):
         doc = {**validate_layout(SAMPLE), "palette": PALETTES["dark"]}
         self.assertEqual(self.renderer.render(doc).tobytes(), LayoutRenderer().render(doc).tobytes())
+
+
+def usage_snapshot(codex_five_hour=13, claude_weekly_stale=False, observed="2026-11-07T20:00:00Z"):
+    """A collector snapshot shaped like GET /api/usage, served at 22:46 UTC."""
+    def limit(ident, minutes, used, resets, weekly, stale=False):
+        return {"id": ident, "windowMinutes": minutes, "usedPercent": used, "resetsAt": resets,
+                "observedAt": observed, "stale": stale, "accountWeekly": weekly}
+    tokens = {"observedAt": "2026-10-21T18:29:59Z", "stale": True, "status": "stale"}
+    pricing = {"stale": False, "status": "cached"}
+    return {
+        "servedAt": "2026-11-07T22:46:00Z",
+        "providers": {
+            "codex": {"quotaWindows": {"five_hour": "supported", "weekly": "supported"}, "limits": [
+                limit("primary", 300, codex_five_hour, "2026-11-08T00:53:07Z", False),
+                limit("secondary", 10080, 90, "2026-11-11T12:38:58Z", True)]},
+            "claude": {"quotaWindows": {"five_hour": "supported", "weekly": "supported"}, "limits": [
+                limit("five_hour", 300, 32, "2026-11-07T21:00:00Z", False),
+                limit("seven_day", 10080, 6, "2026-11-14T19:59:59Z", True, claude_weekly_stale)]},
+        },
+        "periods": {"last30days": {"providers": {
+            "codex": {"total": 3466088872, "records": 27504, "costUSD": 960.76, "costKind": "estimate",
+                      "freshness": {"tokens": tokens, "pricing": pricing}},
+            "claude": {"total": 2435182078, "records": 15351, "costUSD": 1071.10, "costKind": "estimate",
+                       "freshness": {"tokens": tokens, "pricing": pricing}},
+            "cursor": {"total": None, "freshness": {"tokens": {"status": "unavailable", "stale": True}}},
+        }}},
+    }
+
+
+class UsageSheetTests(unittest.TestCase):
+    def setUp(self):
+        self.renderer = LayoutRenderer(ground=fog)
+        self.drawn = []
+        original = self.renderer._ink_text
+
+        def spy(ink, xy, text, *args, **kwargs):
+            self.drawn.append(text)
+            return original(ink, xy, text, *args, **kwargs)
+
+        self.renderer._ink_text = spy
+
+    def render(self, snapshot):
+        return self.renderer.render(AI, stats=UsageStats(SimpleNamespace(), snapshot))
+
+    def test_limits_draw_one_column_per_window_with_reset_countdowns(self):
+        image = self.render(usage_snapshot(claude_weekly_stale=True))
+        limits = self.drawn[:self.drawn.index("Tokens")]
+        self.assertEqual([text for text in limits if text in ("Codex", "Claude")], ["Codex", "Claude"])
+        self.assertEqual([text for text in self.drawn if text.endswith("%") or text == "–"], ["13%", "90%", "32%", "6%"])
+        for fact in ("2h 08m", "3d 13h", "6d 21h", "reset pending", "as of 20:00 UTC"):
+            self.assertIn(fact, self.drawn)
+        # Codex weekly meter: 90 % of a 132 px column that starts at x 744.
+        limits = widget(AI, "usage-limits")
+        meter_y = limits["y"] + 161
+        lit = [x for x in range(744, 744 + 132) if image.getpixel((x, meter_y))[0] > 200]
+        self.assertEqual((min(lit), max(lit)), (744, 744 + 118))
+
+    def test_a_recent_stale_reading_is_not_dated(self):
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.render(usage_snapshot(claude_weekly_stale=True, observed=recent))
+        self.assertFalse(any(text.startswith("as of") for text in self.drawn), self.drawn)
+
+    def test_an_unknown_quota_shows_a_dash_and_an_empty_track(self):
+        snapshot = usage_snapshot(codex_five_hour=None)
+        image = self.render(snapshot)
+        self.assertIn("–", self.drawn)
+        self.assertIn("unavailable", self.drawn)
+        meter_y = widget(AI, "usage-limits")["y"] + 161
+        self.assertFalse(any(image.getpixel((x, meter_y))[0] > 200 for x in range(588, 588 + 132)))
+
+    def test_totals_show_the_sum_with_provider_facts_and_whole_dollars(self):
+        snapshot = usage_snapshot()
+        snapshot["periods"]["last30days"]["providers"]["cursor"] = {
+            "total": 0, "records": 0, "costUSD": 0, "costKind": "estimate",
+            "freshness": {"tokens": {"status": "cached", "stale": False}, "pricing": {"stale": False}}}
+        self.render(snapshot)
+        for text in ("5.9B", "3.5B", "2.4B", "Codex", "Claude", "Last 30 days, as of 21 Oct",
+                     "$2\u2009032", "$961", "$1\u2009071", "API estimate, last 30 days"):
+            self.assertIn(text, self.drawn)
+        self.assertNotIn("Cursor", self.drawn)
+
+    def test_a_missing_provider_makes_the_total_partial_without_truncating_facts(self):
+        self.render(usage_snapshot())
+        for text in ("5.9B", "Partial, last 30 days, as of 21 Oct", "$2\u2009032", "Partial API estimate, last 30 days",
+                     "$1\u2009071", "Claude", "—", "Cursor"):
+            self.assertIn(text, self.drawn)
+        self.assertFalse(any(text.endswith("…") for text in self.drawn), self.drawn)
+
+    def test_missing_usage_reads_unavailable_instead_of_sample_values(self):
+        self.render({})
+        self.assertIn("Usage unavailable", self.drawn)
+        self.assertIn("API estimate unavailable", self.drawn)
+        self.assertNotIn("5.9B", self.drawn)
+        self.assertEqual([text for text in self.drawn if text.endswith("%")], [])
+
+    def test_ai_usage_shares_the_fog_column_rules_and_threads_with_system_overview(self):
+        system, ai = (self.renderer.render(doc) for doc in (SHEET, AI))
+        for box in ((0, 0, 560, 800), (560, 540, 1216, 736), (0, 736, 1280, 800)):
+            self.assertEqual(system.crop(box).tobytes(), ai.crop(box).tobytes(), box)
+
+    def test_usage_styles_require_their_sources(self):
+        for identifier, source, message in (("usage-limits", "usage-cost-30d", "figures require the usage-limits source"),
+                                            ("usage-cost", "usage-limits", "total require the usage-tokens-30d or usage-cost-30d source")):
+            with self.subTest(identifier=identifier):
+                doc = copy.deepcopy(AI)
+                widget(doc, identifier)["settings"]["source"] = source
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_layout(doc)
 
 
 if __name__ == "__main__":
