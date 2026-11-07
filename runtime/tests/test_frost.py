@@ -94,6 +94,18 @@ class FrostRenderTests(unittest.TestCase):
         # A tabular colon would be as wide as a digit.
         self.assertLess(length(":"), length("0") * .6)
 
+    def test_runs_share_one_baseline_whatever_the_anchor(self):
+        self.renderer.render(self.doc, palette=PALETTES["dark"])
+        for anchor in ("lt", "mm", "rs"):
+            image = Image.new("L", (400, 120))
+            draw = ImageDraw.Draw(image)
+            self.renderer._draw_text(draw, (200, 60), "60.5", 255, 72, "mono", anchor)
+            left = image.getbbox()[0]
+            start = left + self.renderer._length(draw, "60", "mono", 72)
+            point = image.crop((int(start) + 1, 0, int(start + self.renderer._length(draw, ".", "mono", 72)), 120)).getbbox()
+            # The point sits on the digits' baseline, so its ink ends where theirs does.
+            self.assertLessEqual(abs(point[3] - image.getbbox()[3]), 1, anchor)
+
     def test_frost_face_applies_only_to_the_frost_palette(self):
         frost = self.renderer.render(self.doc, palette=PALETTES["dark"])
         renamed = self.renderer.render(self.doc, palette={**PALETTES["dark"], "name": "dynamic"})

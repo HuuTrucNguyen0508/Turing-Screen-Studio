@@ -271,8 +271,11 @@ class LayoutRenderer:
         if anchor[0] in "mr":
             width = self._length(draw, text, family, size)
             x -= width / 2 if anchor[0] == "m" else width
+        # Top and middle anchors measure each string's own ink, so a lone "." would rise:
+        # place the whole string once, then set every run on its baseline.
+        y += font.getbbox(text, anchor="l" + anchor[1])[1] - font.getbbox(text, anchor="ls")[1]
         for run, features in runs:
-            draw.text((x, y), run, font=font, fill=color, anchor="l" + anchor[1], features=features)
+            draw.text((x, y), run, font=font, fill=color, anchor="ls", features=features)
             x += draw.textlength(run, font=font, features=features)
 
     def _value(self, draw: ImageDraw.ImageDraw, xy: tuple[float, float], value: str,
