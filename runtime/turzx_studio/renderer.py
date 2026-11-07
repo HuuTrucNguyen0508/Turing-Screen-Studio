@@ -20,9 +20,11 @@ from .image_assets import render_image
 from .list_display import list_bar_role, list_content, list_layout
 from .graph_display import GRAPH_AREA_MIX, graph_area, widget_graph
 from .calendar_display import calendar_content, calendar_geometry, calendar_month
+from .frost import FACES, FONT_DIR, FROST, ICON_AXES, ICON_FONT, LIGHT_FROM, THIN_FROM, weather_glyph
 
 MAX_RENDER_PIXELS = 16_000_000
 _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
+_DIGIT_RUNS = re.compile(r"\d+|\D+")
 
 
 def _number(stats: object, name: str) -> float | None:
@@ -130,6 +132,9 @@ def rendered_content(widget: dict, stats: object = None, today=None) -> dict:
             condition=_text(getattr(stats, "weather_description", None)),
             high="—", low="—",
         )
+        icon = getattr(stats, "weather_icon", None)
+        if isinstance(icon, str) and icon:
+            settings["icon"] = icon
     elif source in ("cpu-temperature", "gpu-temperature"):
         name = getattr(stats, "cpu_name" if source == "cpu-temperature" else "gpu_name", None)
         settings.update(value=_format(_number(stats, "cpu_temp" if source == "cpu-temperature" else "gpu_temp")),
@@ -177,21 +182,41 @@ def rendered_content(widget: dict, stats: object = None, today=None) -> dict:
 class LayoutRenderer:
     """Draw document coordinates directly. The caller owns transport and scaling.
 
-    Fonts come only from font_dir, local DejaVu files, or Pillow's fallback.
-    Stats and palette are snapshots supplied by the caller. Rendering never
+    Fonts come only from font_dir, local DejaVu files, or Pillow's fallback,
+    except under the Frost palette, which uses the shell's system Fira Sans and
+    Material Symbols when installed. Stats and palette are snapshots supplied by the caller. Rendering never
     imports the original dashboard or reads scheme, sensor, or network data.
     """
 
     def __init__(self, font_dir: Path | None = None) -> None:
         self.font_dir = Path(font_dir) if font_dir is not None else None
-        self._fonts: dict[tuple[str, int], ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
+        self._fonts: dict[tuple[str, int, bool], ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
         self._wrapped: dict[tuple[str, int], list[str]] = {}
+        # Set per render from the palette; renders are serialized by their callers.
+        self._frost = False
+
+    def _frost_font(self, family: str, size: int) -> ImageFont.FreeTypeFont | None:
+        """Fira Sans: thin for large figures, light for large words, medium for names."""
+        face = ("thin" if family == "mono" and size >= THIN_FROM else
+                "medium" if family == "medium" else
+                "light" if size >= LIGHT_FROM else "regular")
+        try:
+            return ImageFont.truetype(str(FONT_DIR / FACES[face]), size)
+        except OSError:
+            return None
 
     def _font(self, family: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-        key = family, size
+        key = family, size, self._frost
         if key not in self._fonts:
             summary_font = family.startswith("summary-")
             family = family.removeprefix("summary-")
+            if self._frost:
+                font = self._frost_font(family, size)
+                if font is not None:
+                    self._fonts[key] = font
+                    return font
+            # Medium names fall back to the regular face outside Frost.
+            family = "sans" if family == "medium" else family
             candidates = []
             if self.font_dir is not None:
                 relative = {
@@ -221,18 +246,42 @@ class LayoutRenderer:
         text = text[:4096]
         return text.encode("utf-8", "replace").decode("utf-8")
 
+    def _runs(self, text: str) -> list[tuple[str, list[str] | None]]:
+        """Frost sets digits in tabular figures so live readings keep their width.
+        Separators stay proportional: tabular colons and points open wide gaps."""
+        if not self._frost:
+            return [(text, None)]
+        return [(run, ["tnum"] if run[0].isdigit() else None) for run in _DIGIT_RUNS.findall(text)]
+
+    def _length(self, draw: ImageDraw.ImageDraw, text: str, family: str, size: int) -> float:
+        font = self._font(family, size)
+        return sum(draw.textlength(run, font=font, features=features)
+                   for run, features in self._runs(self._safe_text(text)))
+
     def _draw_text(self, draw: ImageDraw.ImageDraw, xy: tuple[float, float],
                    text: str, color: str, size: int, family: str = "sans",
                    anchor: str = "lt") -> None:
-        draw.text(xy, self._safe_text(text), font=self._font(family, size), fill=color, anchor=anchor)
+        text = self._safe_text(text)
+        font = self._font(family, size)
+        runs = self._runs(text)
+        if len(runs) < 2 and runs and runs[0][1] is None:
+            draw.text(xy, text, font=font, fill=color, anchor=anchor)
+            return
+        x, y = xy
+        if anchor[0] in "mr":
+            width = self._length(draw, text, family, size)
+            x -= width / 2 if anchor[0] == "m" else width
+        for run, features in runs:
+            draw.text((x, y), run, font=font, fill=color, anchor="l" + anchor[1], features=features)
+            x += draw.textlength(run, font=font, features=features)
 
     def _value(self, draw: ImageDraw.ImageDraw, xy: tuple[float, float], value: str,
                unit: str, color: str, unit_color: str, size: int, unit_size: int,
                centered: bool = False, gap: int = 9) -> None:
         value = self._safe_text(value)
         unit = self._safe_text(unit)
-        value_width = draw.textlength(value, font=self._font("mono", size))
-        unit_width = draw.textlength(unit, font=self._font("sans", unit_size))
+        value_width = self._length(draw, value, "mono", size)
+        unit_width = self._length(draw, unit, "sans", unit_size)
         x, y = xy
         if centered:
             x -= (value_width + gap + unit_width) / 2
@@ -285,7 +334,7 @@ class LayoutRenderer:
 
         self._draw_text(draw, (29, 42), shortened(settings['label'], 8), palette['muted'], 15, anchor='ls')
         self._draw_text(draw, (29, 92), settings['value'], palette['primary'], size, 'mono', 'ls')
-        value_width = draw.textlength(self._safe_text(settings['value']), font=self._font('mono', size))
+        value_width = self._length(draw, settings['value'], 'mono', size)
         self._draw_text(draw, (35 + value_width, 92), settings['unit'], palette['muted'], 16, anchor='ls')
         if chart['showChart']:
             bounds = f"{gauge_number(chart['min'])}-{gauge_number(chart['max'])} {trend_unit(source)}".strip()
@@ -329,11 +378,28 @@ class LayoutRenderer:
         draw.polygon(points, fill=palette["surface"])
         draw.line(points + [points[0]], fill=color, width=3)
 
+    def _weather_glyph(self, draw: ImageDraw.ImageDraw, cx: float, top: int,
+                       settings: dict, palette: dict) -> bool:
+        """Draw the shell's outlined Material Symbols glyph in the line icon's 112 x 84 box."""
+        key = "icon", 88, True
+        if key not in self._fonts:
+            try:
+                font = ImageFont.truetype(str(FONT_DIR / ICON_FONT), 88)
+                font.set_variation_by_axes(list(ICON_AXES))
+            except (OSError, ValueError):
+                return False
+            self._fonts[key] = font
+        font = self._fonts[key]
+        glyph = weather_glyph(settings.get("icon"), settings["condition"])
+        draw.text((cx, top + 42), glyph, font=font, fill=palette["text"], anchor="mm")
+        return True
+
     def _weather(self, draw: ImageDraw.ImageDraw, width: int, height: int,
                  settings: dict, palette: dict, live: bool) -> None:
         center = width / 2
         self._draw_text(draw, (29, 27), f"Weather / {settings['location']}", palette["muted"], 15)
-        self._weather_icon(draw, center, 69, palette)
+        if not (self._frost and self._weather_glyph(draw, center, 69, settings, palette)):
+            self._weather_icon(draw, center, 69, palette)
         self._value(draw, (center, 191), settings["temperature"], settings["unit"],
                     palette["text"], palette["text"], 76, 36, centered=True, gap=3)
         self._draw_text(draw, (center, 296), settings["condition"], palette["muted"], 20, anchor="mt")
@@ -370,7 +436,8 @@ class LayoutRenderer:
             statuses = {'running': 'Working', 'waiting_approval': 'Needs approval', 'waiting_input': 'Needs input', 'waiting': 'Waiting'}
             for index, row in enumerate(shown):
                 y = top + index * stride
-                text(p, y, short(row['title'], available, 16), 16, 'text')
+                self._draw_text(draw, (p, y), short(row['title'], available, 16), palette['text'], 16,
+                                'medium' if self._frost else 'summary-sans', 'ls')
                 running = row['status'] == 'running'
                 draw.ellipse((p + 1, y + 11, p + 7, y + 17), outline=palette['primary' if running else 'muted'], fill=palette['primary'] if running else None)
                 text(p + 14, y + 18, statuses.get(row['status'], 'Waiting'))
@@ -540,9 +607,9 @@ class LayoutRenderer:
             size, family = element["size"], element["family"]
             suffix = self._safe_text(element.get("suffix", ""))
             if suffix:
-                digits_width = draw.textlength(text, font=self._font(family, size))
+                digits_width = self._length(draw, text, family, size)
                 suffix_size, gap = element["suffixSize"], element["gap"]
-                width = digits_width + gap + draw.textlength(suffix, font=self._font("sans", suffix_size))
+                width = digits_width + gap + self._length(draw, suffix, "sans", suffix_size)
                 left = x - (width / 2 if element["align"] == "center" else width if element["align"] == "end" else 0)
                 self._draw_text(draw, (left, y), text, color, size, family, "ls")
                 suffix_color = element.get("suffixColor", "muted")
@@ -614,16 +681,34 @@ class LayoutRenderer:
         radius, cx, cy, size = (geometry[key] for key in ("radius", "cx", "cy", "size"))
         if radius >= 24:
             box = (cx - radius, cy - radius, cx + radius, cy + radius)
-            draw.arc(box, 150, 390, fill=palette["outline"], width=10)
             fraction = 0 if value is None else gauge_fraction(value, settings["min"], settings["max"])
-            if fraction > 0:
-                draw.arc(box, 150, 150 + 240 * fraction, fill=palette["primary"], width=10)
+            if self._frost:
+                self._frost_arc(draw, cx, cy, radius, 150, 390, palette["outline"])
+                if fraction > 0:
+                    self._frost_arc(draw, cx, cy, radius, 150, 150 + 240 * fraction, palette["primary"])
+            else:
+                draw.arc(box, 150, 390, fill=palette["outline"], width=10)
+                if fraction > 0:
+                    draw.arc(box, 150, 150 + 240 * fraction, fill=palette["primary"], width=10)
             for bound, x in ((settings["min"], cx - round(.866 * radius)), (settings["max"], cx + round(.866 * radius))):
                 self._draw_text(draw, (x, cy + radius // 2 + 14), gauge_number(bound), palette["muted"], 12, "mono", "mt")
         self._value(draw, (cx, cy + math.floor(size * .36) - size + 5 if radius >= 24 else 62),
                     text, settings["unit"], palette["primary"], palette["muted"], size,
                     math.floor(size * .4), centered=True, gap=6)
         self._draw_text(draw, (cx, height - 29), settings["detail"], palette["muted"], 14, anchor="ms")
+
+    @staticmethod
+    def _frost_arc(draw: ImageDraw.ImageDraw, cx: float, cy: float, radius: int,
+                   start: float, end: float, color: str, stroke: int = 6) -> None:
+        """A Frost meter bent into the arc: a thin stroke with round caps, centred on the
+        10 px arc's midline so the gauge keeps its geometry."""
+        middle = radius - 5
+        outer = middle + stroke / 2
+        draw.arc((cx - outer, cy - outer, cx + outer, cy + outer), start, end, fill=color, width=stroke)
+        for angle in (start, end):
+            x = cx + middle * math.cos(math.radians(angle))
+            y = cy + middle * math.sin(math.radians(angle))
+            draw.ellipse((x - stroke / 2, y - stroke / 2, x + stroke / 2, y + stroke / 2), fill=color)
 
     def _instrument(self, draw: ImageDraw.ImageDraw, width: int, height: int,
                     settings: dict, palette: dict) -> None:
@@ -687,8 +772,8 @@ class LayoutRenderer:
                 bound(width - p, height - 64, settings["max"], True)
         text = "—" if value is None else gauge_number(value)
         unit_size = math.floor(value_size * .4)
-        value_width = draw.textlength(text, font=self._font("mono", value_size))
-        unit_width = draw.textlength(self._safe_text(settings["unit"]), font=self._font("sans", unit_size))
+        value_width = self._length(draw, text, "mono", value_size)
+        unit_width = self._length(draw, settings["unit"], "sans", unit_size)
         if centered:
             value_x -= (value_width + 6 + unit_width) / 2
         self._draw_text(draw, (value_x, value_y), text, primary, value_size, "mono", "ls")
@@ -718,7 +803,8 @@ class LayoutRenderer:
         for index, row in enumerate(rows):
             y = start + index * stride
             path = storage_row_name(row, settings.get('filtered', False))
-            text(padding, y + 12, storage_short(path, max(1, math.floor((width * .35 - padding if table else available - 50) / 8))), 'text', 14)
+            self._draw_text(draw, (padding, y + 12), storage_short(path, max(1, math.floor((width * .35 - padding if table else available - 50) / 8))),
+                            palette['text'], 14, 'medium', 'ls')
             percent = row.get('usedPercent')
             valid = type(percent) in (int, float) and math.isfinite(percent) and 0 <= percent <= 100
             percent_text = f'{math.floor(percent + .5)}%' if valid else '—'
@@ -739,9 +825,12 @@ class LayoutRenderer:
                 detail = f'{used} / {total}' + ('' if drives else f' · {free} free')
                 text(padding, y + 33, storage_short(detail, max(1, math.floor(available / 6.7))), 'muted')
                 if settings['style'] == 'bars' and available:
-                    draw.rounded_rectangle((padding, y + 45, width - padding, y + 51), radius=3, fill=palette['outline'])
+                    # Frost's meter is 4 px, centred where the 6 px bar sat
+                    top, bottom, round_ = (y + 46, y + 50, 2) if self._frost else (y + 45, y + 51, 3)
+                    draw.rounded_rectangle((padding, top, width - padding, bottom), radius=round_, fill=palette['outline'])
                     if valid and percent > 0:
-                        draw.rounded_rectangle((padding, y + 45, padding + available * percent / 100, y + 51), radius=3, fill=palette['primary'])
+                        draw.rounded_rectangle((padding, top, padding + available * percent / 100, bottom),
+                                               radius=round_, fill=palette['primary'])
         footer = f'+{hidden} {noun} · enlarge card' if hidden else '* Stale readings' if any(row.get('stale') for row in rows) else '+ Mounted usage only · GiB / TiB' if drives else 'Shared mounts grouped · GiB / TiB'
         text(padding, height - 19, storage_short(footer, max(1, math.floor(available / 6.7))), 'muted')
 
@@ -759,8 +848,8 @@ class LayoutRenderer:
                  color: str, unit_color: str, size: int, unit_size: int, gap: int, anchor: str = 'ls') -> None:
         """A mono value and sans unit sharing one baseline; 'rs' right-aligns the whole run."""
         x, y = xy
-        value_width = draw.textlength(self._safe_text(value), font=self._font('summary-mono', size))
-        unit_width = draw.textlength(self._safe_text(unit), font=self._font('summary-sans', unit_size)) if unit else 0
+        value_width = self._length(draw, value, 'summary-mono', size)
+        unit_width = self._length(draw, unit, 'summary-sans', unit_size) if unit else 0
         if anchor == 'rs':
             x -= value_width + (gap + unit_width if unit else 0)
         self._draw_text(draw, (x, y), value, color, size, 'summary-mono', 'ls')
@@ -868,6 +957,11 @@ class LayoutRenderer:
         if width * height > MAX_RENDER_PIXELS:
             raise ValueError("$.canvas: rendering is limited to 16 million pixels")
         colors = doc["palette"] if palette is None else _palette(palette, "$.renderPalette")
+        frost = colors["name"] == FROST
+        if frost != self._frost:
+            # Wrapped lines were measured in the other face.
+            self._wrapped.clear()
+            self._frost = frost
         image = Image.new("RGB", (width, height), colors["background"])
         draw = ImageDraw.Draw(image)
         sources = {widget['settings'].get('source') for widget in doc['widgets']}

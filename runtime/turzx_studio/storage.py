@@ -10,6 +10,7 @@ import tempfile
 import sys
 from threading import RLock
 
+from .frost import ShellStyle, frost_palette
 from .layout import parse_caelestia_palette
 
 MAX_FILE_BYTES = 1024 * 1024
@@ -90,14 +91,19 @@ def atomic_write(path: str | Path, data: bytes) -> None:
 
 
 class PaletteWatcher:
-    """Poll a scheme file and return the last valid palette on every call."""
+    """Poll a scheme file and return the last valid palette on every call.
 
-    def __init__(self, path: str | Path) -> None:
+    With a shell style, Frost's own palette replaces the scheme while the
+    shell shows Frost; the scheme still supplies light or dark.
+    """
+
+    def __init__(self, path: str | Path, style: ShellStyle | None = None) -> None:
         self.path = Path(path).expanduser()
+        self.style = style
         self._lock = RLock()
         self._palette: dict | None = None
         self._error: str | None = None
-        self._signature: tuple[int, int, int] | None = None
+        self._signature: tuple | None = None
 
     @property
     def error(self) -> str | None:
@@ -108,7 +114,8 @@ class PaletteWatcher:
         with self._lock:
             try:
                 info = self.path.stat()
-                signature = (info.st_ino, info.st_mtime_ns, info.st_size)
+                signature = (info.st_ino, info.st_mtime_ns, info.st_size,
+                             self.style.signature() if self.style else None)
                 if signature == self._signature:
                     return deepcopy(self._palette)
                 if not self.path.is_file():
@@ -119,7 +126,10 @@ class PaletteWatcher:
                     data = stream.read(MAX_FILE_BYTES + 1)
                 if len(data) > MAX_FILE_BYTES:
                     raise ValueError("scheme exceeds the 1 MB file limit")
-                palette = parse_caelestia_palette(data.decode("utf-8"))
+                text = data.decode("utf-8")
+                palette = parse_caelestia_palette(text)
+                if self.style is not None and self.style.active():
+                    palette = frost_palette(text)
             except (OSError, ValueError) as error:
                 # Retry failures even if a producer rewrites metadata in place.
                 self._signature = None

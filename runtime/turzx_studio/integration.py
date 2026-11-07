@@ -13,6 +13,7 @@ import time
 from .layout import GAUGE_STYLES, WIDGET_TYPES, effective_palette
 from .renderer import LayoutRenderer, rendered_content
 from .watch import LayoutWatcher
+from .frost import ShellStyle
 from .storage import Paths, PaletteWatcher, atomic_write
 from .t3_refresh import UsageRefresher, token_path
 from .usage import UsageCollector
@@ -75,7 +76,9 @@ class RuntimeIntegration:
     def __init__(self, paths: Paths | None = None, scheme: Path | None = None):
         self.paths = paths or Paths()
         self.layouts = LayoutWatcher(self.paths.layout, panel=True)
-        self.scheme = PaletteWatcher(scheme or Path.home() / '.local/state/caelestia/scheme.json')
+        # Only the real scheme follows the shell's style; an injected scheme stays as given.
+        self.scheme = PaletteWatcher(scheme) if scheme else PaletteWatcher(
+            Path.home() / '.local/state/caelestia/scheme.json', ShellStyle())
         self.document = None
         self.palette = None
         self.frame_revision = None

@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from turzx_studio.layout import parse_layout, revision, serialize_layout, validate_layout
 from turzx_studio.renderer import LayoutRenderer
+from turzx_studio.frost import ShellStyle
 from turzx_studio.storage import PaletteWatcher, Paths, atomic_write
 from turzx_studio.archives import archive_layout, layout_write_lock, list_archives, read_archive
 from turzx_studio.layout_library import (
@@ -127,8 +128,9 @@ class StudioApplication:
         self.paths = paths if paths is not None else Paths()
         self.widget_templates = WidgetTemplates(self.paths)
         self.dist = (Path(dist).expanduser() if dist is not None else ROOT / "dist").resolve()
-        self.palette = PaletteWatcher(scheme if scheme is not None else
-                                      Path.home() / ".local/state/caelestia/scheme.json")
+        # Only the real scheme follows the shell's style; an injected scheme stays as given.
+        self.palette = PaletteWatcher(scheme) if scheme is not None else PaletteWatcher(
+            Path.home() / ".local/state/caelestia/scheme.json", ShellStyle())
         self.renderer = LayoutRenderer(font_dir=Path(font_dir).expanduser() if font_dir is not None
                                        else Path.home() / "Documents/turing-smart-screen-python/res/fonts")
         self.layout_lock = threading.RLock()

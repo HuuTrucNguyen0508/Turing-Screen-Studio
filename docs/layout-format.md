@@ -33,7 +33,7 @@ Metric sources are `sample`, `cpu`, `gpu`, `memory`, `disk`, `network-down`, `ne
 
 Clocks use minute precision from the existing collector. Their sample `time` and `date` remain deterministic offline. A layout with a clock widget hides the fixed header clock to avoid showing time twice. Existing layouts without a clock keep the original header.
 
-Optional top-level `paletteMode` is `saved` or `live`; omission means saved. Live mode follows Caelestia through the local server and runtime. The stored palette remains the fallback. These optional fields keep existing version 1 files valid and remain omitted when absent.
+Optional top-level `paletteMode` is `saved` or `live`; omission means saved. Live mode follows Caelestia through the local server and runtime. The stored palette remains the fallback. While the shell shows its Frost style (the current wallpaper is listed in Frost's `style.json`), live mode uses Frost's own palette, named `frost`, in the scheme's light or dark mode. A palette named `frost`, live or saved, also draws the panel in Frost's faces: Fira Sans, with ExtraLight for figures of 40 px and up, tabular digits, Material Symbols weather glyphs, thin round-capped arcs and 4 px meters. Other palettes render as before. The browser editor still previews in Roboto and JetBrains Mono. These optional fields keep existing version 1 files valid and remain omitted when absent.
 
 Optional top-level `chrome` is `standard` or `none`. Omission retains the original header and footer. `none` leaves the canvas to the widgets, as in the clean dashboard drafts. A running panel must advertise `supportedChrome: true` before saving an explicit choice. This check happens before archiving or replacing a layout.
 
