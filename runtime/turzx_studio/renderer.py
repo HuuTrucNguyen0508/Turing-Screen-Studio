@@ -1164,8 +1164,8 @@ class LayoutRenderer:
         self._ink_text(ink, (0, baseline(48, 56, 56)), figure, 56, "mono")
         if figure == "—":
             return
-        # Facts sit beside a 160 px figure box, or past a wider figure.
-        left = max(168, math.ceil(self._length(draw, figure, "mono", 56)) + 16)
+        # Facts sit beside a 160 px figure box, or 11 px past a wider figure, as in the design.
+        left = max(168, math.ceil(self._length(draw, figure, "mono", 56)) + 11)
         for index, (provider, amount, _state) in enumerate(rows):
             shown = "—" if amount == "—" else self._dollars(amount) if cost else amount
             self._fact(ink, draw, (left, baseline(56 + index * 20, 20, 14)), shown, provider, width - left)
