@@ -199,7 +199,9 @@ class UsageSheetTests(unittest.TestCase):
         limits = self.drawn[:self.drawn.index("Tokens")]
         self.assertEqual([text for text in limits if text in ("Codex", "Claude")], ["Codex", "Claude"])
         self.assertEqual([text for text in self.drawn if text.endswith("%") or text == "–"], ["13%", "90%", "32%", "6%"])
-        for fact in ("2h 08m", "3d 13h", "6d 21h", "reset pending", "as of 20:00 UTC"):
+        # Dated in the panel's local time, like its clock.
+        local = datetime(2026, 11, 7, 20, 0, tzinfo=timezone.utc).astimezone().strftime("%H:%M")
+        for fact in ("2h 08m", "3d 13h", "6d 21h", "reset pending", f"as of {local}"):
             self.assertIn(fact, self.drawn)
         # Codex weekly meter: 90 % of a 132 px column that starts at x 744.
         limits = widget(AI, "usage-limits")

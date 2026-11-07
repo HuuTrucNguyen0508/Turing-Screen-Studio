@@ -29,6 +29,8 @@ _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
 _DIGIT_RUNS = re.compile(r"\d+|\D+")
 # The sheet weather block: temperature, glyph line and two facts.
 WEATHER_BLOCK = 232
+# English month abbreviations for sheet copy, independent of the runtime's time locale.
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def _number(stats: object, name: str) -> float | None:
@@ -1083,16 +1085,9 @@ class LayoutRenderer:
             self._ink_text(ink, (0, baseline(20, 20, 14)), "Quota limits unavailable", 14, alpha=INK2)
             return
         # The collector calls a limit stale after five minutes; the sheet dates only readings over an hour old.
-        observed = re.search(r"(\d\d \w{3}) (\d\d:\d\d) UTC$", lines[0])
-        if observed:
-            now = datetime.now(timezone.utc)
-            try:
-                stamp = datetime.strptime(f"{now.year} {observed.group(1)} {observed.group(2)}", "%Y %d %b %H:%M").replace(tzinfo=timezone.utc)
-            except ValueError:
-                stamp = None
-            if stamp is not None and stamp > now:
-                stamp = stamp.replace(year=now.year - 1)
-            observed = observed if stamp is not None and (now - stamp).total_seconds() > 3600 else None
+        observed = settings.get("observed")
+        dated = (type(observed) in (int, float) and math.isfinite(observed)
+                 and datetime.now(timezone.utc).timestamp() - observed > 3600)
         column = (width - 24 * (len(rows) - 1)) // len(rows)
         previous = None
         for index, (provider, window, display, reset, state) in enumerate(rows):
@@ -1118,8 +1113,8 @@ class LayoutRenderer:
             else:
                 amount, word = "", "reset unknown"
             self._fact(ink, draw, (left, baseline(112, 20, 14)), amount, word, column)
-            if known and "stale" in state and observed:
-                self._fact(ink, draw, (left, baseline(132, 20, 14)), "", f"as of {observed.group(2)} UTC", column)
+            if known and "stale" in state and dated:
+                self._fact(ink, draw, (left, baseline(132, 20, 14)), "", f"as of {datetime.fromtimestamp(observed):%H:%M}", column)
             ink.bar((left, 160, left + column, 163), TRACK)
             if known:
                 ink.bar((left, 160, left + round(column * percent / 100), 163))
@@ -1156,8 +1151,15 @@ class LayoutRenderer:
             if note.startswith("Partial"):
                 period = "Partial API estimate, last 30 days" if cost else "Partial, last 30 days"
             # Cost shares the token scan, so only the token total carries the staleness date.
-            stale = None if cost else re.search(r"stale as of (\d\d \w{3})", note)
-            name = period + (f", as of {stale.group(1).lstrip('0')}" if stale else "")
+            # Live readings carry their epoch; sample notes are written in English.
+            observed, since = settings.get("observed"), None
+            if not cost and "stale" in note:
+                if type(observed) in (int, float) and math.isfinite(observed):
+                    day = datetime.fromtimestamp(observed)
+                    since = f"{day.day} {_MONTHS[day.month - 1]}"
+                elif sample := re.search(r"stale as of (\d\d) ([A-Z][a-z]{2})\b", note):
+                    since = f"{int(sample.group(1))} {sample.group(2)}"
+            name = period + (f", as of {since}" if since else "")
         self._ink_text(ink, (0, baseline(20, 20, 14)), self._fit(draw, name, "sans", 14, width), 14, alpha=INK2)
         self._ink_text(ink, (0, baseline(48, 56, 56)), figure, 56, "mono")
         if figure == "—":

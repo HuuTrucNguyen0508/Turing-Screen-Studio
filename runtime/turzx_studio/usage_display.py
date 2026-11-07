@@ -148,7 +148,7 @@ def _period_content(snapshot, cost, gauge):
         note = ' · '.join(part for part in (label, 'Last 30 days', state) if part)
     if gauge and not cost:
         unit = 'tokens'
-    return value, text, unit, '\n'.join([note, *rows])
+    return value, text, unit, '\n'.join([note, *rows]), min(observations, default=None)
 
 
 def _quota_window(limit):
@@ -211,7 +211,7 @@ def _quota_content(snapshot):
             display = f'{percent:g}' if known else '-'
             rows.append(f'{name.title()}\t{label}\t{display}\t{reset}\t{state}')
     note = ('Last observations · ' + datetime.fromtimestamp(min(observations)[0], timezone.utc).strftime('%d %b %H:%M UTC')) if observations else 'Quota observations unavailable'
-    return None, '—', '', '\n'.join([note, *rows])
+    return None, '—', '', '\n'.join([note, *rows]), min(observations)[0] if observations else None
 
 
 def usage_content(widget: dict, snapshot: dict | None) -> dict | None:
@@ -219,6 +219,8 @@ def usage_content(widget: dict, snapshot: dict | None) -> dict | None:
 
     A collector snapshot's servedAt pins countdown formatting to that snapshot.
     Gauge readings remain numeric and unavailable readings remain None.
+    Aggregate sources add `observed`, the oldest reading's epoch seconds, so
+    sheet variants can date stale readings without parsing localized notes.
     """
     settings = dict(widget['settings'])
     source = settings.get('source')
@@ -228,9 +230,9 @@ def usage_content(widget: dict, snapshot: dict | None) -> dict | None:
     value, unit, detail = None, '', 'Usage unavailable'
     text = '—'
     if source in ('usage-tokens-30d', 'usage-cost-30d'):
-        value, text, unit, detail = _period_content(snapshot, source == 'usage-cost-30d', widget['type'] == 'gauge')
+        value, text, unit, detail, settings['observed'] = _period_content(snapshot, source == 'usage-cost-30d', widget['type'] == 'gauge')
     elif source == 'usage-limits':
-        value, text, unit, detail = _quota_content(snapshot)
+        value, text, unit, detail, settings['observed'] = _quota_content(snapshot)
     elif source == 'storage':
         storage = snapshot.get('storage', {})
         value = _number(storage.get('usedPercent'))
