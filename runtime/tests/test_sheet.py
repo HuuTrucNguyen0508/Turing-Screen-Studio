@@ -118,33 +118,69 @@ class SheetRenderTests(unittest.TestCase):
         image = self.renderer.render(SHEET, stats=stats)
         weather = widget(SHEET, "weather")
         rows = [y for y in range(weather["y"], weather["y"] + weather["height"])
-                if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + 300))]
+                if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + weather["width"]))]
         # The 260 px block spans 376..636: cap top of the 144 px temperature to the humidity line's descenders.
         self.assertTrue(388 <= min(rows) <= 402, min(rows))
         self.assertTrue(622 <= max(rows) <= 636, max(rows))
 
-    def ink_columns(self, image, box):
+    def ink_columns(self, image, box, floor=160):
         x0, y0, x1, y1 = box
-        lit = [x for x in range(x0, x1) if any(image.getpixel((x, y))[0] > 160 for y in range(y0, y1))]
+        lit = [x for x in range(x0, x1) if any(image.getpixel((x, y))[0] > floor for y in range(y0, y1))]
         return min(lit), max(lit)
 
-    def test_temperature_is_144_px_and_centred_on_the_clock_for_any_time_and_either_dashboard(self):
+    def weather_stats(self, clock="sam. 07 nov.  23:46", temperature=7, description="Mist", city="Éragny"):
+        return SimpleNamespace(clock=clock, weather_temp_c=temperature, weather_description=description,
+                               weather_city=city, weather_feels_like_c=temperature,
+                               weather_humidity=93, weather_icon="50n")
+
+    def weather_bands(self, image, weather):
+        """Ink columns of the figure, the glyph + condition group and the two fact lines."""
+        top = weather["y"] + (weather["height"] - 260) // 2
+        x0, x1 = weather["x"], weather["x"] + weather["width"]
+        names = ("figure", "condition", "place", "humidity")
+        spans = ((0, 130), (160, 198), (208, 234), (234, 260))
+        return {name: self.ink_columns(image, (x0, top + a, x1, top + b), 105) for name, (a, b) in zip(names, spans)}
+
+    def test_the_whole_weather_block_is_centred_on_the_clock_for_any_time_and_either_dashboard(self):
         for layout in (SHEET, AI):
             for clock, temperature in (("sam. 07 nov.  23:46", 7), ("sam. 07 nov.  09:11", 19), ("sam. 07 nov.  12:00", -3)):
-                with self.subTest(layout=layout["name"] if "name" in layout else id(layout), clock=clock):
-                    stats = SimpleNamespace(clock=clock, weather_temp_c=temperature, weather_description="Mist",
-                                            weather_city="Éragny", weather_feels_like_c=temperature,
-                                            weather_humidity=93, weather_icon="50n")
-                    image = self.renderer.render(layout, stats=stats)
+                with self.subTest(layout=layout["name"], clock=clock):
+                    image = self.renderer.render(layout, stats=self.weather_stats(clock, temperature))
                     clock_box, weather = widget(layout, "clock"), widget(layout, "weather")
                     time_left, time_right = self.ink_columns(image, (clock_box["x"], clock_box["y"] + 20, clock_box["x"] + 480, clock_box["y"] + 175))
+                    bands = self.weather_bands(image, weather)
+                    for name, (left, right) in bands.items():
+                        # Ink-centred; the facts and the condition are set by advance, so allow a few pixels.
+                        self.assertAlmostEqual((left + right) / 2, (time_left + time_right) / 2, delta=2 if name == "figure" else 5, msg=name)
                     top = weather["y"] + (weather["height"] - 260) // 2
-                    left, right = self.ink_columns(image, (weather["x"], top, weather["x"] + 480, top + 126))
                     rows = [y for y in range(top, top + 130)
-                            if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + 480))]
+                            if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + weather["width"]))]
                     # Digit height of a 144 px ExtraLight figure; the 116 px one stood 83 px.
                     self.assertGreaterEqual(max(rows) - min(rows), 98)
-                    self.assertAlmostEqual((left + right) / 2, (time_left + time_right) / 2, delta=2)
+
+    def test_long_weather_strings_stay_inside_the_widget(self):
+        for layout in (SHEET, AI):
+            with self.subTest(layout=layout["name"]):
+                image = self.renderer.render(layout, stats=self.weather_stats(
+                    description="Thunderstorm with heavy hail and strong winds", city="Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch"))
+                weather = widget(layout, "weather")
+                bands = self.weather_bands(image, weather)
+                for name in ("condition", "place", "humidity"):
+                    left, right = bands[name]
+                    self.assertGreaterEqual(left, weather["x"], name)
+                    self.assertLess(right, weather["x"] + weather["width"], name)
+                # Clamped to the edge, not shrunk: the condition and place lines still fill most of the width.
+                self.assertGreater(bands["place"][1] - bands["place"][0], weather["width"] * 0.8)
+
+    def test_weather_without_a_clock_stays_left_aligned(self):
+        doc = copy.deepcopy(SHEET)
+        doc["widgets"] = [item for item in doc["widgets"] if item["type"] != "clock"]
+        image = self.renderer.render(doc, stats=self.weather_stats())
+        weather = widget(doc, "weather")
+        bands = self.weather_bands(image, weather)
+        self.assertLess(bands["place"][0] - weather["x"], 16)
+        self.assertLess(bands["condition"][0] - weather["x"], 16)
+        self.assertLess(bands["figure"][0] - weather["x"], 16)
 
     def test_thread_rows_fill_capacity_then_count_the_rest(self):
         threads = [{"id": str(i), "title": f"Thread {i}", "provider": "claudeAgent", "status": "running"} for i in range(6)]

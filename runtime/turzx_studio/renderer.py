@@ -1204,19 +1204,24 @@ class LayoutRenderer:
         return origin + (left + right) / 2
 
     def _sheet_weather(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
-        """Weather on the fog, centred vertically in the widget: a 144 px temperature centred under the
-        clock, a 34 px glyph beside the condition, then place and humidity, all three left-aligned."""
+        """Weather on the fog, centred vertically in the widget: a 144 px temperature, a 34 px glyph beside
+        the condition (one group), then place and humidity. With a clock the whole block is centred on the
+        clock's time ink and clamped to the widget edges; without one it is left-aligned."""
         top = max(0, (height - WEATHER_BLOCK) // 2)
         figure_box = top + WEATHER_FIGURE
-        figure = f"{settings['temperature']}°"
         centre = settings.get("clockCentre")
-        if centre is None:
-            self._ink_text(ink, (3, baseline(top, WEATHER_FIGURE, WEATHER_FIGURE)), figure, WEATHER_FIGURE, "mono")
-        else:
-            left, right = self._ink_span(draw, figure, "mono", WEATHER_FIGURE)
-            self._ink_text(ink, (centre - (left + right) / 2, baseline(top, WEATHER_FIGURE, WEATHER_FIGURE)),
-                           figure, WEATHER_FIGURE, "mono")
-        condition_x = 8
+
+        def across(extent: float, left: float) -> float:
+            """Left edge for something `extent` wide: on the clock's centre, kept inside the widget."""
+            if centre is None:
+                return left
+            return min(max(centre - extent / 2, 0), max(0, width - extent))
+
+        figure = f"{settings['temperature']}°"
+        ink_left, ink_right = self._ink_span(draw, figure, "mono", WEATHER_FIGURE)
+        figure_x = across(ink_right - ink_left, 3 + ink_left) - ink_left
+        self._ink_text(ink, (figure_x, baseline(top, WEATHER_FIGURE, WEATHER_FIGURE)), figure, WEATHER_FIGURE, "mono")
+        glyph_font = None
         if self._frost:
             key = "icon", 34, True
             if key not in self._fonts:
@@ -1226,24 +1231,29 @@ class LayoutRenderer:
                     self._fonts[key] = font
                 except (OSError, ValueError):
                     self._fonts[key] = None
-            if self._fonts[key] is not None:
-                glyph_draw, fill = ink.target(1)
-                ascent, descent = self._fonts[key].getmetrics()
-                glyph_draw.text((8, figure_box + 18 + (34 - ascent - descent) / 2 + ascent),
-                                weather_glyph(settings.get("icon"), settings["condition"]),
-                                font=self._fonts[key], fill=fill, anchor="ls")
-                condition_x = 54
-        self._ink_text(ink, (condition_x, baseline(figure_box + 16, 38, 28)),
-                       self._fit(draw, settings["condition"], "medium", 28, width - condition_x), 28, "medium")
+            glyph_font = self._fonts[key]
+        margin = 8 if centre is None else 0
+        glyph_width = 46 if glyph_font is not None else 0
+        condition = self._fit(draw, settings["condition"], "medium", 28, width - margin - glyph_width)
+        group_x = across(glyph_width + self._length(draw, condition, "medium", 28), 8)
+        if glyph_font is not None:
+            glyph_draw, fill = ink.target(1)
+            ascent, descent = glyph_font.getmetrics()
+            glyph_draw.text((group_x, figure_box + 18 + (34 - ascent - descent) / 2 + ascent),
+                            weather_glyph(settings.get("icon"), settings["condition"]),
+                            font=glyph_font, fill=fill, anchor="ls")
+        self._ink_text(ink, (group_x + glyph_width, baseline(figure_box + 16, 38, 28)), condition, 28, "medium")
         city = settings.get("city", settings["location"])
         if settings.get("feels") is not None:
             place, humidity = f"{city}, feels like {settings['feels']}°", settings.get("humidity")
             second = None if humidity is None else f"{humidity} % humidity"
         else:
             place, second = city, f"High {settings['high']}°, low {settings['low']}°"
-        self._ink_text(ink, (8, baseline(figure_box + 64, 26, 17)), self._fit(draw, place, "sans", 17, width - 8), 17, alpha=INK2)
-        if second:
-            self._ink_text(ink, (8, baseline(figure_box + 90, 26, 17)), self._fit(draw, second, "sans", 17, width - 8), 17, alpha=INK2)
+        for index, line in enumerate((place, second)):
+            if line:
+                line = self._fit(draw, line, "sans", 17, width - margin)
+                self._ink_text(ink, (across(self._length(draw, line, "sans", 17), 8), baseline(figure_box + 64 + 26 * index, 26, 17)),
+                               line, 17, alpha=INK2)
 
     def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:
         """Draw a sheet variant; return False for widgets without one."""
