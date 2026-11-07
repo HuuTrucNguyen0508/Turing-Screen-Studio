@@ -119,9 +119,32 @@ class SheetRenderTests(unittest.TestCase):
         weather = widget(SHEET, "weather")
         rows = [y for y in range(weather["y"], weather["y"] + weather["height"])
                 if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + 300))]
-        # The 232 px block spans 390..622: cap top of the 116 px temperature to the humidity line's descenders.
-        self.assertTrue(395 <= min(rows) <= 412, min(rows))
-        self.assertTrue(608 <= max(rows) <= 622, max(rows))
+        # The 260 px block spans 376..636: cap top of the 144 px temperature to the humidity line's descenders.
+        self.assertTrue(388 <= min(rows) <= 402, min(rows))
+        self.assertTrue(622 <= max(rows) <= 636, max(rows))
+
+    def ink_columns(self, image, box):
+        x0, y0, x1, y1 = box
+        lit = [x for x in range(x0, x1) if any(image.getpixel((x, y))[0] > 160 for y in range(y0, y1))]
+        return min(lit), max(lit)
+
+    def test_temperature_is_144_px_and_centred_on_the_clock_for_any_time_and_either_dashboard(self):
+        for layout in (SHEET, AI):
+            for clock, temperature in (("sam. 07 nov.  23:46", 7), ("sam. 07 nov.  09:11", 19), ("sam. 07 nov.  12:00", -3)):
+                with self.subTest(layout=layout["name"] if "name" in layout else id(layout), clock=clock):
+                    stats = SimpleNamespace(clock=clock, weather_temp_c=temperature, weather_description="Mist",
+                                            weather_city="Éragny", weather_feels_like_c=temperature,
+                                            weather_humidity=93, weather_icon="50n")
+                    image = self.renderer.render(layout, stats=stats)
+                    clock_box, weather = widget(layout, "clock"), widget(layout, "weather")
+                    time_left, time_right = self.ink_columns(image, (clock_box["x"], clock_box["y"] + 20, clock_box["x"] + 480, clock_box["y"] + 175))
+                    top = weather["y"] + (weather["height"] - 260) // 2
+                    left, right = self.ink_columns(image, (weather["x"], top, weather["x"] + 480, top + 126))
+                    rows = [y for y in range(top, top + 130)
+                            if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + 480))]
+                    # Digit height of a 144 px ExtraLight figure; the 116 px one stood 83 px.
+                    self.assertGreaterEqual(max(rows) - min(rows), 98)
+                    self.assertAlmostEqual((left + right) / 2, (time_left + time_right) / 2, delta=2)
 
     def test_thread_rows_fill_capacity_then_count_the_rest(self):
         threads = [{"id": str(i), "title": f"Thread {i}", "provider": "claudeAgent", "status": "running"} for i in range(6)]

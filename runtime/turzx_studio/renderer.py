@@ -27,8 +27,10 @@ from .sheet import HAIRLINE, INK2, TRACK, Ink, baseline, facts_from, glass_layer
 MAX_RENDER_PIXELS = 16_000_000
 _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
 _DIGIT_RUNS = re.compile(r"\d+|\D+")
-# The sheet weather block: temperature, glyph line and two facts.
-WEATHER_BLOCK = 232
+# The sheet weather block: a 144 px temperature, a glyph line and two facts. Everything under
+# the figure keeps its distance from the figure's line box, so the block is 116 px taller than it.
+WEATHER_FIGURE = 144
+WEATHER_BLOCK = WEATHER_FIGURE + 116
 # English month abbreviations for sheet copy, independent of the runtime's time locale.
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -206,6 +208,7 @@ class LayoutRenderer:
         self.ground = ground
         self._fonts: dict[tuple[str, int, bool], ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
         self._wrapped: dict[tuple[str, int], list[str]] = {}
+        self._ink_spans: dict[tuple[str, str, int, bool], tuple[int, int]] = {}
         # Set per render from the palette; renders are serialized by their callers.
         self._frost = False
 
@@ -1170,11 +1173,49 @@ class LayoutRenderer:
             shown = "—" if amount == "—" else self._dollars(amount) if cost else amount
             self._fact(ink, draw, (left, baseline(56 + index * 20, 20, 14)), shown, provider, width - left)
 
+    def _ink_span(self, draw: ImageDraw.ImageDraw, text: str, family: str, size: int) -> tuple[int, int]:
+        """Left and right ink columns of `text` set from x 0: what the eye centres, not the advance."""
+        key = text, family, size, self._frost
+        if key not in self._ink_spans:
+            scratch = Image.new("L", (math.ceil(self._length(draw, text, family, size)) + 4 * size, 2 * size), 0)
+            self._draw_text(ImageDraw.Draw(scratch), (2 * size, size), text, 255, size, family, "ls")
+            box = scratch.getbbox()
+            if len(self._ink_spans) >= 256:
+                self._ink_spans.clear()
+            self._ink_spans[key] = (box[0] - 2 * size, box[2] - 2 * size) if box else (0, 0)
+        return self._ink_spans[key]
+
+    def _clock_centre(self, draw: ImageDraw.ImageDraw, widgets: list[dict], stats: object) -> float | None:
+        """Panel x of the middle of the sheet clock's time ink, or None without a designed clock."""
+        clock = next((item for item in widgets if item["type"] == "clock" and "design" in item), None)
+        if clock is None:
+            return None
+        element = next(item for item in resolve_elements({**clock, "settings": rendered_content(clock, stats)})
+                       if item["id"] == "time")
+        if element["hidden"]:
+            return None
+        text, family, size = self._safe_text(element["text"]), element["family"], element["size"]
+        advance = self._length(draw, text, family, size)
+        left, right = self._ink_span(draw, text, family, size)
+        if element.get("suffix"):
+            right = advance + element["gap"] + self._length(draw, self._safe_text(element["suffix"]), "sans", element["suffixSize"])
+            advance = right
+        origin = clock["x"] + element["x"] - (0 if element["align"] == "start" else advance / 2 if element["align"] == "center" else advance)
+        return origin + (left + right) / 2
+
     def _sheet_weather(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
-        """Weather on the fog, centred vertically in the widget: a 116 px temperature, a 34 px glyph
-        beside the condition, then place and humidity. The block is 232 px tall."""
+        """Weather on the fog, centred vertically in the widget: a 144 px temperature centred under the
+        clock, a 34 px glyph beside the condition, then place and humidity, all three left-aligned."""
         top = max(0, (height - WEATHER_BLOCK) // 2)
-        self._ink_text(ink, (3, baseline(top, 116, 116)), f"{settings['temperature']}°", 116, "mono")
+        figure_box = top + WEATHER_FIGURE
+        figure = f"{settings['temperature']}°"
+        centre = settings.get("clockCentre")
+        if centre is None:
+            self._ink_text(ink, (3, baseline(top, WEATHER_FIGURE, WEATHER_FIGURE)), figure, WEATHER_FIGURE, "mono")
+        else:
+            left, right = self._ink_span(draw, figure, "mono", WEATHER_FIGURE)
+            self._ink_text(ink, (centre - (left + right) / 2, baseline(top, WEATHER_FIGURE, WEATHER_FIGURE)),
+                           figure, WEATHER_FIGURE, "mono")
         condition_x = 8
         if self._frost:
             key = "icon", 34, True
@@ -1188,11 +1229,11 @@ class LayoutRenderer:
             if self._fonts[key] is not None:
                 glyph_draw, fill = ink.target(1)
                 ascent, descent = self._fonts[key].getmetrics()
-                glyph_draw.text((8, top + 134 + (34 - ascent - descent) / 2 + ascent),
+                glyph_draw.text((8, figure_box + 18 + (34 - ascent - descent) / 2 + ascent),
                                 weather_glyph(settings.get("icon"), settings["condition"]),
                                 font=self._fonts[key], fill=fill, anchor="ls")
                 condition_x = 54
-        self._ink_text(ink, (condition_x, baseline(top + 132, 38, 28)),
+        self._ink_text(ink, (condition_x, baseline(figure_box + 16, 38, 28)),
                        self._fit(draw, settings["condition"], "medium", 28, width - condition_x), 28, "medium")
         city = settings.get("city", settings["location"])
         if settings.get("feels") is not None:
@@ -1200,9 +1241,9 @@ class LayoutRenderer:
             second = None if humidity is None else f"{humidity} % humidity"
         else:
             place, second = city, f"High {settings['high']}°, low {settings['low']}°"
-        self._ink_text(ink, (8, baseline(top + 180, 26, 17)), self._fit(draw, place, "sans", 17, width - 8), 17, alpha=INK2)
+        self._ink_text(ink, (8, baseline(figure_box + 64, 26, 17)), self._fit(draw, place, "sans", 17, width - 8), 17, alpha=INK2)
         if second:
-            self._ink_text(ink, (8, baseline(top + 206, 26, 17)), self._fit(draw, second, "sans", 17, width - 8), 17, alpha=INK2)
+            self._ink_text(ink, (8, baseline(figure_box + 90, 26, 17)), self._fit(draw, second, "sans", 17, width - 8), 17, alpha=INK2)
 
     def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:
         """Draw a sheet variant; return False for widgets without one."""
@@ -1259,6 +1300,9 @@ class LayoutRenderer:
         heading = 'AI usage' if any(source and source.startswith(('codex-', 'claude-', 'usage-')) for source in sources) else 'Storage overview' if 'storage' in sources or any(widget['type'] == 'storage' for widget in doc['widgets']) else 'System overview'
         if doc.get('chrome') != 'none':
             self._header(draw, width, stats, colors, not any(widget["type"] == "clock" for widget in doc["widgets"]), heading)
+        clock_centre = (self._clock_centre(draw, doc["widgets"], stats)
+                        if any(item["type"] == "weather" and item["settings"].get("style") == "block" for item in doc["widgets"])
+                        else None)
         for widget in doc["widgets"]:
             w, h = widget["width"], widget["height"]
             card_colors = effective_widget_palette(colors, widget)
@@ -1293,6 +1337,8 @@ class LayoutRenderer:
             if (widget["type"] == "clock" and frost and stats is not None
                     and settings.get("source", "sample") == "clock"):
                 settings["date"] = self._long_date(settings["date"])
+            if widget["type"] == "weather" and clock_centre is not None:
+                settings["clockCentre"] = clock_centre - widget["x"]
             if frame != "card" and min(w, h) == 1:
                 # A one-pixel frameless widget is a rule: Frost's hairline, or the outline colour.
                 if frost:
