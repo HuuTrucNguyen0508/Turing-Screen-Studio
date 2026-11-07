@@ -34,12 +34,17 @@ export interface Geometry {
   height: number;
 }
 
-interface WidgetPresentation { design?: WidgetDesign; colors?: WidgetColors }
+/** Frameless widgets draw on what lies beneath them; glass is Frost's slab and a plain card elsewhere. */
+export const widgetFrames = ['card', 'none', 'glass'] as const;
+export type WidgetFrame = typeof widgetFrames[number];
+export const grounds = ['flat', 'wallpaper'] as const;
+
+interface WidgetPresentation { design?: WidgetDesign; colors?: WidgetColors; frame?: WidgetFrame }
 
 export interface MetricWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'metric';
-  settings: { label: string; value: string; unit: string; detail: string; source?: MetricSource; trend?: boolean };
+  settings: { label: string; value: string; unit: string; detail: string; source?: MetricSource; trend?: boolean; style?: 'rows' };
 }
 
 export const metricSources = ['sample', 'cpu', 'gpu', 'memory', 'disk', 'network-down', 'network-up', 'cpu-temperature', 'gpu-temperature', ...usageSources, ...dashboardSources] as const;
@@ -56,6 +61,7 @@ export interface WeatherWidget extends Geometry, WidgetPresentation {
     high: string;
     low: string;
     source?: 'sample' | 'weather';
+    style?: 'block';
   };
 }
 
@@ -83,7 +89,7 @@ export interface ImageWidget extends Geometry, WidgetPresentation {
   settings: { label: string; data: string; fit: ImageFit; opacity: number };
 }
 
-export const gaugeStyles = ['arc', 'ring', 'bar', 'segments', 'thermometer', 'number'] as const;
+export const gaugeStyles = ['arc', 'ring', 'bar', 'segments', 'thermometer', 'number', 'figure'] as const;
 export type GaugeStyle = typeof gaugeStyles[number];
 
 export interface GaugeWidget extends Geometry, WidgetPresentation {
@@ -92,7 +98,7 @@ export interface GaugeWidget extends Geometry, WidgetPresentation {
   settings: { label: string; value: number; min: number; max: number; unit: string; detail: string; source?: MetricSource; style?: GaugeStyle };
 }
 
-export const storageStyles = ['bars', 'table'] as const;
+export const storageStyles = ['bars', 'table', 'columns'] as const;
 export interface StorageWidget extends Geometry, WidgetPresentation {
   id: string;
   type: 'storage';
@@ -138,6 +144,7 @@ export interface LayoutDocument {
   widgets: Widget[];
   paletteMode?: 'saved' | 'live';
   chrome?: 'standard' | 'none';
+  ground?: typeof grounds[number];
 }
 
 const MAX_CANVAS_SIZE = 16384;
@@ -308,7 +315,7 @@ export function validateWidgetColors(input: unknown, path: string): WidgetColors
 
 function widgetContent(input: unknown, path: string, canvas: LayoutDocument['canvas']): Widget {
   const value = object(input, path);
-  exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path, ['design', 'colors']);
+  exactKeys(value, ['id', 'type', ...GEOMETRY_KEYS, 'settings'], path, ['design', 'colors', 'frame']);
   const id = string(value.id, `${path}.id`, true);
   if (typeof value.type !== 'string' || !(widgetTypes as readonly string[]).includes(value.type)) {
     fail(`${path}.type`, `unsupported widget type; expected ${widgetTypes.join(', ')}`);
@@ -421,8 +428,10 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
     } };
   }
   if (value.type === 'metric') {
-    exactKeys(settings, METRIC_SETTINGS, `${path}.settings`, ['source', 'trend']);
+    exactKeys(settings, METRIC_SETTINGS, `${path}.settings`, ['source', 'trend', 'style']);
     const source = optionalChoice(settings, 'source', `${path}.settings`, metricSources);
+    const style = optionalChoice(settings, 'style', `${path}.settings`, ['rows'] as const);
+    if (style !== undefined && source !== 't3-threads') fail(`${path}.settings.style`, 'rows require the t3-threads source');
     if (Object.hasOwn(settings, 'trend') && typeof settings.trend !== 'boolean') {
       fail(`${path}.settings.trend`, 'expected a boolean');
     }
@@ -436,11 +445,13 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
         detail: string(settings.detail, `${path}.settings.detail`),
         ...(source === undefined ? {} : { source }),
         ...(Object.hasOwn(settings, 'trend') ? { trend: settings.trend as boolean } : {}),
+        ...(style === undefined ? {} : { style }),
       },
     };
   }
-  exactKeys(settings, WEATHER_SETTINGS, `${path}.settings`, ['source']);
+  exactKeys(settings, WEATHER_SETTINGS, `${path}.settings`, ['source', 'style']);
   const source = optionalChoice(settings, 'source', `${path}.settings`, ['sample', 'weather'] as const);
+  const style = optionalChoice(settings, 'style', `${path}.settings`, ['block'] as const);
   return {
     id, type: 'weather', ...geometry,
     settings: {
@@ -451,6 +462,7 @@ function widgetContent(input: unknown, path: string, canvas: LayoutDocument['can
       high: string(settings.high, `${path}.settings.high`),
       low: string(settings.low, `${path}.settings.low`),
       ...(source === undefined ? {} : { source }),
+      ...(style === undefined ? {} : { style }),
     },
   };
 }
@@ -462,6 +474,7 @@ function widget(input: unknown, path: string, canvas: LayoutDocument['canvas']):
     ...result,
     ...(Object.hasOwn(value, 'design') ? { design: validateWidgetDesign(value.design, result.type, `${path}.design`) } : {}),
     ...(Object.hasOwn(value, 'colors') ? { colors: validateWidgetColors(value.colors, `${path}.colors`) } : {}),
+    ...(Object.hasOwn(value, 'frame') ? { frame: optionalChoice(value, 'frame', path, widgetFrames)! } : {}),
   };
 }
 
@@ -470,9 +483,10 @@ export function validateLayout(input: unknown): LayoutDocument {
   const value = object(input, '$');
   if (!Object.hasOwn(value, 'version')) fail('$.version', 'required field is missing; choose a TURZX layout JSON file');
   if (value.version !== 1) fail('$.version', 'unsupported layout version; expected 1');
-  exactKeys(value, ['version', 'name', 'canvas', 'palette', 'widgets'], '$', ['paletteMode', 'chrome']);
+  exactKeys(value, ['version', 'name', 'canvas', 'palette', 'widgets'], '$', ['paletteMode', 'chrome', 'ground']);
   const paletteMode = optionalChoice(value, 'paletteMode', '$', ['saved', 'live'] as const);
   const chrome = optionalChoice(value, 'chrome', '$', ['standard', 'none'] as const);
+  const ground = optionalChoice(value, 'ground', '$', grounds);
   const name = string(value.name, '$.name', true);
   const canvasValue = object(value.canvas, '$.canvas');
   exactKeys(canvasValue, ['width', 'height'], '$.canvas');
@@ -491,7 +505,7 @@ export function validateLayout(input: unknown): LayoutDocument {
     ids.add(validated.id);
     return validated;
   });
-  return { version: 1, name, canvas, palette: validatedPalette, widgets, ...(paletteMode === undefined ? {} : { paletteMode }), ...(chrome === undefined ? {} : { chrome }) };
+  return { version: 1, name, canvas, palette: validatedPalette, widgets, ...(paletteMode === undefined ? {} : { paletteMode }), ...(chrome === undefined ? {} : { chrome }), ...(ground === undefined ? {} : { ground }) };
 }
 
 function parseJson(text: string): unknown {

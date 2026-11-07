@@ -9,7 +9,7 @@ export function parseDraftWidgetImport(text: string): Widget[] {
   try { raw = JSON.parse(text); } catch { throw new Error('Invalid JSON. Choose a Studio layout, widget pack or widget definition.'); }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Choose a Studio layout, widget pack or widget definition.');
   const value = raw as Record<string, unknown>;
-  if (['canvas', 'palette', 'paletteMode', 'chrome'].some((key) => Object.hasOwn(value, key))) return parseLayout(text).widgets;
+  if (['canvas', 'palette', 'paletteMode', 'chrome', 'ground'].some((key) => Object.hasOwn(value, key))) return parseLayout(text).widgets;
   if (Object.hasOwn(value, 'version') || Object.hasOwn(value, 'widgets')) return parseCustomWidgets(text).widgets.map(placedTemplate);
   let card = value;
   if (Object.hasOwn(value, 'widget')) {

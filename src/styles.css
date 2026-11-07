@@ -105,6 +105,9 @@ kbd { font-family: monospace; display: inline-block; font-size: 10px; background
 /* A shared PIL frame sits below the same integer-coordinate hit targets. */
 .rendered-frame { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .rendered-canvas .dashboard-card { background: transparent; border-color: transparent; box-shadow: none; }
+/* Offline approximations of Frost sheet frames; the panel renderer's bitmap is exact. */
+.document-canvas:not(.rendered-canvas) .dashboard-card[data-frame="none"] { background: transparent; border-color: transparent; border-radius: 0; }
+.document-canvas:not(.rendered-canvas) .dashboard-card[data-frame="glass"] { border-radius: 22px; background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 70%, transparent), color-mix(in srgb, var(--background) 76%, transparent)); border-color: color-mix(in srgb, var(--text) 10%, transparent); }
 .rendered-canvas .dashboard-card.selected { border-color: var(--editor-primary, var(--primary)); }
 .rendered-canvas .image-card::after { display: none; }
 .rendered-canvas .dashboard-footer { display: none; }

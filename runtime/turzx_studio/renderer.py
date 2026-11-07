@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import math
 from pathlib import Path
 import re
@@ -21,6 +22,7 @@ from .list_display import list_bar_role, list_content, list_layout
 from .graph_display import GRAPH_AREA_MIX, graph_area, widget_graph
 from .calendar_display import calendar_content, calendar_geometry, calendar_month
 from .frost import FACES, FONT_DIR, FROST, ICON_AXES, ICON_FONT, LIGHT_FROM, THIN_FROM, weather_glyph
+from .sheet import HAIRLINE, INK2, TRACK, Ink, baseline, facts_from, glass_layer
 
 MAX_RENDER_PIXELS = 16_000_000
 _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
@@ -119,6 +121,8 @@ def rendered_content(widget: dict, stats: object = None, today=None) -> dict:
         if source == "memory":
             detail = f"{_format(_number(stats, 'ram_used_gb'), 1)} / {_format(_number(stats, 'ram_total_gb'))} GB"
         settings.update(value=number, unit=units.get(source, settings["unit"]), detail=detail)
+        if settings.get("style") == "figure":
+            settings["name"], settings["facts"] = facts_from(stats, source)
         return settings
     if widget["type"] == "weather":
         if source != "weather":
@@ -135,6 +139,10 @@ def rendered_content(widget: dict, stats: object = None, today=None) -> dict:
         icon = getattr(stats, "weather_icon", None)
         if isinstance(icon, str) and icon:
             settings["icon"] = icon
+        if settings.get("style") == "block":
+            feels, humidity = _number(stats, "weather_feels_like_c"), _number(stats, "weather_humidity")
+            settings.update(city=city, feels=None if feels is None else _format(feels),
+                            humidity=None if humidity is None else _format(humidity))
     elif source in ("cpu-temperature", "gpu-temperature"):
         name = getattr(stats, "cpu_name" if source == "cpu-temperature" else "gpu_name", None)
         settings.update(value=_format(_number(stats, "cpu_temp" if source == "cpu-temperature" else "gpu_temp")),
@@ -188,8 +196,10 @@ class LayoutRenderer:
     imports the original dashboard or reads scheme, sensor, or network data.
     """
 
-    def __init__(self, font_dir: Path | None = None) -> None:
+    def __init__(self, font_dir: Path | None = None, ground=None) -> None:
         self.font_dir = Path(font_dir) if font_dir is not None else None
+        # Optional (size, mode) -> RGB image provider for layouts with a wallpaper ground.
+        self.ground = ground
         self._fonts: dict[tuple[str, int, bool], ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
         self._wrapped: dict[tuple[str, int], list[str]] = {}
         # Set per render from the palette; renders are serialized by their callers.
@@ -253,10 +263,17 @@ class LayoutRenderer:
             return [(text, None)]
         return [(run, ["tnum"] if run[0].isdigit() else None) for run in _DIGIT_RUNS.findall(text)]
 
+    def _tracking(self, family: str, size: int) -> float:
+        """Frost tightens its thin figures like the shell: -0.03 em, -0.035 em from 80 px."""
+        if not self._frost or family.removeprefix("summary-") != "mono" or size < THIN_FROM:
+            return 0
+        return -(.035 if size >= 80 else .03) * size
+
     def _length(self, draw: ImageDraw.ImageDraw, text: str, family: str, size: int) -> float:
         font = self._font(family, size)
-        return sum(draw.textlength(run, font=font, features=features)
-                   for run, features in self._runs(self._safe_text(text)))
+        text = self._safe_text(text)
+        return (sum(draw.textlength(run, font=font, features=features) for run, features in self._runs(text))
+                + self._tracking(family, size) * max(0, len(text) - 1))
 
     def _draw_text(self, draw: ImageDraw.ImageDraw, xy: tuple[float, float],
                    text: str, color: str, size: int, family: str = "sans",
@@ -264,7 +281,8 @@ class LayoutRenderer:
         text = self._safe_text(text)
         font = self._font(family, size)
         runs = self._runs(text)
-        if len(runs) < 2 and runs and runs[0][1] is None:
+        track = self._tracking(family, size)
+        if len(runs) < 2 and runs and runs[0][1] is None and not track:
             draw.text(xy, text, font=font, fill=color, anchor=anchor)
             return
         x, y = xy
@@ -275,8 +293,9 @@ class LayoutRenderer:
         # place the whole string once, then set every run on its baseline.
         y += font.getbbox(text, anchor="l" + anchor[1])[1] - font.getbbox(text, anchor="ls")[1]
         for run, features in runs:
-            draw.text((x, y), run, font=font, fill=color, anchor="ls", features=features)
-            x += draw.textlength(run, font=font, features=features)
+            for piece in (run if track else (run,)):
+                draw.text((x, y), piece, font=font, fill=color, anchor="ls", features=features)
+                x += draw.textlength(piece, font=font, features=features) + track
 
     def _value(self, draw: ImageDraw.ImageDraw, xy: tuple[float, float], value: str,
                unit: str, color: str, unit_color: str, size: int, unit_size: int,
@@ -953,6 +972,156 @@ class LayoutRenderer:
                 self._draw_text(draw, (cell_left + cell_width // 2, top + cell_height // 2 + math.floor(g['daySize'] * .36)),
                                 str(day), color, g['daySize'], 'summary-mono', 'ms')
 
+    # Frost sheet variants: left-aligned readings drawn straight onto the fog or a glass slab.
+    # Box tops and line boxes follow the design spec; baseline() converts them to PIL baselines.
+
+    def _fit(self, draw: ImageDraw.ImageDraw, text: str, family: str, size: int, width: float) -> str:
+        text = self._safe_text(text)
+        if self._length(draw, text, family, size) <= width:
+            return text
+        while text and self._length(draw, text + "…", family, size) > width:
+            text = text[:-1]
+        return text.rstrip() + "…"
+
+    def _ink_text(self, ink: Ink, xy: tuple[float, float], text: str, size: int,
+                  family: str = "sans", alpha: float = 1.0, anchor: str = "ls") -> float:
+        draw, fill = ink.target(alpha)
+        self._draw_text(draw, xy, text, fill, size, family, anchor)
+        return self._length(draw, text, family, size)
+
+    def _sheet_figure(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
+        """Title, device name, a 56 px figure, up to two "value word" facts and a 3 px meter."""
+        value = settings["value"]
+        self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width), 15, "medium")
+        if settings.get("name"):
+            self._ink_text(ink, (0, baseline(20, 20, 14)), self._fit(draw, settings["name"], "sans", 14, width), 14, alpha=INK2)
+        unit = settings["unit"]
+        figure = "—" if value is None else f"{math.floor(value + .5)}{unit if unit in ('%', '') else ' ' + unit}"
+        self._ink_text(ink, (0, baseline(48, 56, 56)), figure, 56, "mono")
+        facts = settings.get("facts")
+        if facts is None:
+            facts = [(settings["detail"], "")] if settings["detail"] else []
+        gap = draw.textlength("  ", font=self._font("sans", 14))
+        for index, (amount, word) in enumerate(facts[:2]):
+            y = baseline(112 + index * 20, 20, 14)
+            used = self._ink_text(ink, (0, y), self._fit(draw, amount, "medium", 14, width), 14, "medium")
+            if word and used + gap < width:
+                self._ink_text(ink, (used + gap, y), self._fit(draw, word, "sans", 14, width - used - gap), 14, alpha=INK2)
+        fraction = 0 if value is None else gauge_fraction(value, settings["min"], settings["max"])
+        ink.bar((0, 160, width, 163), TRACK)
+        ink.bar((0, 160, round(width * fraction), 163))
+
+    def _sheet_storage(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
+        """Storage as columns: name and share, meter, used of total, free."""
+        self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width), 15, "medium")
+        rows = settings["mounts"]
+        if not rows:
+            self._ink_text(ink, (0, baseline(28, 20, 14)), "Mounted storage unavailable", 14, alpha=INK2)
+            return
+        columns = min(len(rows), max(1, (width + 24) // 208))
+        column = (width - 24 * (columns - 1)) // columns
+        for index, row in enumerate(rows[:columns]):
+            left = index * (column + 24)
+            percent = row.get("usedPercent")
+            valid = type(percent) in (int, float) and math.isfinite(percent) and 0 <= percent <= 100
+            share = (f"{math.floor(percent + .5)}%" + ("*" if row.get("stale") else "") + ("+" if row.get("partial") else "")
+                     if valid else "—")
+            y = baseline(28, 20, 14)
+            share_width = self._length(draw, share, "medium", 14)
+            name = self._fit(draw, storage_row_name(row, settings.get("filtered", False)), "medium", 14, column - share_width - 8)
+            self._ink_text(ink, (left, y), name, 14, "medium")
+            self._ink_text(ink, (left + column, y), share, 14, "medium", anchor="rs")
+            ink.bar((left, 54, left + column, 57), TRACK)
+            if valid:
+                ink.bar((left, 54, left + round(column * percent / 100), 57))
+            used, total, free = (storage_size(row.get(key)) for key in ("usedGiB", "totalGiB", "freeGiB"))
+            if row.get("partial") and row.get("usedGiB") is not None:
+                used += "+"
+            used_number, _, used_unit = used.partition(" ")
+            detail = f"{used_number} of {total}" if used_unit and total.endswith(" " + used_unit) else f"{used} of {total}"
+            self._ink_text(ink, (left, baseline(64, 20, 14)), self._fit(draw, detail, "sans", 14, column), 14, alpha=INK2)
+            self._ink_text(ink, (left, baseline(84, 20, 14)), self._fit(draw, f"{free} free", "sans", 14, column), 14, alpha=INK2)
+
+    def _sheet_threads(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
+        """Threads: a title with the working count, then one line per thread."""
+        data = dashboard_rows(settings["detail"])
+        title_width = self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width / 2), 15, "medium")
+        capacity = max(0, (height - 30 + 12) // 36)
+        threads = data["threads"]
+        shown = threads[:capacity]
+        count = ("Activity unavailable" if data["working"] is None else f"{data['working']} working")
+        self._ink_text(ink, (max(76, title_width + 16), baseline(0, 20, 14)), count, 14, alpha=INK2)
+        # The collector lists a bounded number of threads; the working count can be larger.
+        hidden = max(len(threads), data["working"] or 0) - len(shown)
+        if hidden > 0 and shown:
+            self._ink_text(ink, (width, baseline(0, 20, 14)), f"{hidden} more in T3", 14, alpha=INK2, anchor="rs")
+        statuses = {"running": "Working", "waiting_approval": "Needs approval", "waiting_input": "Needs input", "waiting": "Waiting"}
+        providers = {"codex-pro": "Codex Pro", "codex": "Codex", "claudeAgent": "Claude", "cursor": "Cursor"}
+        if not shown and capacity:
+            self._ink_text(ink, (0, baseline(30, 24, 14)), "No threads working", 14, alpha=INK2)
+        for index, row in enumerate(shown):
+            top = 30 + index * 36
+            self._ink_text(ink, (0, baseline(top, 24, 15)), self._fit(draw, row["title"], "medium", 15, min(400, width - 200)), 15, "medium")
+            self._ink_text(ink, (width - 90, baseline(top, 24, 14)), statuses.get(row["status"], "Waiting"), 14, alpha=INK2, anchor="rs")
+            provider = providers.get(row["provider"], row["provider"])
+            self._ink_text(ink, (width, baseline(top, 24, 14)), self._fit(draw, provider, "sans", 14, 70), 14, alpha=INK2, anchor="rs")
+
+    def _sheet_weather(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
+        """Weather on the fog, bottom-aligned: temperature, glyph and condition, place, humidity."""
+        self._ink_text(ink, (4, baseline(height - 184, 84, 84)), f"{settings['temperature']}°", 84, "mono")
+        condition_x = 8
+        if self._frost:
+            key = "icon", 26, True
+            if key not in self._fonts:
+                try:
+                    font = ImageFont.truetype(str(FONT_DIR / ICON_FONT), 26)
+                    font.set_variation_by_axes([0, 0, 48, 300])
+                    self._fonts[key] = font
+                except (OSError, ValueError):
+                    self._fonts[key] = None
+            if self._fonts[key] is not None:
+                glyph_draw, fill = ink.target(1)
+                ascent, descent = self._fonts[key].getmetrics()
+                glyph_draw.text((8, height - 84 + (26 - ascent - descent) / 2 + ascent),
+                                weather_glyph(settings.get("icon"), settings["condition"]),
+                                font=self._fonts[key], fill=fill, anchor="ls")
+                condition_x = 44
+        self._ink_text(ink, (condition_x, baseline(height - 86, 30, 22)),
+                       self._fit(draw, settings["condition"], "medium", 22, width - condition_x), 22, "medium")
+        city = settings.get("city", settings["location"])
+        if settings.get("feels") is not None:
+            place, humidity = f"{city}, feels like {settings['feels']}°", settings.get("humidity")
+            second = None if humidity is None else f"{humidity} % humidity"
+        else:
+            place, second = city, f"High {settings['high']}°, low {settings['low']}°"
+        self._ink_text(ink, (8, baseline(height - 48, 24, 15)), self._fit(draw, place, "sans", 15, width - 8), 15, alpha=INK2)
+        if second:
+            self._ink_text(ink, (8, baseline(height - 24, 24, 15)), self._fit(draw, second, "sans", 15, width - 8), 15, alpha=INK2)
+
+    def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:
+        """Draw a sheet variant; return False for widgets without one."""
+        kind, style = widget["type"], settings.get("style")
+        if (kind, style) not in (("gauge", "figure"), ("storage", "columns"), ("metric", "rows"), ("weather", "block")):
+            return False
+        ink = Ink(card, palette["text"])
+        draw, width, height = ink.direct, widget["width"], widget["height"]
+        if kind == "gauge":
+            self._sheet_figure(ink, draw, width, settings)
+        elif kind == "storage":
+            self._sheet_storage(ink, draw, width, settings)
+        elif kind == "metric":
+            self._sheet_threads(ink, draw, width, height, settings)
+        else:
+            self._sheet_weather(ink, draw, width, height, settings)
+        ink.flush()
+        return True
+
+    @staticmethod
+    def _long_date(raw: str) -> str:
+        """Frost's clock date, "samedi 7 novembre", in the runtime's own time locale."""
+        now = datetime.now()
+        return now.strftime("%A ") + str(now.day) + now.strftime(" %B") if raw != "—" else raw
+
     def render(self, document: object, stats: object = None, palette: object = None) -> Image.Image:
         """Return RGB pixels in document dimensions, rejecting huge allocations."""
         doc = validate_layout(document)
@@ -965,7 +1134,15 @@ class LayoutRenderer:
             # Wrapped lines were measured in the other face.
             self._wrapped.clear()
             self._frost = frost
-        image = Image.new("RGB", (width, height), colors["background"])
+        mode = "light" if sum(int(colors["background"][i:i + 2], 16) for i in (1, 3, 5)) > 384 else "dark"
+        ground = None
+        if frost and doc.get("ground") == "wallpaper" and self.ground is not None:
+            try:
+                ground = self.ground((width, height), mode)
+            except Exception:
+                # The fog is decoration: a failure keeps the flat background.
+                ground = None
+        image = ground.copy() if ground is not None and ground.size == (width, height) else Image.new("RGB", (width, height), colors["background"])
         draw = ImageDraw.Draw(image)
         sources = {widget['settings'].get('source') for widget in doc['widgets']}
         heading = 'AI usage' if any(source and source.startswith(('codex-', 'claude-', 'usage-')) for source in sources) else 'Storage overview' if 'storage' in sources or any(widget['type'] == 'storage' for widget in doc['widgets']) else 'System overview'
@@ -986,11 +1163,36 @@ class LayoutRenderer:
                     ImageDraw.Draw(layer).rectangle((0, 0, w - 1, h - 1), outline=card_colors['outline'], width=1)
                 image.paste(layer, (widget['x'], widget['y']), layer.getchannel('A'))
                 continue
-            # The separate layer clips all glyphs and strokes to this card.
-            card = Image.new("RGB", (w, h), card_colors["surface"])
+            # Frameless widgets draw on what lies beneath them; glass is Frost's slab and a card elsewhere.
+            frame = widget.get("frame", "card")
+            if frame == "glass" and not frost:
+                frame = "card"
+            box = (widget["x"], widget["y"], widget["x"] + w, widget["y"] + h)
+            if frame == "card":
+                # The separate layer clips all glyphs and strokes to this card.
+                card = Image.new("RGB", (w, h), card_colors["surface"])
+            elif frame == "glass" and min(w, h) > 1:
+                card = image.crop(box).convert("RGBA")
+                card.alpha_composite(glass_layer(w, h, mode))
+                card = card.convert("RGB")
+            else:
+                card = image.crop(box)
             card_draw = ImageDraw.Draw(card)
             settings = rendered_content(widget, stats)
-            if widget["type"] == "metric":
+            if (widget["type"] == "clock" and frost and stats is not None
+                    and settings.get("source", "sample") == "clock"):
+                settings["date"] = self._long_date(settings["date"])
+            if frame != "card" and min(w, h) == 1:
+                # A one-pixel frameless widget is a rule: Frost's hairline, or the outline colour.
+                if frost:
+                    card.paste(card_colors["text"], (0, 0), Image.new("L", (w, h), round(255 * HAIRLINE)))
+                else:
+                    card_draw.rectangle((0, 0, w - 1, h - 1), fill=card_colors["outline"])
+                image.paste(card, box[:2])
+                continue
+            if self._sheet(card, widget, settings, card_colors):
+                pass
+            elif widget["type"] == "metric":
                 self._metric(card_draw, w, h, settings, card_colors, stats)
             elif widget["type"] == "weather":
                 self._weather(card_draw, w, h, settings, card_colors,
@@ -1014,6 +1216,9 @@ class LayoutRenderer:
                 self._gauge(card_draw, w, h, settings, card_colors)
             else:
                 raise ValueError(f"{widget['type']} cards have no panel renderer")
+            if frame != "card":
+                image.paste(card, box[:2])
+                continue
             radius = min(18, (w - 1) // 2, (h - 1) // 2)
             bounds = (0, 0, w - 1, h - 1)
             mask = Image.new("L", (w, h), 255 if min(w, h) == 1 else 0)

@@ -124,7 +124,7 @@ export function validateWidgetDesign(input: unknown, type: string, path: string)
             fail(fieldPath, `expected ${designColors.join(', ')} or a six-digit #hex color`);
           }
           element.color = raw[prop] as ElementDesign['color'];
-        } else element[prop] = integer(raw[prop], fieldPath, prop === 'size' ? 8 : -512, prop === 'size' ? 160 : 512);
+        } else element[prop] = integer(raw[prop], fieldPath, prop === 'size' ? 8 : -512, prop === 'size' ? 200 : 512);
       }
       design.elements[spec.id] = element;
     }

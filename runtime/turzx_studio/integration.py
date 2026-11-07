@@ -14,6 +14,7 @@ from .layout import GAUGE_STYLES, WIDGET_TYPES, effective_palette
 from .renderer import LayoutRenderer, rendered_content
 from .watch import LayoutWatcher
 from .frost import ShellStyle
+from .ground import WallpaperGround
 from .storage import Paths, PaletteWatcher, atomic_write
 from .t3_refresh import UsageRefresher, token_path
 from .usage import UsageCollector
@@ -100,6 +101,7 @@ class RuntimeIntegration:
         self.activity_snapshot = None
         self.games_snapshot = None
         self.usb_device = None
+        self.ground = WallpaperGround()
         self.live = LiveHistory()
         self.last_live_publish = 0.0
         self.live_identity = process_start(os.getpid())
@@ -110,6 +112,7 @@ class RuntimeIntegration:
                               supportedDesignTypes=['clock'],
                               supportedTrendWidgets=True,
                               supportedChrome=True,
+                              supportedSheet=True,
                               supportedStorageViews=['drives', 'partitions'],
                               supportedUsageSources=list(USAGE_SOURCES),
                               supportedDashboardSources=list(DASHBOARD_SOURCES),
@@ -183,7 +186,7 @@ class RuntimeIntegration:
         class Adapter:
             def __init__(self, font_dir, palette):
                 self.legacy = legacy_renderer(font_dir, palette=palette)
-                self.layout = LayoutRenderer(font_dir=font_dir)
+                self.layout = LayoutRenderer(font_dir=font_dir, ground=owner.ground)
 
             @property
             def palette(self):
@@ -243,6 +246,9 @@ class RuntimeIntegration:
                           error=owner.render_error or owner.transport_error or owner.layouts.error or owner.scheme.error)
             palette_key = hashlib.sha256(json.dumps(owner.palette, sort_keys=True).encode()).hexdigest()
             key = (legacy_dirty(*args, **kwargs), owner.frame_revision, palette_key)
+            if owner.document and owner.document.get('ground') == 'wallpaper':
+                # A new wallpaper changes the fog without changing the layout or palette.
+                key = (*key, owner.ground.signature())
             sources = {widget['settings'].get('source') for widget in owner.document['widgets']} if owner.document else set()
             owner.activity_snapshot = dashboard_snapshot(owner.activity) if 't3-threads' in sources else None
             owner.games_snapshot = dashboard_snapshot(owner.games) if 'game-resources' in sources else None

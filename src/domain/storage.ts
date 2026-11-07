@@ -19,7 +19,7 @@ export function storageRowName(row: StorageRow, filtered = false): string {
   const name = row.mount === '/' ? row.driveKind ?? 'System' : row.mount.split('/').at(-1) ?? row.mount;
   return name.toLowerCase() === 'nvme' ? 'NVMe' : name.toLowerCase() === 'games' ? 'Games' : name;
 }
-export function storageGeometry(width: number, height: number, style: 'bars' | 'table') {
+export function storageGeometry(width: number, height: number, style: 'bars' | 'table' | 'columns') {
   const table = style === 'table' && width >= 460;
   const start = table ? 96 : 80;
   const stride = table ? 46 : style === 'bars' ? 70 : 62;

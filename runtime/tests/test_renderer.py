@@ -133,7 +133,7 @@ class RendererTests(unittest.TestCase):
         gauge["settings"]["style"] = "arc"
         self.assertEqual(self.renderer.render(document).tobytes(), old)
 
-    def test_six_styles_change_pixels_at_identical_reading_and_geometry(self):
+    def test_every_style_changes_pixels_at_identical_reading_and_geometry(self):
         widget = self.expanded_widgets()[2]
         widget.update(width=352, height=304)
         pixels = []
@@ -143,12 +143,13 @@ class RendererTests(unittest.TestCase):
             image = self.renderer.render(document)
             pixels.append(image.tobytes())
             self.assertEqual(image.tobytes(), self.renderer.render(document).tobytes())
-        self.assertEqual(len(set(pixels)), 6)
+        self.assertEqual(len(set(pixels)), len(GAUGE_STYLES))
 
     def test_missing_tracks_and_clamped_progress_keep_the_actual_reading(self):
         widget = self.expanded_widgets()[2]
         palette = self.doc["palette"]
-        for style in GAUGE_STYLES:
+        # The figure is a sheet variant drawn by render(); test_sheet covers its meter.
+        for style in (style for style in GAUGE_STYLES if style != "figure"):
             operations = {}
             for value in (None, 0, -500, 50, 100, 900):
                 settings = {**widget["settings"], "style": style, "value": value}

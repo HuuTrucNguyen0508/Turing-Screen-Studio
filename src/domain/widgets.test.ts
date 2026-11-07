@@ -16,6 +16,23 @@ function pythonValidate(value: unknown): { valid: boolean; document?: unknown; e
 }
 
 describe('widget editing', () => {
+  it('accepts Frost sheet fields identically in both validators and serializes them canonically', () => {
+    const text = readFileSync('layouts/frost-sheet.json', 'utf8');
+    const doc = parseLayout(text);
+    expect(serializeLayout(doc)).toBe(text);
+    expect(pythonValidate(doc)).toEqual({ valid: true, document: doc });
+    const invalid: [(copy: LayoutDocument) => void, string][] = [
+      [(copy) => { (copy as unknown as Record<string, unknown>).ground = 'fog'; }, '$.ground'],
+      [(copy) => { (copy.widgets[0] as unknown as Record<string, unknown>).frame = 'box'; }, '$.widgets[0].frame'],
+      [(copy) => { const threads = copy.widgets.find((item) => item.id === 't3-threads')!; (threads.settings as Record<string, unknown>).source = 'cpu'; }, 'rows require the t3-threads source'],
+    ];
+    for (const [change, message] of invalid) {
+      const copy = structuredClone(doc);
+      change(copy);
+      expect(() => validateLayout(copy)).toThrow(message);
+      expect(pythonValidate(copy).error).toContain(message);
+    }
+  });
   it('preserves optional header and footer choices across both validators', () => {
     const classic = empty();
     expect(validateLayout(classic)).not.toHaveProperty('chrome');
@@ -59,13 +76,16 @@ describe('widget editing', () => {
   it('keeps UI additions consistent with the public AI widget catalog', () => {
     const catalog = JSON.parse(readFileSync('public/widget-catalog.json', 'utf8'));
     expect(widgetGroups).toEqual(catalog.groups);
-    expect(widgetCatalog.map(({ widget, ...metadata }) => ({ ...metadata, type: widget.type, width: widget.width, height: widget.height, settings: widget.settings, ...(widget.design ? { design: widget.design } : {}) }))).toEqual(catalog.widgets);
+    expect(widgetCatalog.map(({ widget, ...metadata }) => ({ ...metadata, type: widget.type, width: widget.width, height: widget.height, settings: widget.settings, ...(widget.design ? { design: widget.design } : {}), ...(widget.frame ? { frame: widget.frame } : {}) }))).toEqual(catalog.widgets);
     expect(widgetCatalog.every(({ id, widget }) => widget.id === id && widget.x === 0 && widget.y === 0)).toBe(true);
   });
-  it('keeps all 121 choices, ten unique groups and the original IDs', () => {
-    expect(widgetCatalog).toHaveLength(121);
-    expect(widgetCatalog.slice(-10, -1).map(({ id }) => id)).toEqual([
+  it('keeps all 127 choices, ten unique groups and the original IDs', () => {
+    expect(widgetCatalog).toHaveLength(127);
+    expect(widgetCatalog.slice(-16, -7).map(({ id }) => id)).toEqual([
       'system-list', 'system-list-tall', 'network-list', 'cpu-graph', 'network-graph', 'temperature-graph', 'calendar', 'calendar-sunday', 'calendar-large',
+    ]);
+    expect(widgetCatalog.slice(-6).map(({ id }) => id)).toEqual([
+      'cpu-figure', 'mounted-storage-columns', 't3-threads-rows', 'weather-block', 'glass-sheet', 'hairline-rule',
     ]);
     expect(new Set(widgetCatalog.map(({ id }) => id)).size).toBe(widgetCatalog.length);
     expect(widgetGroups.map(({ id }) => id)).toEqual(['system', 'network', 'temperature', 'gauge', 'clock', 'weather', 'text', 'ai-usage', 'storage', 'games']);

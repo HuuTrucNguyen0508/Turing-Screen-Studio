@@ -52,7 +52,7 @@ class LayoutCLITests(unittest.TestCase):
                          ['cpu-wide'])
         gauges = layout_cli.browse_catalog('cpu', 'gauge')['widgets']
         self.assertEqual({item['settings']['style'] if 'style' in item['settings'] else 'arc' for item in gauges},
-                         {'arc', 'ring', 'bar', 'segments', 'number', 'thermometer'})
+                         {'arc', 'ring', 'bar', 'segments', 'number', 'thermometer', 'figure'})
         self.assertNotIn('gauge', {item['id'] for item in gauges})
         for item in gauges:
             document = layout_cli.generate({'widgets': [{'template': item['id']}]})

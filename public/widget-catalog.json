@@ -2456,6 +2456,120 @@
       "family": "game-resources",
       "variant": "Status list",
       "description": "Shared regeneration timers for Genshin, Wuthering Waves and Zenless Zone Zero. Update a count after spending."
+    },
+    {
+      "id": "cpu-figure",
+      "name": "Processor figure",
+      "type": "gauge",
+      "width": 184,
+      "height": 164,
+      "settings": {
+        "label": "Processor",
+        "value": 24.0,
+        "unit": "%",
+        "detail": "8 cores \u00b7 42 \u00b0C",
+        "source": "cpu",
+        "min": 0,
+        "max": 100,
+        "style": "figure"
+      },
+      "group": "gauge",
+      "family": "cpu",
+      "variant": "Frost figure",
+      "description": "Frameless: title, device name, a large figure, two facts and a thin meter. Place on a glass sheet.",
+      "frame": "none"
+    },
+    {
+      "id": "mounted-storage-columns",
+      "name": "Storage columns",
+      "type": "storage",
+      "width": 600,
+      "height": 104,
+      "settings": {
+        "label": "Mounted storage",
+        "style": "columns",
+        "source": "mounted-storage",
+        "grouping": "drives"
+      },
+      "group": "storage",
+      "family": "mounted-storage",
+      "variant": "Frost columns",
+      "description": "Frameless: up to three drives side by side with share, meter, used of total and free space.",
+      "frame": "none"
+    },
+    {
+      "id": "t3-threads-rows",
+      "name": "Thread rows",
+      "type": "metric",
+      "width": 600,
+      "height": 162,
+      "settings": {
+        "label": "Threads",
+        "value": "2",
+        "unit": "working",
+        "detail": "{\"working\":2,\"note\":\"Sample threads\",\"threads\":[{\"title\":\"Studio improvements and next goal\",\"provider\":\"codex-pro\",\"status\":\"running\"},{\"title\":\"Thread and game widget design\",\"provider\":\"claudeAgent\",\"status\":\"running\"},{\"title\":\"Context compaction stuck\",\"provider\":\"codex-pro\",\"status\":\"waiting_input\"}]}",
+        "source": "t3-threads",
+        "style": "rows"
+      },
+      "group": "ai-usage",
+      "family": "t3-threads",
+      "variant": "Frost rows",
+      "description": "Frameless: working count, then one line per thread with status and provider.",
+      "frame": "none"
+    },
+    {
+      "id": "weather-block",
+      "name": "Weather block",
+      "type": "weather",
+      "width": 480,
+      "height": 200,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "\u00b0C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14",
+        "source": "weather",
+        "style": "block"
+      },
+      "group": "weather",
+      "family": "weather",
+      "variant": "Frost block",
+      "description": "Frameless and bottom-aligned: temperature, glyph and condition, place and humidity.",
+      "frame": "none"
+    },
+    {
+      "id": "glass-sheet",
+      "name": "Glass sheet",
+      "type": "text",
+      "width": 656,
+      "height": 576,
+      "settings": {
+        "label": "",
+        "text": ""
+      },
+      "group": "text",
+      "family": "text",
+      "variant": "Glass sheet",
+      "description": "An empty Frost glass slab. Put frameless widgets on top of it; other palettes draw a plain card.",
+      "frame": "glass"
+    },
+    {
+      "id": "hairline-rule",
+      "name": "Hairline rule",
+      "type": "text",
+      "width": 600,
+      "height": 1,
+      "settings": {
+        "label": "",
+        "text": ""
+      },
+      "group": "text",
+      "family": "text",
+      "variant": "Hairline rule",
+      "description": "A one-pixel divider between sections of a glass sheet.",
+      "frame": "none"
     }
   ],
   "groups": [

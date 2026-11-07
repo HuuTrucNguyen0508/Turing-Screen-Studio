@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "name": "Frost sheet",
+  "canvas": {
+    "width": 1280,
+    "height": 800
+  },
+  "palette": {
+    "name": "frost",
+    "background": "#141518",
+    "surface": "#1a1b1e",
+    "surfaceRaised": "#252629",
+    "text": "#f4f4f3",
+    "muted": "#bababa",
+    "primary": "#f4f4f3",
+    "secondary": "#d5d5d4",
+    "outline": "#39393c"
+  },
+  "widgets": [
+    {
+      "id": "sheet",
+      "type": "text",
+      "x": 560,
+      "y": 64,
+      "width": 656,
+      "height": 672,
+      "settings": {
+        "label": "",
+        "text": ""
+      },
+      "frame": "glass"
+    },
+    {
+      "id": "clock",
+      "type": "clock",
+      "x": 56,
+      "y": 60,
+      "width": 480,
+      "height": 220,
+      "settings": {
+        "label": "",
+        "time": "23:46",
+        "date": "samedi 7 novembre",
+        "format": "24h",
+        "showDate": true,
+        "source": "clock"
+      },
+      "design": {
+        "padding": 0,
+        "elements": {
+          "label": {
+            "hidden": true
+          },
+          "time": {
+            "dy": 37,
+            "size": 176,
+            "color": "text"
+          },
+          "date": {
+            "dx": 8,
+            "dy": 17,
+            "size": 24,
+            "color": "text"
+          }
+        }
+      },
+      "frame": "none"
+    },
+    {
+      "id": "weather",
+      "type": "weather",
+      "x": 56,
+      "y": 536,
+      "width": 480,
+      "height": 200,
+      "settings": {
+        "location": "Paris",
+        "temperature": "19",
+        "unit": "°C",
+        "condition": "Partly cloudy",
+        "high": "22",
+        "low": "14",
+        "source": "weather",
+        "style": "block"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "cpu",
+      "type": "gauge",
+      "x": 588,
+      "y": 92,
+      "width": 184,
+      "height": 164,
+      "settings": {
+        "label": "Processor",
+        "value": 21,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "80 °C",
+        "style": "figure",
+        "source": "cpu"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "gpu",
+      "type": "gauge",
+      "x": 796,
+      "y": 92,
+      "width": 184,
+      "height": 164,
+      "settings": {
+        "label": "Graphics",
+        "value": 99,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "82 °C",
+        "style": "figure",
+        "source": "gpu"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "memory",
+      "type": "gauge",
+      "x": 1004,
+      "y": 92,
+      "width": 184,
+      "height": 164,
+      "settings": {
+        "label": "Memory",
+        "value": 54,
+        "min": 0,
+        "max": 100,
+        "unit": "%",
+        "detail": "16.3 of 30.4 GiB",
+        "style": "figure",
+        "source": "memory"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "rule-1",
+      "type": "text",
+      "x": 588,
+      "y": 302,
+      "width": 600,
+      "height": 1,
+      "settings": {
+        "label": "",
+        "text": ""
+      },
+      "frame": "none"
+    },
+    {
+      "id": "mounted-storage",
+      "type": "storage",
+      "x": 588,
+      "y": 349,
+      "width": 600,
+      "height": 104,
+      "settings": {
+        "label": "Storage",
+        "style": "columns",
+        "grouping": "partitions",
+        "mounts": [
+          "/",
+          "/mnt/nvme",
+          "/mnt/games"
+        ],
+        "source": "mounted-storage"
+      },
+      "frame": "none"
+    },
+    {
+      "id": "rule-2",
+      "type": "text",
+      "x": 588,
+      "y": 499,
+      "width": 600,
+      "height": 1,
+      "settings": {
+        "label": "",
+        "text": ""
+      },
+      "frame": "none"
+    },
+    {
+      "id": "t3-threads",
+      "type": "metric",
+      "x": 588,
+      "y": 546,
+      "width": 600,
+      "height": 162,
+      "settings": {
+        "label": "Threads",
+        "value": "2",
+        "unit": "working",
+        "detail": "{\"working\":2,\"note\":\"Sample threads\",\"threads\":[{\"title\":\"TURZX Frost layout\",\"provider\":\"claudeAgent\",\"status\":\"running\"},{\"title\":\"Push Minimalist Wallpaper\",\"provider\":\"claudeAgent\",\"status\":\"running\"}]}",
+        "source": "t3-threads",
+        "style": "rows"
+      },
+      "frame": "none"
+    }
+  ],
+  "paletteMode": "live",
+  "chrome": "none",
+  "ground": "wallpaper"
+}

@@ -111,7 +111,7 @@ describe('design editing and cross-language contract', () => {
     [{ padding: 65 }, '.padding: must be between 0 and 64'],
     [{ elements: { time: { dx: 1.5 } } }, '.elements.time.dx: expected a safe integer'],
     [{ elements: { time: { dy: 600 } } }, '.elements.time.dy: must be between -512 and 512'],
-    [{ elements: { time: { size: 7 } } }, '.elements.time.size: must be between 8 and 160'],
+    [{ elements: { time: { size: 7 } } }, '.elements.time.size: must be between 8 and 200'],
     [{ elements: { time: { hidden: 1 } } }, '.elements.time.hidden: expected a boolean'],
     [{ elements: { time: { align: 'middle' } } }, '.elements.time.align: expected start, center, end'],
     [{ elements: { time: { color: '#fff' } } }, '.elements.time.color: expected text, muted, primary, secondary or a six-digit #hex color'],

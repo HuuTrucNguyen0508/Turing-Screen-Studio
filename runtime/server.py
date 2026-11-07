@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from turzx_studio.layout import parse_layout, revision, serialize_layout, validate_layout
 from turzx_studio.renderer import LayoutRenderer
 from turzx_studio.frost import ShellStyle
+from turzx_studio.ground import WallpaperGround
 from turzx_studio.storage import PaletteWatcher, Paths, atomic_write
 from turzx_studio.archives import archive_layout, layout_write_lock, list_archives, read_archive
 from turzx_studio.layout_library import (
@@ -33,6 +34,14 @@ from turzx_studio.live import MAX_AGE, source_diagnostics, snapshot_stats, valid
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BODY_BYTES = 1024 * 1024
 MAX_PREVIEW_PIXELS = 16_000_000
+
+
+def sheet_features(document: dict) -> bool:
+    """Whether a layout uses the sheet fields that older runtimes cannot draw."""
+    return 'ground' in document or any(
+        'frame' in widget or (widget['type'] in ('metric', 'weather') and 'style' in widget['settings'])
+        or (widget['type'] == 'storage' and widget['settings']['style'] == 'columns')
+        for widget in document['widgets'])
 
 
 class APIError(Exception):
@@ -132,7 +141,8 @@ class StudioApplication:
         self.palette = PaletteWatcher(scheme) if scheme is not None else PaletteWatcher(
             Path.home() / ".local/state/caelestia/scheme.json", ShellStyle())
         self.renderer = LayoutRenderer(font_dir=Path(font_dir).expanduser() if font_dir is not None
-                                       else Path.home() / "Documents/turing-smart-screen-python/res/fonts")
+                                       else Path.home() / "Documents/turing-smart-screen-python/res/fonts",
+                                       ground=WallpaperGround())
         self.layout_lock = threading.RLock()
         self.library = LayoutLibrary(self.paths, ROOT / 'public/layout-presets.json')
         self.render_lock = threading.Lock()
@@ -196,6 +206,8 @@ class StudioApplication:
         except (OSError, ValueError, APIError):
             runtime = {}
         if isinstance(runtime, dict) and runtime_is_running(runtime):
+            if sheet_features(document) and runtime.get('supportedSheet') is not True:
+                raise APIError(409, 'The panel runtime needs an update before saving sheet layouts (wallpaper ground, frameless or glass widgets). Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
             if 'chrome' in document and runtime.get('supportedChrome') is not True:
                 raise APIError(409, 'The panel runtime needs an update before saving header and footer options. Restart turzx-dashboard.service with the current Studio adapter; your draft and saved layout are intact.')
             supported = runtime.get('supportedWidgetTypes', ['metric', 'weather'])

@@ -190,6 +190,10 @@
                   },
                   "trend": {
                     "type": "boolean"
+                  },
+                  "style": {
+                    "const": "rows",
+                    "description": "Frost sheet thread rows; requires the t3-threads source."
                   }
                 },
                 "allOf": [
@@ -219,6 +223,9 @@
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -297,11 +304,18 @@
                       "sample",
                       "weather"
                     ]
+                  },
+                  "style": {
+                    "const": "block",
+                    "description": "Left-aligned weather block for the Frost sheet: temperature, glyph and condition, place and humidity."
                   }
                 }
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -387,6 +401,9 @@
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -448,6 +465,9 @@
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -554,13 +574,17 @@
                       "bar",
                       "segments",
                       "thermometer",
-                      "number"
+                      "number",
+                      "figure"
                     ]
                   }
                 }
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -618,7 +642,8 @@
                   "style": {
                     "enum": [
                       "bars",
-                      "table"
+                      "table",
+                      "columns"
                     ]
                   },
                   "source": {
@@ -670,6 +695,9 @@
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -748,6 +776,9 @@
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -853,6 +884,9 @@
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -938,6 +972,9 @@
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           },
@@ -1010,6 +1047,9 @@
               },
               "colors": {
                 "$ref": "#/$defs/widgetColors"
+              },
+              "frame": {
+                "$ref": "#/$defs/widgetFrame"
               }
             }
           }
@@ -1028,6 +1068,13 @@
         "none"
       ],
       "description": "Omit for the original header/footer, or none for a canvas containing only widgets."
+    },
+    "ground": {
+      "enum": [
+        "flat",
+        "wallpaper"
+      ],
+      "description": "Omit or flat for the background colour. wallpaper puts a blurred, toned crop of the shell's wallpaper behind the widgets while the palette is frost; otherwise, or when the wallpaper is unreadable, the background colour."
     }
   },
   "$defs": {
@@ -1059,7 +1106,7 @@
         "size": {
           "type": "integer",
           "minimum": 8,
-          "maximum": 160
+          "maximum": 200
         },
         "color": {
           "oneOf": [
@@ -1163,6 +1210,14 @@
           "pattern": "^#[0-9a-fA-F]{6}$"
         }
       }
+    },
+    "widgetFrame": {
+      "enum": [
+        "card",
+        "none",
+        "glass"
+      ],
+      "description": "Omit for a card. none draws the widget straight onto what lies beneath it (a one-pixel frameless widget is a hairline rule); glass is Frost's translucent slab, and a card under other palettes."
     }
   }
 }

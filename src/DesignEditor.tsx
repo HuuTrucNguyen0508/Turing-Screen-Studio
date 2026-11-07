@@ -86,7 +86,7 @@ function ElementPanel({ widget, palette, resolved, design, onCommit, onMove }: {
     </div>
     <IntField label="X offset" value={design?.dx ?? 0} min={-512} max={512} onCommit={(dx) => set({ dx: dx ?? 0 })} />
     <IntField label="Y offset" value={design?.dy ?? 0} min={-512} max={512} onCommit={(dy) => set({ dy: dy ?? 0 })} />
-    <IntField label="Size" value={resolved.size} min={8} max={160} onCommit={(size) => { if (size !== null) set({ size }); }} />
+    <IntField label="Size" value={resolved.size} min={8} max={200} onCommit={(size) => { if (size !== null) set({ size }); }} />
     <fieldset className="design-colors">
       <legend className="design-field-label">Color <span>{resolved.color.startsWith('#') ? 'Custom' : colorLabels[resolved.color as keyof typeof colorLabels]}</span></legend>
       <div className="design-swatches">

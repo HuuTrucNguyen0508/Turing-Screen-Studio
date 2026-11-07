@@ -93,7 +93,7 @@ def validate_widget_design(input: object, kind: str, path: str) -> dict:
                 else:
                     element[prop] = _integer(raw[prop], field_path,
                                              8 if prop == "size" else -512,
-                                             160 if prop == "size" else 512)
+                                             200 if prop == "size" else 512)
             result["elements"][element_id] = element
     return result
 

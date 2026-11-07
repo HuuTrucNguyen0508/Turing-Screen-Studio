@@ -30,7 +30,13 @@ PALETTE_ROLES = (
     "background", "surface", "surfaceRaised", "text", "muted", "primary",
     "secondary", "outline",
 )
-GAUGE_STYLES = ("arc", "ring", "bar", "segments", "thermometer", "number")
+GAUGE_STYLES = ("arc", "ring", "bar", "segments", "thermometer", "number", "figure")
+STORAGE_STYLES = ("bars", "table", "columns")
+# Frost sheet layouts: a wallpaper ground, frameless or glass widgets and their variants
+GROUNDS = ("flat", "wallpaper")
+FRAMES = ("card", "none", "glass")
+METRIC_STYLES = ("rows",)
+WEATHER_STYLES = ("block",)
 METRIC_SETTINGS = ("label", "value", "unit", "detail")
 WEATHER_SETTINGS = ("location", "temperature", "unit", "condition", "high", "low")
 METRIC_SOURCES = (
@@ -186,8 +192,9 @@ def _settings(kind: str, settings: dict, settings_path: str) -> dict:
               "gauge": ("label", "value", "min", "max", "unit", "detail")}[kind]
     _keys(settings, fields, settings_path, () if kind in ("text", "image") else
           ("source", "style") if kind == "gauge" else
-          ("source", "trend") if kind == "metric" else
-          ("source", "grouping", "mounts") if kind == "storage" else ("source",))
+          ("source", "trend", "style") if kind == "metric" else
+          ("source", "grouping", "mounts") if kind == "storage" else
+          ("source", "style") if kind == "weather" else ("source",))
     result = {}
     for key in fields:
         raw = settings[key]
@@ -218,8 +225,8 @@ def _settings(kind: str, settings: dict, settings_path: str) -> dict:
         _fail(f"{settings_path}.fit", "expected contain, cover, stretch")
     if kind == "clock" and result["format"] not in ("24h", "12h"):
         _fail(f"{settings_path}.format", "expected 24h, 12h")
-    if kind == "storage" and result["style"] not in ("bars", "table"):
-        _fail(f"{settings_path}.style", "expected bars, table")
+    if kind == "storage" and result["style"] not in STORAGE_STYLES:
+        _fail(f"{settings_path}.style", f"expected {', '.join(STORAGE_STYLES)}")
     if kind == "storage" and "grouping" in settings:
         if settings["grouping"] not in ("drives", "partitions"):
             _fail(f"{settings_path}.grouping", "expected drives, partitions")
@@ -258,12 +265,19 @@ def _settings(kind: str, settings: dict, settings_path: str) -> dict:
         if type(settings["trend"]) is not bool:
             _fail(f"{settings_path}.trend", "expected a boolean")
         result["trend"] = settings["trend"]
+    if kind in ("metric", "weather") and "style" in settings:
+        styles = METRIC_STYLES if kind == "metric" else WEATHER_STYLES
+        if settings["style"] not in styles:
+            _fail(f"{settings_path}.style", f"expected {', '.join(styles)}")
+        if kind == "metric" and result.get("source") != "t3-threads":
+            _fail(f"{settings_path}.style", "rows require the t3-threads source")
+        result["style"] = settings["style"]
     return result
 
 
 def _widget(value: object, path: str, canvas: dict) -> dict:
     value = _object(value, path)
-    _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path, ("design", "colors"))
+    _keys(value, ("id", "type", "x", "y", "width", "height", "settings"), path, ("design", "colors", "frame"))
     widget_id = _string(value["id"], f"{path}.id", nonempty=True)
     kind = value["type"]
     if kind not in WIDGET_TYPES:
@@ -285,6 +299,10 @@ def _widget(value: object, path: str, canvas: dict) -> dict:
         widget["design"] = validate_widget_design(value["design"], kind, f"{path}.design")
     if "colors" in value:
         widget["colors"] = _widget_colors(value["colors"], f"{path}.colors")
+    if "frame" in value:
+        if value["frame"] not in FRAMES:
+            _fail(f"{path}.frame", f"expected {', '.join(FRAMES)}")
+        widget["frame"] = value["frame"]
     return widget
 
 
@@ -299,7 +317,7 @@ def validate_layout(input: object, panel: bool = False) -> dict:
         _fail("$.version", "required field is missing; choose a TURZX layout JSON file")
     if type(value["version"]) not in (int, float) or value["version"] != 1:
         _fail("$.version", "unsupported layout version; expected 1")
-    _keys(value, ("version", "name", "canvas", "palette", "widgets"), "$", ("paletteMode", "chrome"))
+    _keys(value, ("version", "name", "canvas", "palette", "widgets"), "$", ("paletteMode", "chrome", "ground"))
     name = _string(value["name"], "$.name", nonempty=True)
     canvas_value = _object(value["canvas"], "$.canvas")
     _keys(canvas_value, ("width", "height"), "$.canvas")
@@ -330,6 +348,10 @@ def validate_layout(input: object, panel: bool = False) -> dict:
         if value['chrome'] not in ('standard', 'none'):
             _fail('$.chrome', 'expected "standard" or "none"')
         result['chrome'] = value['chrome']
+    if 'ground' in value:
+        if value['ground'] not in GROUNDS:
+            _fail('$.ground', f"expected {', '.join(GROUNDS)}")
+        result['ground'] = value['ground']
     return result
 
 

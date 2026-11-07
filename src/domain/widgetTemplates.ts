@@ -95,7 +95,7 @@ export function parseWidgetImport(text: string): CustomWidgets {
     const value = raw as Record<string, unknown>;
     // Choose a validator by shape, then validate the entire input. Never fall
     // back to extracting a valid subset from a malformed document or pack.
-    if (['canvas', 'palette', 'paletteMode', 'chrome'].some((key) => Object.hasOwn(value, key))) {
+    if (['canvas', 'palette', 'paletteMode', 'chrome', 'ground'].some((key) => Object.hasOwn(value, key))) {
       return importedCards(validateLayout(value).widgets);
     }
     if (bytes > MAX_CUSTOM_BYTES) throw new Error('Choose a widget file of at most 256 KB. Only Studio layouts may be up to 1 MB.');

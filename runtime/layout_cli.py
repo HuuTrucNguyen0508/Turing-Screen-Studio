@@ -68,8 +68,8 @@ def generate(spec: dict) -> dict:
         raise ValueError('Spec.canvas must contain width and height')
     x, y, row_height = 64, 160, 0
     for index, entry in enumerate(raw):
-        if not isinstance(entry, dict) or set(entry) - {'template', 'id', 'x', 'y', 'width', 'height', 'settings', 'design'}:
-            raise ValueError(f'Spec.widgets[{index}] accepts template, id, geometry, settings and design only')
+        if not isinstance(entry, dict) or set(entry) - {'template', 'id', 'x', 'y', 'width', 'height', 'settings', 'design', 'frame'}:
+            raise ValueError(f'Spec.widgets[{index}] accepts template, id, geometry, settings, design and frame only')
         identifier = entry.get('template')
         if not isinstance(identifier, str) or identifier not in templates:
             raise ValueError(f'Spec.widgets[{index}].template must be a catalog ID')
@@ -86,7 +86,8 @@ def generate(spec: dict) -> dict:
                         'x': entry.get('x', x), 'y': entry.get('y', y),
                         'width': width, 'height': height,
                         'settings': {**deepcopy(template['settings']), **settings},
-                        **({'design': deepcopy(entry.get('design', template.get('design')))} if 'design' in entry or 'design' in template else {})})
+                        **({'design': deepcopy(entry.get('design', template.get('design')))} if 'design' in entry or 'design' in template else {}),
+                        **({'frame': entry.get('frame', template.get('frame'))} if 'frame' in entry or 'frame' in template else {})})
         x += width + 24
         row_height = max(row_height, height)
     return validate_layout({'version': 1, 'name': spec.get('name', 'Generated dashboard'),
@@ -224,7 +225,9 @@ def main(argv=None) -> int:
             if args.command == 'preview':
                 from turzx_studio.renderer import LayoutRenderer
                 args.output.parent.mkdir(parents=True, exist_ok=True)
-                image = LayoutRenderer(font_dir=Path.home() / 'Documents/turing-smart-screen-python/res/fonts').render(document)
+                from turzx_studio.ground import WallpaperGround
+                image = LayoutRenderer(font_dir=Path.home() / 'Documents/turing-smart-screen-python/res/fonts',
+                                       ground=WallpaperGround()).render(document)
                 try:
                     image.save(args.output, format='PNG')
                 finally:

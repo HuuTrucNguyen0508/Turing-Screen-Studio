@@ -67,6 +67,7 @@ export function parseWidgetCatalog(input: unknown): { entries: WidgetTemplate[];
     widgets: input.widgets.map((entry: Record<string, unknown>) => ({
       id: entry.id, type: entry.type, x: 0, y: 0, width: entry.width, height: entry.height, settings: entry.settings,
       ...(Object.hasOwn(entry, 'design') ? { design: entry.design } : {}),
+      ...(Object.hasOwn(entry, 'frame') ? { frame: entry.frame } : {}),
     })),
   });
   return {
