@@ -2440,24 +2440,6 @@
       "description": "A large month grid with today highlighted."
     },
     {
-      "id": "game-resources",
-      "name": "Game timers",
-      "type": "metric",
-      "width": 270,
-      "height": 344,
-      "settings": {
-        "label": "Game timers",
-        "value": "",
-        "unit": "",
-        "detail": "{\"note\":\"Sample timer estimates\",\"games\":[{\"name\":\"Genshin\",\"resource\":\"Resin\",\"current\":137,\"capacity\":200,\"status\":\"demo\",\"remaining\":\"8h 24m to full\",\"age\":\"set 2h ago\"},{\"name\":\"Wuthering Waves\",\"resource\":\"Waveplates\",\"current\":240,\"capacity\":240,\"status\":\"demo\",\"remaining\":\"Full\",\"age\":\"set 26h ago\"},{\"name\":\"Zenless\",\"resource\":\"Battery\",\"current\":null,\"capacity\":240,\"status\":\"not-configured\",\"remaining\":\"Set in Game timers\",\"age\":\"\"}]}",
-        "source": "game-resources"
-      },
-      "group": "games",
-      "family": "game-resources",
-      "variant": "Status list",
-      "description": "Shared regeneration timers for Genshin, Wuthering Waves and Zenless Zone Zero. Update a count after spending."
-    },
-    {
       "id": "cpu-figure",
       "name": "Processor figure",
       "type": "gauge",
@@ -2570,6 +2552,24 @@
       "variant": "Hairline rule",
       "description": "A one-pixel divider between sections of a glass sheet.",
       "frame": "none"
+    },
+    {
+      "id": "game-resources",
+      "name": "Game timers",
+      "type": "metric",
+      "width": 270,
+      "height": 344,
+      "settings": {
+        "label": "Game timers",
+        "value": "",
+        "unit": "",
+        "detail": "{\"note\":\"Sample timer estimates\",\"games\":[{\"name\":\"Genshin\",\"resource\":\"Resin\",\"current\":137,\"capacity\":200,\"status\":\"demo\",\"remaining\":\"8h 24m to full\",\"age\":\"set 2h ago\"},{\"name\":\"Wuthering Waves\",\"resource\":\"Waveplates\",\"current\":240,\"capacity\":240,\"status\":\"demo\",\"remaining\":\"Full\",\"age\":\"set 26h ago\"},{\"name\":\"Zenless\",\"resource\":\"Battery\",\"current\":null,\"capacity\":240,\"status\":\"not-configured\",\"remaining\":\"Set in Game timers\",\"age\":\"\"}]}",
+        "source": "game-resources"
+      },
+      "group": "games",
+      "family": "game-resources",
+      "variant": "Status list",
+      "description": "Shared regeneration timers for Genshin, Wuthering Waves and Zenless Zone Zero. Update a count after spending."
     }
   ],
   "groups": [

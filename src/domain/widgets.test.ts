@@ -84,7 +84,7 @@ describe('widget editing', () => {
     expect(widgetCatalog.slice(-16, -7).map(({ id }) => id)).toEqual([
       'system-list', 'system-list-tall', 'network-list', 'cpu-graph', 'network-graph', 'temperature-graph', 'calendar', 'calendar-sunday', 'calendar-large',
     ]);
-    expect(widgetCatalog.slice(-6).map(({ id }) => id)).toEqual([
+    expect(widgetCatalog.slice(-7, -1).map(({ id }) => id)).toEqual([
       'cpu-figure', 'mounted-storage-columns', 't3-threads-rows', 'weather-block', 'glass-sheet', 'hairline-rule',
     ]);
     expect(new Set(widgetCatalog.map(({ id }) => id)).size).toBe(widgetCatalog.length);

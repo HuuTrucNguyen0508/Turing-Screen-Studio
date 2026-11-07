@@ -54,7 +54,7 @@ test('storage library retains root gauges alongside mounted filesystem designs',
   await page.getByRole('button', { name: 'Add widget', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Add widget' });
   await dialog.getByRole('button', { name: /^Storage/ }).click();
-  await expect(dialog.getByRole('button', { name: /^Add / })).toHaveCount(10);
+  await expect(dialog.getByRole('button', { name: /^Add / })).toHaveCount(11);
   await dialog.getByRole('button', { name: 'Add Root storage ring', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Panel data source' })).toHaveValue('storage');
   await expect(page.getByRole('combobox', { name: 'Display style' })).toHaveValue('ring');
@@ -392,14 +392,14 @@ test('CPU library previews draw distinct instruments and style changes preserve 
     expect(saved.widgets.find((widget) => widget.id === gauge.id)).toEqual(style === 'arc' ? gauge : { ...gauge, settings: { ...gauge.settings, style } });
     pictures.push(await card(page, gauge.id).locator('.gauge-content').screenshot());
   }
-  expect(new Set(pictures.map((buffer) => buffer.toString('base64'))).size).toBe(6);
+  expect(new Set(pictures.map((buffer) => buffer.toString('base64'))).size).toBe(7);
   await expect(page.locator('input[aria-label="undefined"]')).toHaveCount(0);
   const saved = await exportJson(page);
   await openJson(page, saved);
   await page.getByRole('button', { name: 'Open and discard changes', exact: true }).click();
   expect(await exportJson(page)).toBe(saved);
   await page.locator('[data-widget-row="cpu-gauge"]').click();
-  await expect(page.getByLabel('Display style', { exact: true })).toHaveValue('number');
+  await expect(page.getByLabel('Display style', { exact: true })).toHaveValue(gaugeStyles.at(-1)!);
 });
 
 for (const viewport of [{ width: 1024, height: 640 }, { width: 390, height: 844 }]) {
@@ -530,7 +530,7 @@ test('mounted storage can be added, restyled, exported and reopened without appl
   const dialog = page.getByRole('dialog', { name: 'Add widget' });
   await dialog.getByRole('button', { name: /^Storage/ }).click();
   await dialog.getByRole('searchbox', { name: /Search widgets/ }).fill('Mounted storage');
-  await expect(dialog.getByRole('button', { name: /^Add / })).toHaveCount(3);
+  await expect(dialog.getByRole('button', { name: /^Add / })).toHaveCount(4);
   await dialog.getByRole('button', { name: 'Add Mounted storage wide', exact: true }).click();
   const mounted = card(page, 'mounted-storage-wide');
   await expect(mounted.locator('[data-storage-style="bars"]')).toBeVisible();
