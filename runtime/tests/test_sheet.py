@@ -109,6 +109,17 @@ class SheetRenderTests(unittest.TestCase):
         lit = [x for x in range(cpu["x"], cpu["x"] + cpu["width"]) if image.getpixel((x, meter_y))[0] > 200]
         self.assertEqual((min(lit), max(lit)), (cpu["x"], cpu["x"] + 91))
 
+    def test_weather_block_sits_centred_between_the_date_and_the_slab_bottom(self):
+        stats = SimpleNamespace(weather_temp_c=7, weather_description="Mist", weather_city="Éragny",
+                                weather_feels_like_c=7, weather_humidity=93, weather_icon="50n")
+        image = self.renderer.render(SHEET, stats=stats)
+        weather = widget(SHEET, "weather")
+        rows = [y for y in range(weather["y"], weather["y"] + weather["height"])
+                if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + 300))]
+        # The 232 px block spans 390..622: cap top of the 116 px temperature to the humidity line's descenders.
+        self.assertTrue(395 <= min(rows) <= 412, min(rows))
+        self.assertTrue(608 <= max(rows) <= 622, max(rows))
+
     def test_thread_rows_fill_capacity_then_count_the_rest(self):
         threads = [{"id": str(i), "title": f"Thread {i}", "provider": "claudeAgent", "status": "running"} for i in range(6)]
         activity = {"status": "live", "working": 6, "threads": threads, "observedAt": "2026-11-07T23:00:00Z", "note": "Verified T3 execution."}

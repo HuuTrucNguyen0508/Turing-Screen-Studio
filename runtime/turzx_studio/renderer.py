@@ -27,6 +27,8 @@ from .sheet import HAIRLINE, INK2, TRACK, Ink, baseline, facts_from, glass_layer
 MAX_RENDER_PIXELS = 16_000_000
 _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
 _DIGIT_RUNS = re.compile(r"\d+|\D+")
+# The sheet weather block: temperature, glyph line and two facts.
+WEATHER_BLOCK = 232
 
 
 def _number(stats: object, name: str) -> float | None:
@@ -1067,14 +1069,16 @@ class LayoutRenderer:
             self._ink_text(ink, (width, baseline(top, 24, 14)), self._fit(draw, provider, "sans", 14, 70), 14, alpha=INK2, anchor="rs")
 
     def _sheet_weather(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
-        """Weather on the fog, bottom-aligned: temperature, glyph and condition, place, humidity."""
-        self._ink_text(ink, (4, baseline(height - 184, 84, 84)), f"{settings['temperature']}°", 84, "mono")
+        """Weather on the fog, centred vertically in the widget: a 116 px temperature, a 34 px glyph
+        beside the condition, then place and humidity. The block is 232 px tall."""
+        top = max(0, (height - WEATHER_BLOCK) // 2)
+        self._ink_text(ink, (3, baseline(top, 116, 116)), f"{settings['temperature']}°", 116, "mono")
         condition_x = 8
         if self._frost:
-            key = "icon", 26, True
+            key = "icon", 34, True
             if key not in self._fonts:
                 try:
-                    font = ImageFont.truetype(str(FONT_DIR / ICON_FONT), 26)
+                    font = ImageFont.truetype(str(FONT_DIR / ICON_FONT), 34)
                     font.set_variation_by_axes([0, 0, 48, 300])
                     self._fonts[key] = font
                 except (OSError, ValueError):
@@ -1082,21 +1086,21 @@ class LayoutRenderer:
             if self._fonts[key] is not None:
                 glyph_draw, fill = ink.target(1)
                 ascent, descent = self._fonts[key].getmetrics()
-                glyph_draw.text((8, height - 84 + (26 - ascent - descent) / 2 + ascent),
+                glyph_draw.text((8, top + 134 + (34 - ascent - descent) / 2 + ascent),
                                 weather_glyph(settings.get("icon"), settings["condition"]),
                                 font=self._fonts[key], fill=fill, anchor="ls")
-                condition_x = 44
-        self._ink_text(ink, (condition_x, baseline(height - 86, 30, 22)),
-                       self._fit(draw, settings["condition"], "medium", 22, width - condition_x), 22, "medium")
+                condition_x = 54
+        self._ink_text(ink, (condition_x, baseline(top + 132, 38, 28)),
+                       self._fit(draw, settings["condition"], "medium", 28, width - condition_x), 28, "medium")
         city = settings.get("city", settings["location"])
         if settings.get("feels") is not None:
             place, humidity = f"{city}, feels like {settings['feels']}°", settings.get("humidity")
             second = None if humidity is None else f"{humidity} % humidity"
         else:
             place, second = city, f"High {settings['high']}°, low {settings['low']}°"
-        self._ink_text(ink, (8, baseline(height - 48, 24, 15)), self._fit(draw, place, "sans", 15, width - 8), 15, alpha=INK2)
+        self._ink_text(ink, (8, baseline(top + 180, 26, 17)), self._fit(draw, place, "sans", 17, width - 8), 17, alpha=INK2)
         if second:
-            self._ink_text(ink, (8, baseline(height - 24, 24, 15)), self._fit(draw, second, "sans", 15, width - 8), 15, alpha=INK2)
+            self._ink_text(ink, (8, baseline(top + 206, 26, 17)), self._fit(draw, second, "sans", 17, width - 8), 17, alpha=INK2)
 
     def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:
         """Draw a sheet variant; return False for widgets without one."""

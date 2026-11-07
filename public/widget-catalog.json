@@ -2504,7 +2504,7 @@
       "name": "Weather block",
       "type": "weather",
       "width": 480,
-      "height": 200,
+      "height": 232,
       "settings": {
         "location": "Paris",
         "temperature": "19",
@@ -2518,7 +2518,7 @@
       "group": "weather",
       "family": "weather",
       "variant": "Frost block",
-      "description": "Frameless and bottom-aligned: temperature, glyph and condition, place and humidity.",
+      "description": "Frameless and centred in its height: a large temperature, glyph and condition, place and humidity.",
       "frame": "none"
     },
     {

@@ -70,9 +70,9 @@
       "id": "weather",
       "type": "weather",
       "x": 56,
-      "y": 536,
+      "y": 280,
       "width": 480,
-      "height": 200,
+      "height": 452,
       "settings": {
         "location": "Paris",
         "temperature": "19",
