@@ -47,11 +47,29 @@ class IntegrationTests(unittest.TestCase):
             try_lcd_write=legacy_write, open_lcd=lambda: object(), SchemeWatcher=type('Scheme', (), {'poll': lambda s: s.palette}))
         self.dashboard_originals = dict(vars(self.dashboard))
         self.owner = RuntimeIntegration(self.paths, root / 'missing-scheme')
+        self.owner.movie.wallpaper = root / 'wallpaper'
         self.owner.install(self.dashboard, self.transport)
         self.renderer = self.dashboard.DashboardRenderer(None, palette=object())
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_movie_override_quiets_sources_and_restores_layout_and_brightness(self):
+        original = self.paths.layout.read_bytes()
+        self.owner.movie.set_mode('on')
+        self.owner.now_playing.snapshot = Mock(side_effect=AssertionError('must not sample'))
+        self.owner.usage.snapshot = Mock(side_effect=AssertionError('must not sample'))
+        with patch('turzx_studio.integration.time.localtime', return_value=(2026, 11, 8, 2, 10, 0)):
+            first = self.dashboard.logical_dirty_key(view='stats')
+            second = self.dashboard.logical_dirty_key(stats=SimpleNamespace(cpu_percent=99), view='stats')
+        self.assertEqual(first, second)
+        self.assertEqual(self.send(), (True, 12))
+        self.assertTrue(self.owner.status['frameMovieActive'])
+        self.assertEqual(self.paths.layout.read_bytes(), original)
+        self.owner.movie.set_mode('off')
+        self.assertEqual(self.send(), (True, 50))
+        self.assertFalse(self.owner.status['frameMovieActive'])
+        self.assertEqual(self.paths.layout.read_bytes(), original)
 
     def test_thread_and_timer_source_failures_do_not_interrupt_dirty_or_render(self):
         root = Path(__file__).parents[2]

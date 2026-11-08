@@ -165,3 +165,9 @@ The next hardware milestone is a standalone runtime with explicit device profile
 ## License
 
 Studio's own code is available under the [MIT license](LICENSE). Bundled fonts and the external driver retain their licenses in [third-party notices](THIRD_PARTY_NOTICES.md). This project is not affiliated with Turing or TURZX.
+
+### Use movie mode at night
+
+Run `pnpm layout movie on` to show only a dim clock and date on black at 12% hardware brightness. Run `pnpm layout movie off` to return to the active dashboard and its previous brightness. Both overrides persist across service restarts.
+
+Run `pnpm layout movie auto` to follow the wallpaper again. The exact paths in `MOVIE_WALLPAPERS` in `runtime/turzx_studio/movie.py` select movie mode automatically, initially `~/Pictures/Wallpapers/Folio/folio-charcoal-dark.png`. Changes take effect on the next dashboard poll, normally within a second. Movie content changes once per minute. Saved layouts and library entries stay unchanged.

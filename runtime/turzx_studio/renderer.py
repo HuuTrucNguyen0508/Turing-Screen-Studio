@@ -209,7 +209,7 @@ class LayoutRenderer:
     """Draw document coordinates directly. The caller owns transport and scaling.
 
     Fonts come only from font_dir, local DejaVu files, or Pillow's fallback,
-    except under the Frost palette, which uses the shell's system Fira Sans and
+    except for Frost layouts or palettes, which use the shell's system Fira Sans and
     Material Symbols when installed. Stats and palette are snapshots supplied by the caller. Rendering never
     imports the original dashboard or reads scheme, sensor, or network data.
     """
@@ -221,7 +221,7 @@ class LayoutRenderer:
         self._fonts: dict[tuple[str, int, bool], ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
         self._wrapped: dict[tuple[str, int], list[str]] = {}
         self._ink_spans: dict[tuple[str, str, int, bool], tuple[int, int]] = {}
-        # Set per render from the palette; renders are serialized by their callers.
+        # Set per render from the layout or palette; renders are serialized by their callers.
         self._frost = False
 
     def _frost_font(self, family: str, size: int) -> ImageFont.FreeTypeFont | None:
@@ -645,8 +645,40 @@ class LayoutRenderer:
             return element["x"] - self._ink_span(draw, text, element["family"], element["size"])[0]
         return element["x"]
 
+    def _fitted_elements(self, draw, elements, width):
+        """Fit ink inside the clock column, even with a wider fallback face."""
+        result = []
+        for original in elements:
+            element = dict(original)
+            if element['hidden']:
+                result.append(element)
+                continue
+            text, family = self._safe_text(element['text']), element['family']
+            while True:
+                size = element['size']
+                left, right = self._ink_span(draw, text, family, size)
+                advance = self._length(draw, text, family, size)
+                if element.get('suffix'):
+                    right = advance + element['gap'] + self._length(draw, element['suffix'], 'sans', element['suffixSize'])
+                    advance = right
+                x = self._designed_x(draw, element, text)
+                offset = advance / 2 if element['align'] == 'center' else advance if element['align'] == 'end' else 0
+                start, end = x - offset + left, x - offset + right
+                # Preserve intentional left/right insets while shrinking.
+                available = (2 * min(element['x'], width - element['x']) if element['align'] == 'center'
+                             else element['x'] if element['align'] == 'end' else width - element['x'])
+                if end - start <= max(1, available - 2) or size <= 1:
+                    break
+                element['size'] -= 1
+                if element.get('suffix'):
+                    element['suffixSize'] = max(1, round(original['suffixSize'] * element['size'] / original['size']))
+            shift = max(0, 1 - start) - max(0, end - width + 1)
+            element['x'] += shift
+            result.append(element)
+        return result
+
     def _designed_text(self, draw: ImageDraw.ImageDraw, elements: list[dict], palette: dict) -> None:
-        for element in elements:
+        for element in self._fitted_elements(draw, elements, draw.im.size[0]):
             if element["hidden"]:
                 continue
             text = self._safe_text(element["text"])
@@ -1244,7 +1276,7 @@ class LayoutRenderer:
         clock = next((item for item in widgets if item["type"] == "clock" and "design" in item), None)
         if clock is None:
             return None
-        element = next(item for item in resolve_elements({**clock, "settings": rendered_content(clock, stats)})
+        element = next(item for item in self._fitted_elements(draw, resolve_elements({**clock, "settings": rendered_content(clock, stats)}), clock["width"])
                        if item["id"] == "time")
         if element["hidden"]:
             return None
@@ -1415,7 +1447,7 @@ class LayoutRenderer:
         if width * height > MAX_RENDER_PIXELS:
             raise ValueError("$.canvas: rendering is limited to 16 million pixels")
         colors = doc["palette"] if palette is None else _palette(palette, "$.renderPalette")
-        frost = colors["name"] == FROST
+        frost = doc["palette"]["name"] == FROST or colors["name"] == FROST
         if frost != self._frost:
             # Wrapped lines were measured in the other face.
             self._wrapped.clear()

@@ -165,6 +165,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--url', default='http://127.0.0.1:5174', help='Loopback Studio origin for connected commands')
     commands = parser.add_subparsers(dest='command', required=True)
+    movie = commands.add_parser('movie', help='Override movie mode without modifying saved layouts')
+    movie.add_argument('mode', choices=('on', 'off', 'auto'))
     browse = commands.add_parser('catalog', help='Browse widget templates and variants')
     browse.add_argument('--search', default='', help='Search names, families, variants and descriptions')
     browse.add_argument('--group', help='Filter by a group ID from the catalog')
@@ -205,7 +207,13 @@ def main(argv=None) -> int:
     try:
         if hasattr(args, 'wait') and (not 0 <= args.wait <= 60):
             raise ValueError('--wait must be between 0 and 60 seconds')
-        if args.command == 'catalog':
+        if args.command == 'movie':
+            from turzx_studio.movie import MovieMode
+            from turzx_studio.storage import Paths
+            mode = MovieMode(Paths().state_dir)
+            mode.set_mode(args.mode)
+            result = {'movieMode': args.mode, 'active': mode.poll()}
+        elif args.command == 'catalog':
             result = browse_catalog(args.search, args.group)
         elif args.command == 'presets':
             result = [{'id': p['id'], 'name': p['name'], 'description': p['description']} for p in presets()['presets']]

@@ -14,6 +14,7 @@ from .layout import GAUGE_STYLES, METRIC_STYLES, WIDGET_TYPES, effective_palette
 from .renderer import LayoutRenderer, rendered_content
 from .watch import LayoutWatcher
 from .frost import ShellStyle
+from .movie import MovieMode, render_movie
 from .ground import WallpaperGround
 from .storage import Paths, PaletteWatcher, atomic_write
 from .t3_refresh import UsageRefresher, token_path
@@ -77,6 +78,7 @@ def assert_usb_available() -> None:
 class RuntimeIntegration:
     def __init__(self, paths: Paths | None = None, scheme: Path | None = None):
         self.paths = paths or Paths()
+        self.movie = MovieMode(self.paths.state_dir)
         self.layouts = LayoutWatcher(self.paths.layout, panel=True)
         # Only the real scheme follows the shell's style; an injected scheme stays as given.
         self.scheme = PaletteWatcher(scheme) if scheme else PaletteWatcher(
@@ -204,6 +206,11 @@ class RuntimeIntegration:
                 owner.rendered_layout = False
                 owner.rendered_revision = None
                 owner.rendered_view = 'stats'
+                if owner.movie.active:
+                    owner.rendered_layout = True
+                    owner.rendered_revision = owner.frame_revision
+                    owner.render_error = None
+                    return render_movie()
                 if owner.document is not None:
                     try:
                         rendered_revision = owner.frame_revision
@@ -228,6 +235,8 @@ class RuntimeIntegration:
                 owner.rendered_layout = False
                 owner.rendered_revision = None
                 owner.rendered_view = 'speedtest'
+                if owner.movie.active:
+                    return self.render(None)
                 return self.legacy.render_speedtest(state)
 
         def dirty(*args, **kwargs):
@@ -248,8 +257,13 @@ class RuntimeIntegration:
             live = owner.scheme.poll()
             owner.palette = effective_palette(owner.document, live) if owner.document else None
             owner.frame_revision = owner.layouts.revision
-            owner.publish(view=kwargs.get('view', 'stats'),
+            movie_active = owner.movie.poll()
+            owner.publish(movieMode=owner.movie.mode(), movieActive=movie_active,
+                          view=kwargs.get('view', 'stats'),
                           error=owner.render_error or owner.transport_error or owner.layouts.error or owner.scheme.error)
+            if movie_active:
+                # Ignore all sensor, playback and second changes while watching a movie.
+                return ('movie', time.localtime()[:5])
             palette_key = hashlib.sha256(json.dumps(owner.palette, sort_keys=True).encode()).hexdigest()
             key = (legacy_dirty(*args, **kwargs), owner.frame_revision, palette_key)
             if owner.document and owner.document.get('ground') == 'wallpaper':
@@ -336,6 +350,7 @@ class RuntimeIntegration:
             owner.frame_accepted = False
             owner.transport_error = None
             owner.response = None
+            brightness = owner.movie.brightness(brightness)
             ok, applied = legacy_write(lcd, frame, brightness, applied_brightness)
             response = owner.response
             changes = {'responseHex': response[:MAX_RESPONSE_BYTES].hex() if response is not None else None,
@@ -347,6 +362,7 @@ class RuntimeIntegration:
                 owner.invalidate_frame(connected=False, error=owner.transport_error, **changes)
                 return False, applied
             changes['connected'] = True
+            changes['brightness'] = applied
             if not owner.transport_ok or not owner.frame_accepted:
                 owner.transport_error = owner.transport_error or 'Panel upload acceptance unconfirmed: no frame reply observed'
                 owner.invalidate_frame(error=owner.transport_error, **changes)
@@ -354,13 +370,13 @@ class RuntimeIntegration:
             if rendered_layout and view == 'stats':
                 changes.update(appliedRevision=rendered_revision, error=owner.layouts.error or owner.scheme.error)
                 now = time.monotonic()
-                if rendered_revision != owner.status.get('frameRevision') or now - owner.last_capture >= 10:
+                if rendered_revision != owner.status.get('frameRevision') or owner.movie.active != owner.status.get('frameMovieActive') or now - owner.last_capture >= 10:
                     try:
                         from io import BytesIO
                         buffer = BytesIO()
                         frame.save(buffer, format='PNG')
                         atomic_write(owner.paths.frame, buffer.getvalue())
-                        changes.update(frameRevision=rendered_revision, frameTime=time.time())
+                        changes.update(frameRevision=rendered_revision, frameTime=time.time(), frameMovieActive=owner.movie.active)
                         owner.last_capture = now
                     except OSError as error:
                         changes['error'] = f'Panel frame capture unavailable: {error}'
