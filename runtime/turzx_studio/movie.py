@@ -9,6 +9,8 @@ from .storage import atomic_write
 
 # Add exact wallpaper paths here to opt more backgrounds into automatic movie mode.
 MOVIE_WALLPAPERS = (Path.home() / 'Pictures/Wallpapers/Folio/folio-charcoal-dark.png',)
+# Exact ddcutil detect --brief identity; resolve its current bus on each transition.
+MOVIE_MONITOR = 'AUS:VG27WQ:S6LMDW006081'
 MOVIE_BRIGHTNESS = 12
 MOVIE_INK = '#808080'
 

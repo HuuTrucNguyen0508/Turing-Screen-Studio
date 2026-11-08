@@ -14,7 +14,8 @@ from .layout import GAUGE_STYLES, METRIC_STYLES, WIDGET_TYPES, effective_palette
 from .renderer import LayoutRenderer, rendered_content
 from .watch import LayoutWatcher
 from .frost import ShellStyle
-from .movie import MovieMode, render_movie
+from .movie import MovieMode, MOVIE_MONITOR, render_movie
+from .movie_backlight import MovieBacklight
 from .ground import WallpaperGround
 from .storage import Paths, PaletteWatcher, atomic_write
 from .t3_refresh import UsageRefresher, token_path
@@ -79,6 +80,7 @@ class RuntimeIntegration:
     def __init__(self, paths: Paths | None = None, scheme: Path | None = None):
         self.paths = paths or Paths()
         self.movie = MovieMode(self.paths.state_dir)
+        self.movie_backlight = MovieBacklight(self.paths.state_dir, MOVIE_MONITOR)
         self.layouts = LayoutWatcher(self.paths.layout, panel=True)
         # Only the real scheme follows the shell's style; an injected scheme stays as given.
         self.scheme = PaletteWatcher(scheme) if scheme else PaletteWatcher(
@@ -258,6 +260,7 @@ class RuntimeIntegration:
             owner.palette = effective_palette(owner.document, live) if owner.document else None
             owner.frame_revision = owner.layouts.revision
             movie_active = owner.movie.poll()
+            owner.movie_backlight.update(movie_active)
             owner.publish(movieMode=owner.movie.mode(), movieActive=movie_active,
                           view=kwargs.get('view', 'stats'),
                           error=owner.render_error or owner.transport_error or owner.layouts.error or owner.scheme.error)
