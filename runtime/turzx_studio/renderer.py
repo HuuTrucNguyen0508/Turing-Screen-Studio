@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import locale
 import math
 from pathlib import Path
 import re
@@ -1314,8 +1315,22 @@ class LayoutRenderer:
     @staticmethod
     def _long_date(raw: str) -> str:
         """Frost's clock date, "samedi 7 novembre", in the runtime's own time locale."""
-        now = datetime.now()
-        return now.strftime("%A ") + str(now.day) + now.strftime(" %B") if raw != "—" else raw
+        if raw == "—":
+            return raw
+        # The live runtime inherits the user's locale from the dashboard's own imports. An offline render
+        # starts in "C" and would print English names on a French panel: borrow the environment's
+        # LC_TIME for this one call and put the process locale back, so other date text is unaffected.
+        previous = locale.setlocale(locale.LC_TIME)
+        if previous in ("C", "POSIX"):
+            try:
+                locale.setlocale(locale.LC_TIME, "")
+            except locale.Error:
+                pass
+        try:
+            now = datetime.now()
+            return now.strftime("%A ") + str(now.day) + now.strftime(" %B")
+        finally:
+            locale.setlocale(locale.LC_TIME, previous)
 
     def render(self, document: object, stats: object = None, palette: object = None) -> Image.Image:
         """Return RGB pixels in document dimensions, rejecting huge allocations."""

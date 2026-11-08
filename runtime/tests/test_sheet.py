@@ -347,6 +347,23 @@ class FrostRhythmTests(unittest.TestCase):
         self.assertFalse([text for text in texts if "working" in text], texts)
         self.assertNotIn("Activity unavailable", texts)
 
+    def test_date_follows_the_panels_time_locale(self):
+        import locale
+        previous = locale.setlocale(locale.LC_TIME)
+        try:
+            locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
+        except locale.Error:
+            self.skipTest("fr_FR.UTF-8 is not installed")
+        try:
+            locale.setlocale(locale.LC_TIME, "C")
+            with unittest.mock.patch.dict("os.environ", {"LC_TIME": "fr_FR.UTF-8"}):
+                text = LayoutRenderer._long_date("x")
+            self.assertTrue(text.split()[0] in ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"), text)
+            # The borrowed locale is given back: other date text keeps the process locale.
+            self.assertEqual(locale.setlocale(locale.LC_TIME), "C")
+        finally:
+            locale.setlocale(locale.LC_TIME, previous)
+
 
 def usage_snapshot(codex_five_hour=13, claude_weekly_stale=False, observed="2026-11-07T20:00:00Z"):
     """A collector snapshot shaped like GET /api/usage, served at 22:46 UTC."""
