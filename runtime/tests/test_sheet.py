@@ -109,7 +109,7 @@ class SheetRenderTests(unittest.TestCase):
         stats = SimpleNamespace(cpu_percent=50, cpu_temp=70, cpu_freq_mhz=5000, cpu_name="Ryzen", clock="sam. 07 nov.  23:46")
         image = self.renderer.render(SHEET, stats=stats)
         cpu = widget(SHEET, "cpu")
-        meter_y = cpu["y"] + 161
+        meter_y = cpu["y"] + 178
         lit = [x for x in range(cpu["x"], cpu["x"] + cpu["width"]) if image.getpixel((x, meter_y))[0] > 200]
         self.assertEqual((min(lit), max(lit)), (cpu["x"], cpu["x"] + 91))
 
@@ -252,18 +252,19 @@ class FrostRhythmTests(unittest.TestCase):
                 spans = [lit_rows(image, 580, 1200, *band) for band in bands]
                 top_padding = spans[0][0] - slab["y"]
                 gaps = [rules[0] - spans[0][-1], spans[1][0] - rules[0], rules[1] - spans[1][-1], spans[2][0] - rules[1]]
-                # Content starts ~50 px below the slab top, like the 50 px either side of a hairline.
-                self.assertTrue(47 <= top_padding <= 53, top_padding)
+                # Content starts ~44 px below the slab top, like the ~44 px either side of a hairline
+                # (the 72 px figures and 6 px meters take the rest of the slab).
+                self.assertTrue(41 <= top_padding <= 47, top_padding)
                 for gap in gaps:
-                    self.assertTrue(46 <= gap <= 58, gaps)
-                self.assertTrue(abs(top_padding - sum(gaps) / 4) <= 3, (top_padding, gaps))
+                    self.assertTrue(41 <= gap <= 52, gaps)
+                self.assertTrue(abs(top_padding - sum(gaps) / 4) <= 4, (top_padding, gaps))
                 # Four thread rows still fit inside the slab, ink clear of its bottom edge.
                 self.assertLessEqual(spans[2][-1], slab["y"] + slab["height"] - 12)
 
     def test_four_thread_rows_still_fit(self):
         for layout in (SHEET, AI):
             top = widget(layout, "t3-threads")
-            self.assertGreaterEqual((top["height"] - 30 + 12) // 36, 4)
+            self.assertGreaterEqual((top["height"] - 30 + 8) // 32, 4)
             self.assertLessEqual(top["y"] + top["height"], widget(layout, "sheet")["y"] + widget(layout, "sheet")["height"] - 10)
 
     def test_clock_cap_line_sits_on_the_slabs_first_label_row(self):
@@ -418,7 +419,7 @@ class UsageSheetTests(unittest.TestCase):
             self.assertIn(fact, self.drawn)
         # Codex weekly meter: 90 % of a 132 px column that starts at x 744.
         limits = widget(AI, "usage-limits")
-        meter_y = limits["y"] + 161
+        meter_y = limits["y"] + 178
         lit = [x for x in range(744, 744 + 132) if image.getpixel((x, meter_y))[0] > 200]
         self.assertEqual((min(lit), max(lit)), (744, 744 + 118))
 
@@ -433,7 +434,7 @@ class UsageSheetTests(unittest.TestCase):
         self.assertIn("—", self.drawn)
         self.assertNotIn("–", self.drawn)
         self.assertEqual(self.drawn.count("unavailable"), 1)
-        meter_y = widget(AI, "usage-limits")["y"] + 161
+        meter_y = widget(AI, "usage-limits")["y"] + 178
         self.assertFalse(any(image.getpixel((x, meter_y))[0] > 200 for x in range(588, 588 + 132)))
 
     def test_a_run_of_empty_limit_columns_says_unavailable_once(self):

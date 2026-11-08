@@ -34,7 +34,7 @@
       "id": "clock",
       "type": "clock",
       "x": 56,
-      "y": 60,
+      "y": 55,
       "width": 480,
       "height": 260,
       "settings": {
@@ -71,7 +71,7 @@
       "id": "weather",
       "type": "weather",
       "x": 56,
-      "y": 320,
+      "y": 315,
       "width": 480,
       "height": 382,
       "settings": {
@@ -90,9 +90,9 @@
       "id": "usage-limits",
       "type": "metric",
       "x": 588,
-      "y": 110,
+      "y": 105,
       "width": 600,
-      "height": 164,
+      "height": 186,
       "settings": {
         "label": "Quota limits",
         "value": "",
@@ -107,7 +107,7 @@
       "id": "rule-1",
       "type": "text",
       "x": 588,
-      "y": 320,
+      "y": 330,
       "width": 600,
       "height": 1,
       "settings": {
@@ -120,7 +120,7 @@
       "id": "usage-tokens",
       "type": "metric",
       "x": 588,
-      "y": 367,
+      "y": 374,
       "width": 288,
       "height": 116,
       "settings": {
@@ -137,7 +137,7 @@
       "id": "usage-cost",
       "type": "metric",
       "x": 900,
-      "y": 367,
+      "y": 374,
       "width": 288,
       "height": 116,
       "settings": {
@@ -154,7 +154,7 @@
       "id": "rule-2",
       "type": "text",
       "x": 588,
-      "y": 517,
+      "y": 524,
       "width": 600,
       "height": 1,
       "settings": {
@@ -167,9 +167,9 @@
       "id": "t3-threads",
       "type": "metric",
       "x": 588,
-      "y": 564,
+      "y": 565,
       "width": 600,
-      "height": 162,
+      "height": 150,
       "settings": {
         "label": "Threads",
         "value": "2",

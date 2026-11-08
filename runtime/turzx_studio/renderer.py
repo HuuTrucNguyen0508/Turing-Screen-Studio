@@ -32,6 +32,9 @@ _DIGIT_RUNS = re.compile(r"\d+|\D+")
 # the figure keeps its distance from the figure's line box, so the block is 116 px taller than it.
 WEATHER_FIGURE = 144
 WEATHER_BLOCK = WEATHER_FIGURE + 100
+# Sheet readings: figures over a meter, sized for reading across a desk.
+SHEET_FIGURE = 72
+SHEET_METER = 6
 # English month abbreviations for sheet copy, independent of the runtime's time locale.
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -1004,13 +1007,20 @@ class LayoutRenderer:
         self._draw_text(draw, xy, text, fill, size, family, anchor)
         return self._length(draw, text, family, size)
 
-    def _figure_x(self, draw: ImageDraw.ImageDraw, figure: str, above: str, family: str, size: int, left: float = 0) -> float:
-        """x for a 56 px thin figure so its ink starts where the line above it does: the digits'
-        side bearing is 3 to 6 px, the label's about 1."""
-        return left + self._ink_span(draw, above, family, size)[0] - self._ink_span(draw, figure, "mono", 56)[0]
+    def _figure_x(self, draw: ImageDraw.ImageDraw, figure: str, above: str, family: str, size: int, left: float = 0,
+                  figure_size: int = 56) -> float:
+        """x for a thin figure so its ink starts where the line above it does: the digits'
+        side bearing is 3 to 8 px, the label's about 1."""
+        return left + self._ink_span(draw, above, family, size)[0] - self._ink_span(draw, figure, "mono", figure_size)[0]
+
+    def _figure_size(self, draw: ImageDraw.ImageDraw, figure: str, width: float) -> int:
+        """SHEET_FIGURE px, or smaller when the figure would not fit its column ("100%" in a narrow one)."""
+        span = self._ink_span(draw, figure, "mono", SHEET_FIGURE)
+        ink_width = span[1] - span[0]
+        return SHEET_FIGURE if ink_width <= width - 4 else max(40, math.floor(SHEET_FIGURE * (width - 4) / ink_width))
 
     def _sheet_figure(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
-        """Title, device name, a 56 px figure, up to two "value word" facts and a 3 px meter."""
+        """Title, device name, a 72 px figure, up to two "value word" facts and a 6 px meter."""
         value = settings["value"]
         label = self._fit(draw, settings["label"], "medium", 15, width)
         self._ink_text(ink, (0, baseline(0, 20, 15)), label, 15, "medium")
@@ -1018,15 +1028,16 @@ class LayoutRenderer:
             self._ink_text(ink, (0, baseline(20, 20, 14)), self._fit(draw, settings["name"], "sans", 14, width), 14, alpha=INK2)
         unit = settings["unit"]
         figure = "—" if value is None else f"{math.floor(value + .5)}{unit if unit in ('%', '') else ' ' + unit}"
-        self._ink_text(ink, (self._figure_x(draw, figure, label, "medium", 15), baseline(48, 56, 56)), figure, 56, "mono")
+        size = self._figure_size(draw, figure, width)
+        self._ink_text(ink, (self._figure_x(draw, figure, label, "medium", 15, figure_size=size), baseline(48, SHEET_FIGURE, size)), figure, size, "mono")
         facts = settings.get("facts")
         if facts is None:
             facts = [(settings["detail"], "")] if settings["detail"] else []
         for index, (amount, word) in enumerate(facts[:2]):
-            self._fact(ink, draw, (0, baseline(112 + index * 20, 20, 14)), amount, word, width)
+            self._fact(ink, draw, (0, baseline(128 + index * 20, 20, 14)), amount, word, width)
         fraction = 0 if value is None else gauge_fraction(value, settings["min"], settings["max"])
-        ink.bar((0, 160, width, 163), TRACK)
-        ink.bar((0, 160, round(width * fraction), 163))
+        ink.bar((0, 176, width, 176 + SHEET_METER), TRACK)
+        ink.bar((0, 176, round(width * fraction), 176 + SHEET_METER))
 
     def _sheet_storage(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
         """Storage as columns: name and share, meter, used of total, free."""
@@ -1043,28 +1054,28 @@ class LayoutRenderer:
             valid = type(percent) in (int, float) and math.isfinite(percent) and 0 <= percent <= 100
             share = (f"{math.floor(percent + .5)}%" + ("*" if row.get("stale") else "") + ("+" if row.get("partial") else "")
                      if valid else "—")
-            y = baseline(28, 20, 14)
-            share_width = self._length(draw, share, "medium", 14)
-            name = self._fit(draw, storage_row_name(row, settings.get("filtered", False)), "medium", 14, column - share_width - 8)
-            self._ink_text(ink, (left, y), name, 14, "medium")
-            self._ink_text(ink, (left + column, y), share, 14, "medium", anchor="rs")
-            ink.bar((left, 54, left + column, 57), TRACK)
+            y = baseline(28, 28, 28)
+            share_width = self._length(draw, share, "mono", 28)
+            name = self._fit(draw, storage_row_name(row, settings.get("filtered", False)), "medium", 15, column - share_width - 8)
+            self._ink_text(ink, (left, y), name, 15, "medium")
+            self._ink_text(ink, (left + column, y), share, 28, "mono", anchor="rs")
+            ink.bar((left, 64, left + column, 64 + SHEET_METER), TRACK)
             if valid:
-                ink.bar((left, 54, left + round(column * percent / 100), 57))
+                ink.bar((left, 64, left + round(column * percent / 100), 64 + SHEET_METER))
             used, total, free = (storage_size(row.get(key)) for key in ("usedGiB", "totalGiB", "freeGiB"))
             if row.get("partial") and row.get("usedGiB") is not None:
                 used += "+"
             used_number, _, used_unit = used.partition(" ")
             detail = f"{used_number} of {total}" if used_unit and total.endswith(" " + used_unit) else f"{used} of {total}"
-            self._ink_text(ink, (left, baseline(64, 20, 14)), self._fit(draw, detail, "sans", 14, column), 14, alpha=INK2)
-            self._ink_text(ink, (left, baseline(84, 20, 14)), self._fit(draw, f"{free} free", "sans", 14, column), 14, alpha=INK2)
+            self._ink_text(ink, (left, baseline(78, 20, 14)), self._fit(draw, detail, "sans", 14, column), 14, alpha=INK2)
+            self._ink_text(ink, (left, baseline(98, 20, 14)), self._fit(draw, f"{free} free", "sans", 14, column), 14, alpha=INK2)
 
     def _sheet_threads(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
         """Threads: a title with the working count, then one line per thread. Without activity data
         it says so once and shows no count."""
         data = dashboard_rows(settings["detail"])
         title_width = self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width / 2), 15, "medium")
-        capacity = max(0, (height - 30 + 12) // 36)
+        capacity = max(0, (height - 30 + 8) // 32)
         threads = data["threads"]
         shown = threads[:capacity]
         if data["working"] is not None:
@@ -1079,7 +1090,7 @@ class LayoutRenderer:
             empty = "Thread activity unavailable" if data["working"] is None else "No threads working"
             self._ink_text(ink, (0, baseline(30, 24, 14)), empty, 14, alpha=INK2)
         for index, row in enumerate(shown):
-            top = 30 + index * 36
+            top = 30 + index * 32
             self._ink_text(ink, (0, baseline(top, 24, 15)), self._fit(draw, row["title"], "sans", 15, min(400, width - 200)), 15)
             self._ink_text(ink, (width - 90, baseline(top, 24, 14)), statuses.get(row["status"], "Waiting"), 14, alpha=INK2, anchor="rs")
             provider = providers.get(row["provider"], row["provider"])
@@ -1095,7 +1106,7 @@ class LayoutRenderer:
 
     def _sheet_limits(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
         """Quota limits as figure columns: provider over its first window, the window name,
-        the used share, the time until reset and a 3 px meter."""
+        the used share, the time until reset and a 6 px meter."""
         lines = settings["detail"].split("\n")
         rows = [line.split("\t") for line in lines[1:9]]
         rows = [row for row in rows if len(row) == 5 and row[0] in ("Codex", "Claude")][:4]
@@ -1129,14 +1140,15 @@ class LayoutRenderer:
             percent = readings[index]
             known = percent is not None
             figure = f"{math.floor(percent + .5)}%" if known else "—"
-            self._ink_text(ink, (self._figure_x(draw, figure, above, above_family, above_size, left), baseline(48, 56, 56)), figure, 56, "mono")
+            size = self._figure_size(draw, figure, column)
+            self._ink_text(ink, (self._figure_x(draw, figure, above, above_family, above_size, left, size), baseline(48, SHEET_FIGURE, size)), figure, size, "mono")
             if not known:
                 # One line for a run of empty columns, under the first of them.
                 run = 1
                 while index + run < len(rows) and readings[index + run] is None:
                     run += 1
                 if index == 0 or readings[index - 1] is not None:
-                    self._fact(ink, draw, (left, baseline(112, 20, 14)), "",
+                    self._fact(ink, draw, (left, baseline(128, 20, 14)), "",
                                "unavailable" if run == 1 else "Quota unavailable", column * run + 24 * (run - 1))
             else:
                 estimate = reset.endswith(" · estimate")
@@ -1147,12 +1159,12 @@ class LayoutRenderer:
                     amount, word = "", "reset pending"
                 else:
                     amount, word = "", "reset unknown"
-                self._fact(ink, draw, (left, baseline(112, 20, 14)), amount, word, column)
+                self._fact(ink, draw, (left, baseline(128, 20, 14)), amount, word, column)
                 if "stale" in state and dated:
-                    self._fact(ink, draw, (left, baseline(132, 20, 14)), "", f"as of {datetime.fromtimestamp(observed):%H:%M}", column)
-            ink.bar((left, 160, left + column, 163), TRACK)
+                    self._fact(ink, draw, (left, baseline(148, 20, 14)), "", f"as of {datetime.fromtimestamp(observed):%H:%M}", column)
+            ink.bar((left, 176, left + column, 176 + SHEET_METER), TRACK)
             if known:
-                ink.bar((left, 160, left + round(column * percent / 100), 163))
+                ink.bar((left, 176, left + round(column * percent / 100), 176 + SHEET_METER))
 
     @staticmethod
     def _dollars(amount: str) -> str:
