@@ -102,10 +102,11 @@ def dashboard_content(widget, stats=None, *, now=None):
 
 
 class DashboardStats:
-    def __init__(self, parent, activity=None, games=None):
+    def __init__(self, parent, activity=None, games=None, playing=None):
         self.parent = parent
         self.t3_activity = activity
         self.game_resources = games
+        self.now_playing = playing
 
     def __getattr__(self, name):
         return getattr(self.parent, name, None)

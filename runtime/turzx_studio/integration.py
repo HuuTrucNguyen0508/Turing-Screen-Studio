@@ -20,6 +20,7 @@ from .t3_refresh import UsageRefresher, token_path
 from .usage import UsageCollector
 from .usage_display import USAGE_SOURCES, UsageStats
 from .activity import T3Activity
+from .now_playing import NowPlaying
 from .games import GameResources
 from .dashboard_display import DASHBOARD_SOURCES, DashboardStats, dashboard_content
 from .live import LiveHistory, HistoryStats
@@ -100,6 +101,8 @@ class RuntimeIntegration:
         self.games = GameResources(self.paths.state_dir / 'game-timers.json')
         self.activity_snapshot = None
         self.games_snapshot = None
+        self.now_playing = NowPlaying()
+        self.playing_snapshot = None
         self.usb_device = None
         self.ground = WallpaperGround()
         self.live = LiveHistory()
@@ -207,8 +210,10 @@ class RuntimeIntegration:
                         display_stats = HistoryStats(stats, owner.live.histories) if stats is not None else None
                         if owner.usage_snapshot is not None:
                             display_stats = UsageStats(display_stats, owner.usage_snapshot)
-                        if owner.activity_snapshot is not None or owner.games_snapshot is not None:
-                            display_stats = DashboardStats(display_stats, owner.activity_snapshot, owner.games_snapshot)
+                        if (owner.activity_snapshot is not None or owner.games_snapshot is not None
+                                or owner.playing_snapshot is not None):
+                            display_stats = DashboardStats(display_stats, owner.activity_snapshot, owner.games_snapshot,
+                                                           owner.playing_snapshot)
                         frame = self.layout.render(owner.document, stats=display_stats, palette=owner.palette)
                         owner.rendered_layout = True
                         owner.rendered_revision = rendered_revision
@@ -253,6 +258,12 @@ class RuntimeIntegration:
             sources = {widget['settings'].get('source') for widget in owner.document['widgets']} if owner.document else set()
             owner.activity_snapshot = dashboard_snapshot(owner.activity) if 't3-threads' in sources else None
             owner.games_snapshot = dashboard_snapshot(owner.games) if 'game-resources' in sources else None
+            # The fog weather block also shows what's playing; a new track or a pause redraws the frame.
+            fog = owner.document and any(widget['type'] == 'weather' and widget['settings'].get('style') == 'block'
+                                         for widget in owner.document['widgets'])
+            owner.playing_snapshot = dashboard_snapshot(owner.now_playing) if fog else None
+            if owner.playing_snapshot is not None:
+                key = (*key, json.dumps(owner.playing_snapshot, sort_keys=True))
             if sources.intersection(DASHBOARD_SOURCES):
                 transient = DashboardStats(None, owner.activity_snapshot, owner.games_snapshot)
                 displayed = [dashboard_content(widget, transient) for widget in owner.document['widgets']

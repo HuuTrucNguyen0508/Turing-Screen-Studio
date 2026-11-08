@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import locale
 import math
+import os
 from pathlib import Path
 import re
 
@@ -32,6 +33,8 @@ _DIGIT_RUNS = re.compile(r"\d+|\D+")
 # the figure keeps its distance from the figure's line box, so the block is 116 px taller than it.
 WEATHER_FIGURE = 144
 WEATHER_BLOCK = WEATHER_FIGURE + 100
+# What's playing sits under the weather: a 64 px cover beside title and artist, 36 px below the humidity line.
+NOW_PLAYING_GAP, NOW_PLAYING_COVER = 36, 64
 # Sheet readings: figures over a meter, sized for reading across a desk.
 SHEET_FIGURE = 72
 SHEET_METER = 6
@@ -153,6 +156,11 @@ def rendered_content(widget: dict, stats: object = None, today=None) -> dict:
             feels, humidity = _number(stats, "weather_feels_like_c"), _number(stats, "weather_humidity")
             settings.update(city=city, feels=None if feels is None else _format(feels),
                             humidity=None if humidity is None else _format(humidity))
+            playing = getattr(stats, "now_playing", None)
+            if isinstance(playing, dict) and isinstance(playing.get("title"), str) and playing["title"].strip():
+                settings["nowPlaying"] = {"title": playing["title"].strip(), "artist": str(playing.get("artist") or "").strip(),
+                                          "playing": playing.get("playing") is True,
+                                          "art": playing["art"] if isinstance(playing.get("art"), str) else None}
     elif source in ("cpu-temperature", "gpu-temperature"):
         name = getattr(stats, "cpu_name" if source == "cpu-temperature" else "gpu_name", None)
         settings.update(value=_format(_number(stats, "cpu_temp" if source == "cpu-temperature" else "gpu_temp")),
@@ -1253,7 +1261,9 @@ class LayoutRenderer:
         """Weather on the fog, centred vertically in the widget: a 144 px temperature, a 34 px glyph beside
         the condition (one group), then place and humidity. With a clock the whole block is centred on the
         clock's time ink and clamped to the widget edges; without one it is left-aligned."""
-        top = max(0, (height - WEATHER_BLOCK) // 2)
+        playing = settings.get("nowPlaying")
+        block = WEATHER_BLOCK + (NOW_PLAYING_GAP + NOW_PLAYING_COVER if playing else 0)
+        top = max(0, (height - block) // 2)
         figure_box = top + WEATHER_FIGURE
         centre = settings.get("clockCentre")
 
@@ -1300,6 +1310,58 @@ class LayoutRenderer:
                 line = self._fit(draw, line, "sans", 17, width - margin)
                 self._ink_text(ink, (across(self._length(draw, line, "sans", 17), 8), baseline(figure_box + 48 + 26 * index, 26, 17)),
                                line, 17, alpha=INK2)
+        if playing:
+            self._sheet_playing(ink, draw, width, top + WEATHER_BLOCK + NOW_PLAYING_GAP, playing, across)
+
+    def _sheet_playing(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, y: int, playing: dict, across) -> None:
+        """Cover, then title over artist; a paused track reads in ink2 with "Paused" before the artist."""
+        cover, gap = NOW_PLAYING_COVER, 16
+        room = min(width - cover - gap, 300)
+        title = self._fit(draw, playing["title"], "medium", 19, room)
+        artist = " · ".join(part for part in ("" if playing["playing"] else "Paused", playing["artist"]) if part)
+        artist = self._fit(draw, artist, "sans", 16, room) if artist else ""
+        text_width = max(self._length(draw, title, "medium", 19), self._length(draw, artist, "sans", 16) if artist else 0)
+        x = across(cover + gap + text_width, 8)
+        art = self._cover(playing.get("art"), cover)
+        if art is not None:
+            ink.card.paste(art, (round(x), y), art)
+        else:
+            plate_draw, fill = ink.target(.14)
+            plate_draw.rounded_rectangle((round(x), y, round(x) + cover - 1, y + cover - 1), radius=12, fill=fill)
+        text_x = x + cover + gap
+        title_alpha = 1.0 if playing["playing"] else INK2
+        if artist:
+            self._ink_text(ink, (text_x, baseline(y + 6, 26, 19)), title, 19, "medium", alpha=title_alpha)
+            self._ink_text(ink, (text_x, baseline(y + 34, 24, 16)), artist, 16, alpha=INK2)
+        else:
+            self._ink_text(ink, (text_x, baseline(y + 19, 26, 19)), title, 19, "medium", alpha=title_alpha)
+
+    def _cover(self, path: str | None, size: int) -> Image.Image | None:
+        """Album art cropped square, scaled and rounded to Frost's 12 px; cached by path and mtime."""
+        if not path:
+            return None
+        try:
+            stamp = os.stat(path).st_mtime_ns
+        except OSError:
+            return None
+        key = path, stamp, size
+        cache = self.__dict__.setdefault("_covers", {})
+        if key not in cache:
+            try:
+                with Image.open(path) as source:
+                    image = source.convert("RGB")
+            except (OSError, ValueError, Image.DecompressionBombError):
+                return None
+            side = min(image.size)
+            left, upper = (image.width - side) // 2, (image.height - side) // 2
+            image = image.crop((left, upper, left + side, upper + side)).resize((size, size), Image.LANCZOS).convert("RGBA")
+            mask = Image.new("L", (size * 4, size * 4), 0)
+            ImageDraw.Draw(mask).rounded_rectangle((0, 0, size * 4 - 1, size * 4 - 1), radius=48, fill=255)
+            image.putalpha(mask.resize((size, size), Image.LANCZOS))
+            if len(cache) >= 16:
+                cache.clear()
+            cache[key] = image
+        return cache[key]
 
     def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:
         """Draw a sheet variant; return False for widgets without one."""
