@@ -1059,14 +1059,15 @@ class LayoutRenderer:
             self._ink_text(ink, (left, baseline(84, 20, 14)), self._fit(draw, f"{free} free", "sans", 14, column), 14, alpha=INK2)
 
     def _sheet_threads(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
-        """Threads: a title with the working count, then one line per thread."""
+        """Threads: a title with the working count, then one line per thread. Without activity data
+        it says so once and shows no count."""
         data = dashboard_rows(settings["detail"])
         title_width = self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width / 2), 15, "medium")
         capacity = max(0, (height - 30 + 12) // 36)
         threads = data["threads"]
         shown = threads[:capacity]
-        count = ("Activity unavailable" if data["working"] is None else f"{data['working']} working")
-        self._ink_text(ink, (max(76, title_width + 16), baseline(0, 20, 14)), count, 14, alpha=INK2)
+        if data["working"] is not None:
+            self._ink_text(ink, (max(76, title_width + 16), baseline(0, 20, 14)), f"{data['working']} working", 14, alpha=INK2)
         # The collector lists a bounded number of threads; the working count can be larger.
         hidden = max(len(threads), data["working"] or 0) - len(shown)
         if hidden > 0 and shown:
@@ -1074,10 +1075,11 @@ class LayoutRenderer:
         statuses = {"running": "Working", "waiting_approval": "Needs approval", "waiting_input": "Needs input", "waiting": "Waiting"}
         providers = {"codex-pro": "Codex Pro", "codex": "Codex", "claudeAgent": "Claude", "cursor": "Cursor"}
         if not shown and capacity:
-            self._ink_text(ink, (0, baseline(30, 24, 14)), "No threads working", 14, alpha=INK2)
+            empty = "Thread activity unavailable" if data["working"] is None else "No threads working"
+            self._ink_text(ink, (0, baseline(30, 24, 14)), empty, 14, alpha=INK2)
         for index, row in enumerate(shown):
             top = 30 + index * 36
-            self._ink_text(ink, (0, baseline(top, 24, 15)), self._fit(draw, row["title"], "medium", 15, min(400, width - 200)), 15, "medium")
+            self._ink_text(ink, (0, baseline(top, 24, 15)), self._fit(draw, row["title"], "sans", 15, min(400, width - 200)), 15)
             self._ink_text(ink, (width - 90, baseline(top, 24, 14)), statuses.get(row["status"], "Waiting"), 14, alpha=INK2, anchor="rs")
             provider = providers.get(row["provider"], row["provider"])
             self._ink_text(ink, (width, baseline(top, 24, 14)), self._fit(draw, provider, "sans", 14, 70), 14, alpha=INK2, anchor="rs")
@@ -1106,6 +1108,15 @@ class LayoutRenderer:
                  and datetime.now(timezone.utc).timestamp() - observed > 3600)
         column = (width - 24 * (len(rows) - 1)) // len(rows)
         previous = None
+
+        def reading(display: str) -> float | None:
+            try:
+                percent = float(display)
+            except ValueError:
+                return None
+            return percent if math.isfinite(percent) and 0 <= percent <= 100 else None
+
+        readings = [reading(row[2]) for row in rows]
         for index, (provider, window, display, reset, state) in enumerate(rows):
             left = index * (column + 24)
             above, above_family, above_size = self._fit(draw, window, "sans", 14, column), "sans", 14
@@ -1114,26 +1125,30 @@ class LayoutRenderer:
                 self._ink_text(ink, (left, baseline(0, 20, 15)), above, 15, "medium")
             previous = provider
             self._ink_text(ink, (left, baseline(20, 20, 14)), self._fit(draw, window, "sans", 14, column), 14, alpha=INK2)
-            try:
-                percent = float(display)
-            except ValueError:
-                percent = None
-            known = percent is not None and math.isfinite(percent) and 0 <= percent <= 100
-            reading = f"{math.floor(percent + .5)}%" if known else "–"
-            self._ink_text(ink, (self._figure_x(draw, reading, above, above_family, above_size, left), baseline(48, 56, 56)), reading, 56, "mono")
-            estimate = reset.endswith(" · estimate")
-            reset = reset.removesuffix(" · estimate")
+            percent = readings[index]
+            known = percent is not None
+            figure = f"{math.floor(percent + .5)}%" if known else "—"
+            self._ink_text(ink, (self._figure_x(draw, figure, above, above_family, above_size, left), baseline(48, 56, 56)), figure, 56, "mono")
             if not known:
-                amount, word = "", "unavailable"
-            elif reset.startswith("resets "):
-                amount, word = ("~" if estimate else "") + reset.removeprefix("resets "), "until reset"
-            elif reset.startswith("reset time passed"):
-                amount, word = "", "reset pending"
+                # One line for a run of empty columns, under the first of them.
+                run = 1
+                while index + run < len(rows) and readings[index + run] is None:
+                    run += 1
+                if index == 0 or readings[index - 1] is not None:
+                    self._fact(ink, draw, (left, baseline(112, 20, 14)), "",
+                               "unavailable" if run == 1 else "Quota unavailable", column * run + 24 * (run - 1))
             else:
-                amount, word = "", "reset unknown"
-            self._fact(ink, draw, (left, baseline(112, 20, 14)), amount, word, column)
-            if known and "stale" in state and dated:
-                self._fact(ink, draw, (left, baseline(132, 20, 14)), "", f"as of {datetime.fromtimestamp(observed):%H:%M}", column)
+                estimate = reset.endswith(" · estimate")
+                reset = reset.removesuffix(" · estimate")
+                if reset.startswith("resets "):
+                    amount, word = ("~" if estimate else "") + reset.removeprefix("resets "), "until reset"
+                elif reset.startswith("reset time passed"):
+                    amount, word = "", "reset pending"
+                else:
+                    amount, word = "", "reset unknown"
+                self._fact(ink, draw, (left, baseline(112, 20, 14)), amount, word, column)
+                if "stale" in state and dated:
+                    self._fact(ink, draw, (left, baseline(132, 20, 14)), "", f"as of {datetime.fromtimestamp(observed):%H:%M}", column)
             ink.bar((left, 160, left + column, 163), TRACK)
             if known:
                 ink.bar((left, 160, left + round(column * percent / 100), 163))

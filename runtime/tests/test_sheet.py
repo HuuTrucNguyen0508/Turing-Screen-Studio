@@ -326,6 +326,27 @@ class FrostRhythmTests(unittest.TestCase):
         self.assertIn("100% humidity", drawn)
         self.assertFalse([text for text in drawn if " %" in text], drawn)
 
+    def test_thread_titles_are_regular_and_unavailable_activity_has_no_count(self):
+        calls = []
+        original = self.renderer._ink_text
+
+        def spy(ink, xy, text, size, family="sans", *args, **kwargs):
+            calls.append((text, family))
+            return original(ink, xy, text, size, family, *args, **kwargs)
+
+        self.renderer._ink_text = spy
+        self.renderer.render(SHEET, stats=self.stats(threads=2))
+        self.assertIn(("Thread 0", "sans"), calls)
+        self.assertIn(("Threads", "medium"), calls)
+        calls.clear()
+        unavailable = DashboardStats(SimpleNamespace(), {"status": "unavailable", "working": None, "threads": [], "note": "x"}, None)
+        self.renderer.render(SHEET, stats=unavailable)
+        texts = [text for text, _ in calls]
+        self.assertIn("Thread activity unavailable", texts)
+        self.assertNotIn("No threads working", texts)
+        self.assertFalse([text for text in texts if "working" in text], texts)
+        self.assertNotIn("Activity unavailable", texts)
+
 
 def usage_snapshot(codex_five_hour=13, claude_weekly_stale=False, observed="2026-11-07T20:00:00Z"):
     """A collector snapshot shaped like GET /api/usage, served at 22:46 UTC."""
@@ -389,13 +410,33 @@ class UsageSheetTests(unittest.TestCase):
         self.render(usage_snapshot(claude_weekly_stale=True, observed=recent))
         self.assertFalse(any(text.startswith("as of") for text in self.drawn), self.drawn)
 
-    def test_an_unknown_quota_shows_a_dash_and_an_empty_track(self):
+    def test_an_unknown_quota_shows_the_dash_placeholder_and_an_empty_track(self):
         snapshot = usage_snapshot(codex_five_hour=None)
         image = self.render(snapshot)
-        self.assertIn("–", self.drawn)
-        self.assertIn("unavailable", self.drawn)
+        self.assertIn("—", self.drawn)
+        self.assertNotIn("–", self.drawn)
+        self.assertEqual(self.drawn.count("unavailable"), 1)
         meter_y = widget(AI, "usage-limits")["y"] + 161
         self.assertFalse(any(image.getpixel((x, meter_y))[0] > 200 for x in range(588, 588 + 132)))
+
+    def test_a_run_of_empty_limit_columns_says_unavailable_once(self):
+        snapshot = usage_snapshot()
+        for provider in snapshot["providers"].values():
+            for limit in provider["limits"]:
+                limit["usedPercent"] = None
+        self.render(snapshot)
+        self.assertEqual(self.drawn.count("Quota unavailable"), 1)
+        self.assertNotIn("unavailable", self.drawn)
+        limits = self.drawn[self.drawn.index("Codex"):self.drawn.index("Tokens")]
+        self.assertEqual(limits.count("—"), 4)
+        # Codex's two columns share one line; Claude's known columns still read normally.
+        snapshot = usage_snapshot()
+        for limit in snapshot["providers"]["codex"]["limits"]:
+            limit["usedPercent"] = None
+        self.drawn.clear()
+        self.render(snapshot)
+        self.assertEqual(self.drawn.count("Quota unavailable"), 1)
+        self.assertIn("32%", self.drawn)
 
     def test_totals_show_the_sum_with_provider_facts_and_whole_dollars(self):
         snapshot = usage_snapshot()
