@@ -67,6 +67,13 @@ def _empty_cache(provider):
             and tokens.get('status') in ('cached', 'stale'))
 
 
+def _no_cache(provider):
+    """True when the usage scan has nothing at all for a provider: no cache entry, no records."""
+    tokens = _mapping(_mapping(provider.get('freshness')).get('tokens'))
+    return (tokens.get('status') in (None, 'unavailable') and provider.get('total') is None
+            and not _nonnegative(provider.get('records')))
+
+
 def _priced_records(provider):
     return sum(_nonnegative(provider.get(key)) or 0 for key in ('reportedRecords', 'estimatedRecords'))
 
@@ -92,8 +99,9 @@ def _period_content(snapshot, cost, gauge):
     providers = _mapping(period.get('providers'))
     names = ['codex', 'claude']
     cursor = _mapping(providers.get('cursor'))
-    # A missing Cursor source cannot establish zero historical consumption.
-    if not _empty_cache(cursor) or (_nonnegative(cursor.get('records')) or 0) > 0:
+    # Cursor is optional: it appears only once the scan has a cache for it. A provider with no cache at
+    # all (its subscription ended, or it was never used) is left out instead of reading "— Cursor" forever.
+    if (_nonnegative(cursor.get('records')) or 0) > 0 or not (_empty_cache(cursor) or _no_cache(cursor)):
         names.append('cursor')
     amounts, rows, states = [], [], []
     partial = False

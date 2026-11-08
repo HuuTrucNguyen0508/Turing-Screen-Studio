@@ -242,16 +242,35 @@ class UsageOverviewTests(unittest.TestCase):
         provider['costKind'] = 'reported'
         self.assertIn('Codex\t12.80\tcached', self.show('usage-cost-30d')['detail'])
 
-    def test_billions_missing_cursor_and_cache_observation_remain_explicit(self):
+    def test_billions_a_provider_without_any_cache_is_left_out_and_the_observation_stays_explicit(self):
         self.period['providers']['codex']['total'] = 1_200_000_000
         del self.period['providers']['cursor']
         self.period['providers']['codex']['freshness']['tokens'].update(
             stale=True, observedAt='2026-10-05T01:02:00Z')
         result = self.show('usage-tokens-30d')
-        self.assertEqual((result['value'], result['unit']), ('1.2+', 'B tokens'))
-        self.assertIn('Cursor unavailable', result['detail'])
+        self.assertEqual((result['value'], result['unit']), ('1.2', 'B tokens'))
+        self.assertNotIn('Cursor', result['detail'])
+        self.assertNotIn('Partial', result['detail'])
         self.assertIn('stale as of 05 Oct 01:02 UTC', result['detail'])
         self.assertIn('Codex\t1.2B\tstale', result['detail'])
+
+    def test_a_scan_that_reports_no_cache_for_cursor_leaves_it_out_of_both_totals(self):
+        self.period['providers']['cursor'] = {'total': None, 'records': None, 'costUSD': None, 'costKind': 'unavailable',
+                                              'freshness': {'tokens': {'status': 'unavailable', 'stale': True, 'observedAt': None,
+                                                                       'errors': ['usage_cache_provider_missing']}}}
+        for source in ('usage-tokens-30d', 'usage-cost-30d'):
+            with self.subTest(source=source):
+                result = self.show(source)
+                self.assertNotIn('Cursor', result['detail'])
+                self.assertNotIn('Partial', result['detail'])
+                self.assertFalse(result['value'].endswith('+'), result['value'])
+
+    def test_a_provider_with_data_that_goes_missing_still_makes_the_total_partial(self):
+        self.period['providers']['claude'].update(total=None, records=None, costUSD=None, costKind='unavailable')
+        result = self.show('usage-tokens-30d')
+        self.assertIn('Partial', result['detail'])
+        self.assertIn('Claude unavailable', result['detail'])
+        self.assertTrue(result['value'].endswith('+'), result['value'])
 
     def test_unknown_metadata_shows_four_expected_windows_with_five_fields(self):
         result = self.show('usage-limits')

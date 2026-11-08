@@ -29,7 +29,7 @@ class UsageRendererTests(unittest.TestCase):
         self.assertNotIn('100', texts)
         self.assertIn('90', texts)
         self.assertIn('Usage limits · Usage left', texts)
-        self.assertIn('Cursor', texts)
+        self.assertNotIn('Cursor', texts)
         self.assertIn('—', texts)
         image.close()
     def test_quota_remaining_bar_and_text_cover_zero_full_unknown_and_expired(self):

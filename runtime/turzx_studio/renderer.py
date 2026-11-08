@@ -1152,11 +1152,11 @@ class LayoutRenderer:
                 figure = value + (settings["unit"][:1] if settings["unit"][:1] in ("K", "M", "B") else "")
             period = "API estimate, last 30 days" if cost else "Last 30 days"
             if note.startswith("Partial"):
-                period = "Partial API estimate, last 30 days" if cost else "Partial, last 30 days"
-            # Cost shares the token scan, so only the token total carries the staleness date.
+                period = "Partial estimate, last 30 days" if cost else "Partial, last 30 days"
+            # Cost is priced from the same scan as the tokens, so both totals carry its date.
             # Live readings carry their epoch; sample notes are written in English.
             observed, since = settings.get("observed"), None
-            if not cost and "stale" in note:
+            if "stale" in note:
                 if type(observed) in (int, float) and math.isfinite(observed):
                     day = datetime.fromtimestamp(observed)
                     since = f"{day.day} {_MONTHS[day.month - 1]}"

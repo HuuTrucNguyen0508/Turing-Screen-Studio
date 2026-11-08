@@ -288,14 +288,24 @@ class UsageSheetTests(unittest.TestCase):
             "freshness": {"tokens": {"status": "cached", "stale": False}, "pricing": {"stale": False}}}
         self.render(snapshot)
         for text in ("5.9B", "3.5B", "2.4B", "Codex", "Claude", "Last 30 days, as of 21 Oct",
-                     "$2\u2009032", "$961", "$1\u2009071", "API estimate, last 30 days"):
+                     "$2\u2009032", "$961", "$1\u2009071", "API estimate, last 30 days, as of 21 Oct"):
             self.assertIn(text, self.drawn)
         self.assertNotIn("Cursor", self.drawn)
 
-    def test_a_missing_provider_makes_the_total_partial_without_truncating_facts(self):
+    def test_a_provider_without_a_cache_is_left_out_and_nothing_is_called_partial(self):
+        # Cursor's scan entry is missing, as it has been since its subscription ended.
         self.render(usage_snapshot())
-        for text in ("5.9B", "Partial, last 30 days, as of 21 Oct", "$2\u2009032", "Partial API estimate, last 30 days",
-                     "$1\u2009071", "Claude", "—", "Cursor"):
+        for text in ("5.9B", "Last 30 days, as of 21 Oct", "$2\u2009032", "API estimate, last 30 days, as of 21 Oct", "Codex", "Claude"):
+            self.assertIn(text, self.drawn)
+        self.assertNotIn("Cursor", self.drawn)
+        self.assertFalse([text for text in self.drawn if text.startswith("Partial")], self.drawn)
+        self.assertFalse(any(text.endswith("…") for text in self.drawn), self.drawn)
+
+    def test_a_provider_with_data_that_is_missing_makes_the_total_partial_without_truncating_facts(self):
+        snapshot = usage_snapshot()
+        snapshot["periods"]["last30days"]["providers"]["claude"].update(total=None, costUSD=None, costKind="unavailable")
+        self.render(snapshot)
+        for text in ("Partial, last 30 days, as of 21 Oct", "Partial estimate, last 30 days, as of 21 Oct", "Claude", "—"):
             self.assertIn(text, self.drawn)
         self.assertFalse(any(text.endswith("…") for text in self.drawn), self.drawn)
 
