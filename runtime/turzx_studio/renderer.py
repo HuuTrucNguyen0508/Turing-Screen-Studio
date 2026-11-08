@@ -33,7 +33,7 @@ _DIGIT_RUNS = re.compile(r"\d+|\D+")
 # the figure keeps its distance from the figure's line box, so the block is 116 px taller than it.
 WEATHER_FIGURE = 144
 WEATHER_BLOCK = WEATHER_FIGURE + 100
-# What's playing sits under the weather: a 64 px cover beside title and artist, 36 px below the humidity line.
+# What's playing sits above the weather: a 64 px cover beside title and artist, 36 px over the temperature.
 NOW_PLAYING_GAP, NOW_PLAYING_COVER = 36, 64
 # Sheet readings: figures over a meter, sized for reading across a desk.
 SHEET_FIGURE = 72
@@ -1263,7 +1263,9 @@ class LayoutRenderer:
         clock's time ink and clamped to the widget edges; without one it is left-aligned."""
         playing = settings.get("nowPlaying")
         block = WEATHER_BLOCK + (NOW_PLAYING_GAP + NOW_PLAYING_COVER if playing else 0)
-        top = max(0, (height - block) // 2)
+        # What's playing leads the stack, right under the date; the weather follows it.
+        stack_top = max(0, (height - block) // 2)
+        top = stack_top + (NOW_PLAYING_COVER + NOW_PLAYING_GAP if playing else 0)
         figure_box = top + WEATHER_FIGURE
         centre = settings.get("clockCentre")
 
@@ -1311,7 +1313,7 @@ class LayoutRenderer:
                 self._ink_text(ink, (across(self._length(draw, line, "sans", 17), 8), baseline(figure_box + 48 + 26 * index, 26, 17)),
                                line, 17, alpha=INK2)
         if playing:
-            self._sheet_playing(ink, draw, width, top + WEATHER_BLOCK + NOW_PLAYING_GAP, playing, across)
+            self._sheet_playing(ink, draw, width, stack_top, playing, across)
 
     def _sheet_playing(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, y: int, playing: dict, across) -> None:
         """Cover, then title over artist; a paused track reads in ink2 with "Paused" before the artist."""

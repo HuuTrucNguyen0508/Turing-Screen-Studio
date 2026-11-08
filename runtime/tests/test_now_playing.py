@@ -53,7 +53,7 @@ class ChooseTests(unittest.TestCase):
 
 
 class FogRenderTests(unittest.TestCase):
-    def test_now_playing_draws_under_the_weather_and_lifts_the_block(self):
+    def test_now_playing_leads_the_weather_and_the_stack_stays_centred(self):
         rhythm = T.FrostRhythmTests()
         rhythm.setUp()
         base = rhythm.stats()
@@ -63,9 +63,10 @@ class FogRenderTests(unittest.TestCase):
         loud = rhythm.renderer.render(T.SHEET, stats=DashboardStats(base.parent, base.t3_activity, None, playing))
         span = lambda image: T.lit_rows(image, 56, 536, weather["y"], weather["y"] + weather["height"])
         before, after = span(quiet), span(loud)
-        # The extra row sits below the humidity line and the whole stack stays centred in the widget.
+        # The extra row sits above the temperature: the stack grows upwards past the old top,
+        # the weather moves down, and the whole stack stays centred in the widget.
+        self.assertLess(after[0], before[0] - 30)
         self.assertGreater(after[-1], before[-1] + 30)
-        self.assertLess(after[0], before[0])
         centre = weather["y"] + weather["height"] / 2
         self.assertAlmostEqual((after[0] + after[-1]) / 2, centre, delta=12)
 
