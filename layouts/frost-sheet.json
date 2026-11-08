@@ -36,7 +36,7 @@
       "x": 56,
       "y": 60,
       "width": 480,
-      "height": 220,
+      "height": 260,
       "settings": {
         "label": "",
         "time": "23:46",
@@ -52,13 +52,14 @@
             "hidden": true
           },
           "time": {
-            "dy": 37,
+            "dx": 8,
+            "dy": 66,
             "size": 176,
             "color": "text"
           },
           "date": {
             "dx": 8,
-            "dy": 17,
+            "dy": 6,
             "size": 24,
             "color": "text"
           }
@@ -70,9 +71,9 @@
       "id": "weather",
       "type": "weather",
       "x": 56,
-      "y": 280,
+      "y": 320,
       "width": 480,
-      "height": 452,
+      "height": 382,
       "settings": {
         "location": "Paris",
         "temperature": "19",
@@ -89,7 +90,7 @@
       "id": "cpu",
       "type": "gauge",
       "x": 588,
-      "y": 92,
+      "y": 110,
       "width": 184,
       "height": 164,
       "settings": {
@@ -108,7 +109,7 @@
       "id": "gpu",
       "type": "gauge",
       "x": 796,
-      "y": 92,
+      "y": 110,
       "width": 184,
       "height": 164,
       "settings": {
@@ -127,7 +128,7 @@
       "id": "memory",
       "type": "gauge",
       "x": 1004,
-      "y": 92,
+      "y": 110,
       "width": 184,
       "height": 164,
       "settings": {
@@ -146,7 +147,7 @@
       "id": "rule-1",
       "type": "text",
       "x": 588,
-      "y": 302,
+      "y": 320,
       "width": 600,
       "height": 1,
       "settings": {
@@ -159,7 +160,7 @@
       "id": "mounted-storage",
       "type": "storage",
       "x": 588,
-      "y": 349,
+      "y": 367,
       "width": 600,
       "height": 104,
       "settings": {
@@ -179,7 +180,7 @@
       "id": "rule-2",
       "type": "text",
       "x": 588,
-      "y": 499,
+      "y": 517,
       "width": 600,
       "height": 1,
       "settings": {
@@ -192,7 +193,7 @@
       "id": "t3-threads",
       "type": "metric",
       "x": 588,
-      "y": 546,
+      "y": 564,
       "width": 600,
       "height": 162,
       "settings": {

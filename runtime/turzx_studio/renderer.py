@@ -30,7 +30,7 @@ _DIGIT_RUNS = re.compile(r"\d+|\D+")
 # The sheet weather block: a 144 px temperature, a glyph line and two facts. Everything under
 # the figure keeps its distance from the figure's line box, so the block is 116 px taller than it.
 WEATHER_FIGURE = 144
-WEATHER_BLOCK = WEATHER_FIGURE + 116
+WEATHER_BLOCK = WEATHER_FIGURE + 100
 # English month abbreviations for sheet copy, independent of the runtime's time locale.
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -626,12 +626,19 @@ class LayoutRenderer:
         self._draw_text(draw, (width - 64, 47), clock, palette["text"], 37, "mono", "rt")
         self._draw_text(draw, (width - 64, 91), date, palette["muted"], 14, anchor="rt")
 
+    def _designed_x(self, draw: ImageDraw.ImageDraw, element: dict, text: str) -> float:
+        """Where a designed element's text starts. Frost sets start-aligned text by its ink,
+        so a 176 px figure and a 24 px date share one left edge whatever their side bearings."""
+        if self._frost and element["align"] == "start":
+            return element["x"] - self._ink_span(draw, text, element["family"], element["size"])[0]
+        return element["x"]
+
     def _designed_text(self, draw: ImageDraw.ImageDraw, elements: list[dict], palette: dict) -> None:
         for element in elements:
             if element["hidden"]:
                 continue
             text = self._safe_text(element["text"])
-            x, y = element["x"], element["y"]
+            x, y = self._designed_x(draw, element, text), element["y"]
             color = element["color"] if element["color"].startswith("#") else palette[element["color"]]
             size, family = element["size"], element["family"]
             suffix = self._safe_text(element.get("suffix", ""))
@@ -996,15 +1003,21 @@ class LayoutRenderer:
         self._draw_text(draw, xy, text, fill, size, family, anchor)
         return self._length(draw, text, family, size)
 
+    def _figure_x(self, draw: ImageDraw.ImageDraw, figure: str, above: str, family: str, size: int, left: float = 0) -> float:
+        """x for a 56 px thin figure so its ink starts where the line above it does: the digits'
+        side bearing is 3 to 6 px, the label's about 1."""
+        return left + self._ink_span(draw, above, family, size)[0] - self._ink_span(draw, figure, "mono", 56)[0]
+
     def _sheet_figure(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
         """Title, device name, a 56 px figure, up to two "value word" facts and a 3 px meter."""
         value = settings["value"]
-        self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width), 15, "medium")
+        label = self._fit(draw, settings["label"], "medium", 15, width)
+        self._ink_text(ink, (0, baseline(0, 20, 15)), label, 15, "medium")
         if settings.get("name"):
             self._ink_text(ink, (0, baseline(20, 20, 14)), self._fit(draw, settings["name"], "sans", 14, width), 14, alpha=INK2)
         unit = settings["unit"]
         figure = "—" if value is None else f"{math.floor(value + .5)}{unit if unit in ('%', '') else ' ' + unit}"
-        self._ink_text(ink, (0, baseline(48, 56, 56)), figure, 56, "mono")
+        self._ink_text(ink, (self._figure_x(draw, figure, label, "medium", 15), baseline(48, 56, 56)), figure, 56, "mono")
         facts = settings.get("facts")
         if facts is None:
             facts = [(settings["detail"], "")] if settings["detail"] else []
@@ -1095,8 +1108,10 @@ class LayoutRenderer:
         previous = None
         for index, (provider, window, display, reset, state) in enumerate(rows):
             left = index * (column + 24)
+            above, above_family, above_size = self._fit(draw, window, "sans", 14, column), "sans", 14
             if provider != previous:
-                self._ink_text(ink, (left, baseline(0, 20, 15)), self._fit(draw, provider, "medium", 15, column), 15, "medium")
+                above, above_family, above_size = self._fit(draw, provider, "medium", 15, column), "medium", 15
+                self._ink_text(ink, (left, baseline(0, 20, 15)), above, 15, "medium")
             previous = provider
             self._ink_text(ink, (left, baseline(20, 20, 14)), self._fit(draw, window, "sans", 14, column), 14, alpha=INK2)
             try:
@@ -1104,7 +1119,8 @@ class LayoutRenderer:
             except ValueError:
                 percent = None
             known = percent is not None and math.isfinite(percent) and 0 <= percent <= 100
-            self._ink_text(ink, (left, baseline(48, 56, 56)), f"{math.floor(percent + .5)}%" if known else "–", 56, "mono")
+            reading = f"{math.floor(percent + .5)}%" if known else "–"
+            self._ink_text(ink, (self._figure_x(draw, reading, above, above_family, above_size, left), baseline(48, 56, 56)), reading, 56, "mono")
             estimate = reset.endswith(" · estimate")
             reset = reset.removesuffix(" · estimate")
             if not known:
@@ -1140,7 +1156,8 @@ class LayoutRenderer:
         rows = [line.split("\t") for line in lines[1:9]]
         rows = [row for row in rows if len(row) == 3 and row[0] in ("Codex", "Claude", "Cursor")][:3]
         value = str(settings["value"])
-        self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width), 15, "medium")
+        label = self._fit(draw, settings["label"], "medium", 15, width)
+        self._ink_text(ink, (0, baseline(0, 20, 15)), label, 15, "medium")
         if value in ("—", ""):
             figure, name = "—", "API estimate unavailable" if cost else "Usage unavailable"
         else:
@@ -1164,11 +1181,12 @@ class LayoutRenderer:
                     since = f"{int(sample.group(1))} {sample.group(2)}"
             name = period + (f", as of {since}" if since else "")
         self._ink_text(ink, (0, baseline(20, 20, 14)), self._fit(draw, name, "sans", 14, width), 14, alpha=INK2)
-        self._ink_text(ink, (0, baseline(48, 56, 56)), figure, 56, "mono")
+        figure_x = self._figure_x(draw, figure, label, "medium", 15)
+        self._ink_text(ink, (figure_x, baseline(48, 56, 56)), figure, 56, "mono")
         if figure == "—":
             return
         # Facts sit beside a 160 px figure box, or 11 px past a wider figure, as in the design.
-        left = max(168, math.ceil(self._length(draw, figure, "mono", 56)) + 11)
+        left = max(168, math.ceil(figure_x + self._length(draw, figure, "mono", 56)) + 11)
         for index, (provider, amount, _state) in enumerate(rows):
             shown = "—" if amount == "—" else self._dollars(amount) if cost else amount
             self._fact(ink, draw, (left, baseline(56 + index * 20, 20, 14)), shown, provider, width - left)
@@ -1200,7 +1218,7 @@ class LayoutRenderer:
         if element.get("suffix"):
             right = advance + element["gap"] + self._length(draw, self._safe_text(element["suffix"]), "sans", element["suffixSize"])
             advance = right
-        origin = clock["x"] + element["x"] - (0 if element["align"] == "start" else advance / 2 if element["align"] == "center" else advance)
+        origin = clock["x"] + self._designed_x(draw, element, text) - (0 if element["align"] == "start" else advance / 2 if element["align"] == "center" else advance)
         return origin + (left + right) / 2
 
     def _sheet_weather(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
@@ -1239,20 +1257,20 @@ class LayoutRenderer:
         if glyph_font is not None:
             glyph_draw, fill = ink.target(1)
             ascent, descent = glyph_font.getmetrics()
-            glyph_draw.text((group_x, figure_box + 18 + (34 - ascent - descent) / 2 + ascent),
+            glyph_draw.text((group_x, figure_box + 2 + (34 - ascent - descent) / 2 + ascent),
                             weather_glyph(settings.get("icon"), settings["condition"]),
                             font=glyph_font, fill=fill, anchor="ls")
-        self._ink_text(ink, (group_x + glyph_width, baseline(figure_box + 16, 38, 28)), condition, 28, "medium")
+        self._ink_text(ink, (group_x + glyph_width, baseline(figure_box, 38, 28)), condition, 28, "medium")
         city = settings.get("city", settings["location"])
         if settings.get("feels") is not None:
             place, humidity = f"{city}, feels like {settings['feels']}°", settings.get("humidity")
-            second = None if humidity is None else f"{humidity} % humidity"
+            second = None if humidity is None else f"{humidity}% humidity"
         else:
             place, second = city, f"High {settings['high']}°, low {settings['low']}°"
         for index, line in enumerate((place, second)):
             if line:
                 line = self._fit(draw, line, "sans", 17, width - margin)
-                self._ink_text(ink, (across(self._length(draw, line, "sans", 17), 8), baseline(figure_box + 64 + 26 * index, 26, 17)),
+                self._ink_text(ink, (across(self._length(draw, line, "sans", 17), 8), baseline(figure_box + 48 + 26 * index, 26, 17)),
                                line, 17, alpha=INK2)
 
     def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:

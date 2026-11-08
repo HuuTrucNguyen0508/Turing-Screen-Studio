@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import tempfile
+import unittest.mock
 from types import SimpleNamespace
 import unittest
 
@@ -119,9 +120,9 @@ class SheetRenderTests(unittest.TestCase):
         weather = widget(SHEET, "weather")
         rows = [y for y in range(weather["y"], weather["y"] + weather["height"])
                 if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + weather["width"]))]
-        # The 260 px block spans 376..636: cap top of the 144 px temperature to the humidity line's descenders.
-        self.assertTrue(388 <= min(rows) <= 402, min(rows))
-        self.assertTrue(622 <= max(rows) <= 636, max(rows))
+        # The 244 px block spans 389..633: cap top of the 144 px temperature to the humidity line's descenders.
+        self.assertTrue(402 <= min(rows) <= 414, min(rows))
+        self.assertTrue(622 <= max(rows) <= 634, max(rows))
 
     def ink_columns(self, image, box, floor=160):
         x0, y0, x1, y1 = box
@@ -135,10 +136,10 @@ class SheetRenderTests(unittest.TestCase):
 
     def weather_bands(self, image, weather):
         """Ink columns of the figure, the glyph + condition group and the two fact lines."""
-        top = weather["y"] + (weather["height"] - 260) // 2
+        top = weather["y"] + (weather["height"] - 244) // 2
         x0, x1 = weather["x"], weather["x"] + weather["width"]
         names = ("figure", "condition", "place", "humidity")
-        spans = ((0, 130), (160, 198), (208, 234), (234, 260))
+        spans = ((0, 130), (144, 182), (192, 218), (218, 244))
         return {name: self.ink_columns(image, (x0, top + a, x1, top + b), 105) for name, (a, b) in zip(names, spans)}
 
     def test_the_whole_weather_block_is_centred_on_the_clock_for_any_time_and_either_dashboard(self):
@@ -147,12 +148,12 @@ class SheetRenderTests(unittest.TestCase):
                 with self.subTest(layout=layout["name"], clock=clock):
                     image = self.renderer.render(layout, stats=self.weather_stats(clock, temperature))
                     clock_box, weather = widget(layout, "clock"), widget(layout, "weather")
-                    time_left, time_right = self.ink_columns(image, (clock_box["x"], clock_box["y"] + 20, clock_box["x"] + 480, clock_box["y"] + 175))
+                    time_left, time_right = self.ink_columns(image, (clock_box["x"], clock_box["y"] + 20, clock_box["x"] + 480, clock_box["y"] + 200))
                     bands = self.weather_bands(image, weather)
                     for name, (left, right) in bands.items():
                         # Ink-centred; the facts and the condition are set by advance, so allow a few pixels.
                         self.assertAlmostEqual((left + right) / 2, (time_left + time_right) / 2, delta=2 if name == "figure" else 5, msg=name)
-                    top = weather["y"] + (weather["height"] - 260) // 2
+                    top = weather["y"] + (weather["height"] - 244) // 2
                     rows = [y for y in range(top, top + 130)
                             if any(image.getpixel((x, y))[0] > 160 for x in range(weather["x"], weather["x"] + weather["width"]))]
                     # Digit height of a 144 px ExtraLight figure; the 116 px one stood 83 px.
@@ -209,6 +210,121 @@ class SheetRenderTests(unittest.TestCase):
     def test_frost_without_sheet_fields_ignores_the_ground_provider(self):
         doc = {**validate_layout(SAMPLE), "palette": PALETTES["dark"]}
         self.assertEqual(self.renderer.render(doc).tobytes(), LayoutRenderer().render(doc).tobytes())
+
+
+def lit_rows(image, x0, x1, y0, y1, floor=110):
+    """Rows in [y0, y1) with ink: the slab and the fog stay below 100, ink2 text and meters are above 150."""
+    return [y for y in range(y0, y1) if any(image.getpixel((x, y))[0] > floor for x in range(x0, x1))]
+
+
+def lit_columns(image, x0, x1, y0, y1, floor=110):
+    return [x for x in range(x0, x1) if any(image.getpixel((x, y))[0] > floor for y in range(y0, y1))]
+
+
+class FrostRhythmTests(unittest.TestCase):
+    """Slab padding, hairline gaps, the clock on the first label row, optical left edges."""
+
+    def setUp(self):
+        self.renderer = LayoutRenderer(ground=fog)
+
+    def stats(self, clock="dim. 08 nov.  11:17", threads=2):
+        rows = [{"id": str(i), "title": f"Thread {i}", "provider": "claudeAgent", "status": "running"} for i in range(threads)]
+        activity = {"status": "live", "working": threads, "threads": rows, "observedAt": "2026-11-07T23:00:00Z", "note": "x"}
+        return DashboardStats(SimpleNamespace(
+            clock=clock, cpu_percent=25, cpu_temp=83, cpu_freq_mhz=5220, cpu_name="Ryzen 9 7900X",
+            gpu_percent=100, gpu_temp=84, gpu_vram_used_mb=4400, gpu_vram_total_mb=12288, gpu_name="RTX 4070 SUPER",
+            ram_percent=60, ram_used_gb=18.4, ram_total_gb=30.4,
+            weather_temp_c=5, weather_description="Fog", weather_city="Éragny", weather_feels_like_c=5,
+            weather_humidity=100, weather_icon="50n"), activity, None)
+
+    def show(self, layout, **kwargs):
+        """The dashboard as the panel draws it: AI usage with a collector snapshot."""
+        stats = self.stats(**kwargs)
+        return self.renderer.render(layout, stats=UsageStats(stats, usage_snapshot()) if layout is AI else stats)
+
+    def test_slab_padding_matches_the_hairline_gaps_on_both_dashboards(self):
+        for layout in (SHEET, AI):
+            with self.subTest(layout=layout["name"]):
+                image = self.show(layout, threads=4)
+                slab = widget(layout, "sheet")
+                rules = sorted(item["y"] for item in layout["widgets"] if item["id"].startswith("rule"))
+                bands = [(slab["y"] + 6, rules[0] - 4), (rules[0] + 4, rules[1] - 4), (rules[1] + 4, slab["y"] + slab["height"] - 2)]
+                spans = [lit_rows(image, 580, 1200, *band) for band in bands]
+                top_padding = spans[0][0] - slab["y"]
+                gaps = [rules[0] - spans[0][-1], spans[1][0] - rules[0], rules[1] - spans[1][-1], spans[2][0] - rules[1]]
+                # Content starts ~50 px below the slab top, like the 50 px either side of a hairline.
+                self.assertTrue(47 <= top_padding <= 53, top_padding)
+                for gap in gaps:
+                    self.assertTrue(46 <= gap <= 58, gaps)
+                self.assertTrue(abs(top_padding - sum(gaps) / 4) <= 3, (top_padding, gaps))
+                # Four thread rows still fit inside the slab, ink clear of its bottom edge.
+                self.assertLessEqual(spans[2][-1], slab["y"] + slab["height"] - 12)
+
+    def test_four_thread_rows_still_fit(self):
+        for layout in (SHEET, AI):
+            top = widget(layout, "t3-threads")
+            self.assertGreaterEqual((top["height"] - 30 + 12) // 36, 4)
+            self.assertLessEqual(top["y"] + top["height"], widget(layout, "sheet")["y"] + widget(layout, "sheet")["height"] - 10)
+
+    def test_clock_cap_line_sits_on_the_slabs_first_label_row(self):
+        for layout in (SHEET, AI):
+            with self.subTest(layout=layout["name"]):
+                image = self.show(layout, clock="dim. 08 nov.  11:17")
+                slab, clock = widget(layout, "sheet"), widget(layout, "clock")
+                label = lit_rows(image, 588, 760, slab["y"] + 6, slab["y"] + 90)[0]
+                # "11:17" has flat tops, so the first lit row is the cap line.
+                time_top = lit_rows(image, clock["x"], clock["x"] + 480, clock["y"], clock["y"] + 200)[0]
+                self.assertAlmostEqual(time_top, label, delta=1)
+
+    def test_weather_block_belongs_together_and_is_centred_below_the_date(self):
+        for layout in (SHEET, AI):
+            with self.subTest(layout=layout["name"]):
+                image = self.show(layout)
+                clock = widget(layout, "clock")
+                date_rows = lit_rows(image, 56, 536, clock["y"] + 160, clock["y"] + clock["height"] - 4)
+                date_bottom = date_rows[-1]
+                rows = lit_rows(image, 56, 536, date_bottom + 3, 736)
+                runs, start = [], rows[0]
+                for before, after in zip(rows, rows[1:]):
+                    if after - before > 4:
+                        runs.append((start, before))
+                        start = after
+                runs.append((start, rows[-1]))
+                gaps = [b[0] - a[1] for a, b in zip(runs, runs[1:])]
+                # Temperature -> glyph/condition is pulled up from 45; the lines below keep 18 and 9.
+                self.assertTrue(26 <= gaps[0] <= 32, gaps)
+                self.assertTrue(16 <= gaps[1] <= 20, gaps)
+                self.assertTrue(7 <= gaps[2] <= 11, gaps)
+                self.assertAlmostEqual((runs[0][0] + runs[-1][1]) / 2, (date_bottom + 736) / 2, delta=3)
+
+    def test_figures_and_the_clock_start_where_their_labels_do(self):
+        for layout, names in ((SHEET, ("cpu", "gpu", "memory")), (AI, ("usage-tokens", "usage-cost"))):
+            image = self.show(layout)
+            for name in names:
+                item = widget(layout, name)
+                label = lit_columns(image, item["x"] - 6, item["x"] + 60, item["y"] + 2, item["y"] + 20)[0]
+                figure = lit_columns(image, item["x"] - 6, item["x"] + 60, item["y"] + 48, item["y"] + 104)[0]
+                self.assertLessEqual(abs(label - figure), 1, (layout["name"], name, label, figure))
+        for layout in (SHEET, AI):
+            for clock_text in ("dim. 08 nov.  01:07", "dim. 08 nov.  23:46", "dim. 08 nov.  11:17"):
+                image = self.show(layout, clock=clock_text)
+                clock = widget(layout, "clock")
+                time_left = lit_columns(image, 40, 540, clock["y"], clock["y"] + 200)[0]
+                date_left = lit_columns(image, 40, 540, clock["y"] + 200, clock["y"] + clock["height"] - 2)[0]
+                self.assertLessEqual(abs(time_left - date_left), 1, (clock_text, time_left, date_left))
+
+    def test_humidity_has_no_space_before_the_percent_sign(self):
+        drawn = []
+        original = self.renderer._ink_text
+
+        def spy(ink, xy, text, *args, **kwargs):
+            drawn.append(text)
+            return original(ink, xy, text, *args, **kwargs)
+
+        self.renderer._ink_text = spy
+        self.renderer.render(SHEET, stats=self.stats())
+        self.assertIn("100% humidity", drawn)
+        self.assertFalse([text for text in drawn if " %" in text], drawn)
 
 
 def usage_snapshot(codex_five_hour=13, claude_weekly_stale=False, observed="2026-11-07T20:00:00Z"):
