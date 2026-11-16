@@ -20,6 +20,7 @@ from .ground import WallpaperGround
 from .storage import Paths, PaletteWatcher, atomic_write
 from .t3_refresh import UsageRefresher, token_path
 from .usage import UsageCollector
+from .disk_activity import DiskActivity
 from .usage_display import USAGE_SOURCES, UsageStats
 from .activity import T3Activity
 from .now_playing import NowPlaying
@@ -99,6 +100,7 @@ class RuntimeIntegration:
         self.last_capture = 0.0
         self.status = {}
         self.usage = UsageCollector()
+        self.disk_activity = DiskActivity()
         self.usage_snapshot = None
         self.usage_refresh = UsageRefresher(Path.home(), token_path(self.paths.state_dir), self.usage.expire)
         self.activity = T3Activity()
@@ -299,7 +301,12 @@ class RuntimeIntegration:
                 owner.publish(t3UsageRefresh=owner.usage_refresh.status())
             if owner.document and any(widget['settings'].get('source') in USAGE_SOURCES or (widget['type'] == 'storage' and widget['settings'].get('source') == 'mounted-storage') for widget in owner.document['widgets']):
                 owner.usage_snapshot = owner.usage.snapshot()
-                return (*key, owner.usage_snapshot.get('readAt'))
+                key = (*key, owner.usage_snapshot.get('readAt'))
+                if any(widget['type'] == 'storage' and widget['settings'].get('style') == 'columns'
+                       for widget in owner.document['widgets']):
+                    # Storage columns show how busy each disk is now, which changes faster than the 60-second cache.
+                    key = (*key, owner.disk_activity.annotate(owner.usage_snapshot.get('mountedStorage')))
+                return key
             owner.usage_snapshot = None
             return key
 

@@ -1080,7 +1080,7 @@ class LayoutRenderer:
         ink.bar((0, 176, round(width * fraction), 176 + SHEET_METER))
 
     def _sheet_storage(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
-        """Storage as columns: name and share, meter, used of total, free."""
+        """Storage as columns: name and share, meter, used of total, how active the disk is now."""
         self._ink_text(ink, (0, baseline(0, 20, 15)), self._fit(draw, settings["label"], "medium", 15, width), 15, "medium")
         rows = settings["mounts"]
         if not rows:
@@ -1102,13 +1102,15 @@ class LayoutRenderer:
             ink.bar((left, 64, left + column, 64 + SHEET_METER), TRACK)
             if valid:
                 ink.bar((left, 64, left + round(column * percent / 100), 64 + SHEET_METER))
-            used, total, free = (storage_size(row.get(key)) for key in ("usedGiB", "totalGiB", "freeGiB"))
+            used, total = (storage_size(row.get(key)) for key in ("usedGiB", "totalGiB"))
+            busy = row.get("busyPercent")
+            busy = f"{math.floor(busy + .5)}%" if type(busy) in (int, float) and math.isfinite(busy) else "—"
             if row.get("partial") and row.get("usedGiB") is not None:
                 used += "+"
             used_number, _, used_unit = used.partition(" ")
             detail = f"{used_number} of {total}" if used_unit and total.endswith(" " + used_unit) else f"{used} of {total}"
             self._ink_text(ink, (left, baseline(78, 20, 14)), self._fit(draw, detail, "sans", 14, column), 14, alpha=INK2)
-            self._ink_text(ink, (left, baseline(98, 20, 14)), self._fit(draw, f"{free} free", "sans", 14, column), 14, alpha=INK2)
+            self._ink_text(ink, (left, baseline(98, 20, 14)), self._fit(draw, f"{busy} active", "sans", 14, column), 14, alpha=INK2)
 
     def _sheet_threads(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int, settings: dict) -> None:
         """Threads: a title with the working count, then one line per thread. Without activity data
