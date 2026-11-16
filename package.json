@@ -2,6 +2,7 @@
   "name": "turzx-studio",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.28.3",
   "engines": {
