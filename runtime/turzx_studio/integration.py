@@ -262,7 +262,7 @@ class RuntimeIntegration:
             owner.palette = effective_palette(owner.document, live) if owner.document else None
             owner.frame_revision = owner.layouts.revision
             movie_active = owner.movie.poll()
-            owner.movie_backlight.update(movie_active)
+            owner.movie_backlight.update(owner.movie.monitor_dark)
             owner.publish(movieMode=owner.movie.mode(), movieActive=movie_active,
                           view=kwargs.get('view', 'stats'),
                           error=owner.render_error or owner.transport_error or owner.layouts.error or owner.scheme.error)

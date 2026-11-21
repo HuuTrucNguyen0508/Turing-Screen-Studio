@@ -43,15 +43,33 @@ class MovieTests(unittest.TestCase):
             flag = root / 'movie.json'
             movie = MovieMode(root, root / 'wallpaper', flag)
             self.assertFalse(movie.poll())
-            flag.write_text(json.dumps({'on': True, 'restoreMode': ''}))
+            flag.write_text(json.dumps({'on': True, 'screens': ['DP-2'], 'restoreMode': ''}))
+            self.assertTrue(movie.poll(), 'any screen in movie mode dims the panel')
+            self.assertFalse(movie.monitor_dark, 'the side monitor stays lit while only the main one is dark')
+            flag.write_text(json.dumps({'on': True, 'screens': ['DP-2', 'DP-3']}))
             self.assertTrue(movie.poll())
+            self.assertTrue(movie.monitor_dark)
             movie.set_mode('off')
             self.assertFalse(movie.poll())
+            self.assertFalse(movie.monitor_dark)
             movie.set_mode('auto')
-            flag.write_text('{"on": false}')
+            flag.write_text('{"on": false, "screens": []}')
             self.assertFalse(movie.poll())
             flag.write_text('not json')
             self.assertFalse(movie.poll())
+
+    def test_forced_and_wallpaper_movie_darken_the_side_monitor(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            wallpaper = root / 'wallpaper'
+            movie = MovieMode(root, wallpaper, root / 'movie.json')
+            wallpaper.write_text(str(MOVIE_WALLPAPERS[0]) + '\n')
+            self.assertTrue(movie.poll())
+            self.assertTrue(movie.monitor_dark)
+            wallpaper.write_text('/walls/other.png')
+            movie.set_mode('on')
+            self.assertTrue(movie.poll())
+            self.assertTrue(movie.monitor_dark)
 
     def test_movie_pixels_are_black_and_grey_and_stable_within_minute(self):
         a = render_movie(datetime(2026, 11, 8, 22, 10, 1))

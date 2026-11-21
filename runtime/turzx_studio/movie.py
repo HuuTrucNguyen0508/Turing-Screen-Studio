@@ -12,6 +12,8 @@ from .storage import atomic_write
 MOVIE_WALLPAPERS = (Path.home() / 'Pictures/Wallpapers/Folio/folio-charcoal-dark.png',)
 # Exact ddcutil detect --brief identity; resolve its current bus on each transition.
 MOVIE_MONITOR = 'AUS:VG27WQ:S6LMDW006081'
+# Its Hyprland connector, as the shell names screens in its movie flag
+MOVIE_SCREEN = 'DP-3'
 MOVIE_BRIGHTNESS = 12
 MOVIE_INK = '#808080'
 
@@ -23,6 +25,9 @@ class MovieMode:
         # The shell's own movie switch (a drag on its bar bunny), which leaves the main wallpaper alone
         self.shell_flag = shell_flag or Path.home() / '.local/state/caelestia/movie.json'
         self.active = False
+        # Whether the side monitor itself is dark: a forced or wallpaper-driven movie covers every
+        # screen, the shell's flag only the screens it lists
+        self.monitor_dark = False
         self.previous_brightness = None
 
     def mode(self):
@@ -44,15 +49,19 @@ class MovieMode:
             automatic = wallpaper in MOVIE_WALLPAPERS
         except OSError:
             automatic = False
-        automatic = automatic or self.shell_on()
-        self.active = mode == 'on' or mode == 'auto' and automatic
+        screens = self.shell_screens()
+        everywhere = mode == 'on' or mode == 'auto' and automatic
+        self.active = everywhere or mode == 'auto' and bool(screens)
+        self.monitor_dark = everywhere or mode == 'auto' and MOVIE_SCREEN in screens
         return self.active
 
-    def shell_on(self):
+    def shell_screens(self):
+        """The screens the shell has put in movie mode, by connector name."""
         try:
-            return json.loads(self.shell_flag.read_text()).get('on') is True
+            screens = json.loads(self.shell_flag.read_text()).get('screens', [])
         except (OSError, ValueError, AttributeError):
-            return False
+            return set()
+        return {s for s in screens if isinstance(s, str)} if isinstance(screens, list) else set()
 
     def brightness(self, requested):
         if self.active:
