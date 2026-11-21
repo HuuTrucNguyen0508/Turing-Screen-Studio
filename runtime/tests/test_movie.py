@@ -20,7 +20,7 @@ class MovieTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             wallpaper = root / 'wallpaper'
-            movie = MovieMode(root, wallpaper)
+            movie = MovieMode(root, wallpaper, root / 'movie.json')
             self.assertFalse(movie.poll())
             wallpaper.write_text(str(MOVIE_WALLPAPERS[0]) + '\n')
             self.assertTrue(movie.poll())
@@ -33,9 +33,25 @@ class MovieTests(unittest.TestCase):
             wallpaper.write_text('/walls/other.png')
             self.assertFalse(movie.poll())
             movie.set_mode('on')
-            self.assertTrue(MovieMode(root, wallpaper).poll())
+            self.assertTrue(MovieMode(root, wallpaper, root / 'movie.json').poll())
             with self.assertRaises(ValueError):
                 movie.set_mode('invalid')
+
+    def test_auto_mode_follows_the_shell_movie_flag(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            flag = root / 'movie.json'
+            movie = MovieMode(root, root / 'wallpaper', flag)
+            self.assertFalse(movie.poll())
+            flag.write_text(json.dumps({'on': True, 'restoreMode': ''}))
+            self.assertTrue(movie.poll())
+            movie.set_mode('off')
+            self.assertFalse(movie.poll())
+            movie.set_mode('auto')
+            flag.write_text('{"on": false}')
+            self.assertFalse(movie.poll())
+            flag.write_text('not json')
+            self.assertFalse(movie.poll())
 
     def test_movie_pixels_are_black_and_grey_and_stable_within_minute(self):
         a = render_movie(datetime(2026, 11, 8, 22, 10, 1))

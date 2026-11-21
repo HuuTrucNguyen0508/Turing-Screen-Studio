@@ -1,5 +1,6 @@
 """Runtime-only movie override. Saved dashboards and shell state stay untouched."""
 from datetime import datetime
+import json
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -16,9 +17,11 @@ MOVIE_INK = '#808080'
 
 
 class MovieMode:
-    def __init__(self, state_dir, wallpaper=None):
+    def __init__(self, state_dir, wallpaper=None, shell_flag=None):
         self.override = Path(state_dir) / 'movie-mode'
         self.wallpaper = wallpaper or Path.home() / '.local/state/caelestia/wallpaper/path.txt'
+        # The shell's own movie switch (a drag on its bar bunny), which leaves the main wallpaper alone
+        self.shell_flag = shell_flag or Path.home() / '.local/state/caelestia/movie.json'
         self.active = False
         self.previous_brightness = None
 
@@ -41,8 +44,15 @@ class MovieMode:
             automatic = wallpaper in MOVIE_WALLPAPERS
         except OSError:
             automatic = False
+        automatic = automatic or self.shell_on()
         self.active = mode == 'on' or mode == 'auto' and automatic
         return self.active
+
+    def shell_on(self):
+        try:
+            return json.loads(self.shell_flag.read_text()).get('on') is True
+        except (OSError, ValueError, AttributeError):
+            return False
 
     def brightness(self, requested):
         if self.active:
