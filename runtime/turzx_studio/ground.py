@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+import stat
 import threading
 
 from PIL import Image, ImageFilter
@@ -58,11 +59,16 @@ class WallpaperGround:
 
     def _source(self) -> tuple[Path, tuple] | None:
         try:
-            path = Path(self.wallpaper_state.read_text(encoding="utf-8").strip())
+            current = self.wallpaper_state.read_text(encoding="utf-8").strip()
+            if not current:
+                return None
+            path = Path(current)
             info = path.stat()
         except (OSError, ValueError):
             return None
-        return path, (str(path), info.st_mtime_ns, info.st_size)
+        if not stat.S_ISREG(info.st_mode):
+            return None
+        return path, (str(path), info.st_dev, info.st_ino, info.st_mtime_ns, info.st_size)
 
     def signature(self) -> tuple | None:
         source = self._source()

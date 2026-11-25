@@ -47,6 +47,7 @@ class IntegrationTests(unittest.TestCase):
             try_lcd_write=legacy_write, open_lcd=lambda: object(), SchemeWatcher=type('Scheme', (), {'poll': lambda s: s.palette}))
         self.dashboard_originals = dict(vars(self.dashboard))
         self.owner = RuntimeIntegration(self.paths, root / 'missing-scheme')
+        self.owner.movie_backlight.update = Mock()
         self.owner.movie.wallpaper = root / 'wallpaper'
         self.owner.install(self.dashboard, self.transport)
         self.renderer = self.dashboard.DashboardRenderer(None, palette=object())

@@ -1,12 +1,13 @@
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 from turzx_studio import nyx
 from turzx_studio.frost import PALETTES as FROST, ShellStyle
@@ -140,6 +141,32 @@ class NyxLatticeTests(unittest.TestCase):
             block = wire.crop((bx, by, bx + 8, by + 8))
             self.assertEqual(len([color for _, color in block.getcolors() if color != (0, 0, 0)]), 1)
 
+    def test_replaced_wallpaper_with_same_size_and_timestamp_invalidates_the_sky(self):
+        source = Path(self.ground.wallpaper_state.read_text())
+        root = source.parent
+        original = self.ground((1280, 800), nyx.NYX)
+        signature = self.ground.signature()
+        changed = root / "next.png"
+        data = source.read_bytes()
+        Image.new("RGB", (2000, 1000), "red").save(changed)
+        with changed.open("ab") as stream:
+            stream.truncate(len(data))
+        stamp = source.stat().st_mtime_ns
+        os.utime(changed, ns=(stamp, stamp))
+        changed.replace(source)
+        self.assertNotEqual(self.ground.signature(), signature)
+        updated = self.ground((1280, 800), nyx.NYX)
+        self.assertEqual(updated.getpixel((2, 0)), (255, 0, 0))
+        self.assertIsNotNone(ImageChops.difference(original, updated).getbbox())
+        self.assertIs(updated, self.ground((1280, 800), nyx.NYX))
+
+    def test_tiny_claimed_art_still_builds_a_sky(self):
+        source = Path(self.ground.wallpaper_state.read_text())
+        Image.new("RGB", (1, 3), "red").save(source)
+        sky = self.ground((1280, 800), nyx.NYX)
+        self.assertEqual(sky.getpixel((0, 0)), (0, 0, 0))
+        self.assertEqual(sky.getpixel((2, 0)), (255, 0, 0))
+
     def test_frost_fog_ignores_the_nyx_recipe(self):
         self.assertIsNotNone(self.ground((320, 200), "dark"))
         self.assertIsNone(self.ground((320, 200), "sepia"))
@@ -188,6 +215,58 @@ class NyxFallbackTests(unittest.TestCase):
         self.assertEqual(frame.size, (1280, 800))
 
 
+class NyxWidgetTests(unittest.TestCase):
+    def test_compact_weather_draws_inside_its_saved_box(self):
+        doc = deepcopy(SHEET)
+        widget = next(w for w in doc["widgets"] if w["type"] == "weather")
+        widget.update(x=59, y=315, width=160, height=104)
+        # The sheet next to it reaches below the weather widget.
+        without_weather = {**doc, "widgets": [w for w in doc["widgets"] if w is not widget]}
+        renderer = LayoutRenderer()
+        before = renderer.render(without_weather, palette=nyx.PALETTE)
+        after = renderer.render(doc, palette=nyx.PALETTE)
+        left, top, right, bottom = ImageChops.difference(before, after).getbbox()
+        self.assertGreaterEqual(left, 59)
+        self.assertGreaterEqual(top, 315)
+        self.assertLessEqual(right, 219)
+        self.assertLessEqual(bottom, 419)
+
+    def test_date_nudge_and_alignment_move_the_preview_ink(self):
+        doc = deepcopy(SHEET)
+        clock = next(w for w in doc["widgets"] if w["type"] == "clock")
+        doc["widgets"] = [clock]
+        clock["design"]["elements"]["time"]["hidden"] = True
+        date = clock["design"]["elements"]["date"]
+        date.update(dx=8, color="#ff0000")
+        renderer = LayoutRenderer()
+
+        def date_left():
+            frame = renderer.render(doc, palette=nyx.PALETTE)
+            red_only = ImageChops.subtract(frame.getchannel("R"), frame.getchannel("G"))
+            return red_only.point(lambda x: 255 if x > 128 else 0).getbbox()[0]
+
+        original = date_left()
+        date["dx"] += 1
+        self.assertEqual(date_left(), original + 1)
+        date.update(align="end", dx=0)
+        self.assertGreater(date_left(), original + 64)
+
+    def test_explicit_time_ink_keeps_its_color_and_the_lattice(self):
+        doc = deepcopy(SHEET)
+        clock = next(w for w in doc["widgets"] if w["type"] == "clock")
+        doc["widgets"] = [clock]
+        clock["design"]["elements"]["time"]["color"] = "#ff0000"
+        clock["design"]["elements"]["date"]["hidden"] = True
+        frame = LayoutRenderer().render(doc, palette=nyx.PALETTE)
+        self.assertIsNone(frame.getchannel("G").getbbox())
+        self.assertIsNone(frame.getchannel("B").getbbox())
+        self.assertTrue(any(color == (255, 0, 0) for _, color in frame.getcolors()))
+        for y in range(55, 250):
+            for x in range(56, 536):
+                if nyx.on_line(x, y):
+                    self.assertEqual(frame.getpixel((x, y)), (0, 0, 0))
+
+
 class LegacyRenderer:
     def __init__(self, font_dir, palette):
         self.palette = palette
@@ -204,6 +283,7 @@ class NyxMovieTests(unittest.TestCase):
             paths = Paths(state_dir=root / "state", runtime_dir=root / "run")
             atomic_write(paths.layout, serialize_layout(parse_layout(json.dumps(SHEET))).encode())
             owner = RuntimeIntegration(paths, root / "missing-scheme")
+            owner.movie_backlight.update = Mock()
             owner.scheme = shell.watcher()
             owner.movie.wallpaper = root / "movie-wallpaper"
             owner.movie.shell_flag = root / "movie.json"

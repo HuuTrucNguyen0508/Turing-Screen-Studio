@@ -48,7 +48,7 @@ RADIUS = {"slab": 4 * CELL, "chip": 2 * CELL}
 # starfield behind the clock and the bright nebula along the bottom and right.
 ART_CELL = 5
 SKY_ORIGIN = (.1715, .0833)
-SKY_RECIPE = 1
+SKY_RECIPE = 2
 
 # Rubik's variable face; Arch's package keeps the URL-escaped name of the upstream file.
 FONTS = (Path("/usr/share/fonts/TTF/Rubik[wght].ttf"), Path("/usr/share/fonts/TTF/Rubik%5Bwght%5D.ttf"))
@@ -106,13 +106,12 @@ def make_sky(source: Path, size: tuple[int, int]) -> Image.Image:
     # One sample per desktop cell, from its middle pixel (the cell's grid line is its left
     # column and bottom row), so the art comes back without the shell's lines.
     art_w, art_h = max(1, image.width // ART_CELL), max(1, image.height // ART_CELL)
-    art = image.resize((art_w, art_h), Image.NEAREST, box=(0, 0, art_w * ART_CELL, art_h * ART_CELL))
-    if art_w < columns or art_h < rows:
-        scale = max(columns / art_w, rows / art_h)
-        art = art.resize((math.ceil(art_w * scale), math.ceil(art_h * scale)), Image.NEAREST)
-    left = min(round(art.width * SKY_ORIGIN[0]), art.width - columns)
-    top = min(round(art.height * SKY_ORIGIN[1]), art.height - rows)
-    window = art.crop((left, top, left + columns, top + rows))
+    art = image.resize((art_w, art_h), Image.NEAREST,
+                       box=(0, 0, min(image.width, art_w * ART_CELL), min(image.height, art_h * ART_CELL)))
+    left = min(round(art.width * SKY_ORIGIN[0]), max(0, art.width - columns))
+    top = min(round(art.height * SKY_ORIGIN[1]), max(0, art.height - rows))
+    window = art.resize((columns, rows), Image.NEAREST,
+                        box=(left, top, min(left + columns, art.width), min(top + rows, art.height)))
     sky = window.resize((columns * CELL, rows * CELL), Image.NEAREST).crop((0, 0, width, height))
     sky.paste((0, 0, 0), (0, 0), grid_mask(width, height))
     return sky
@@ -172,7 +171,7 @@ def gradient(width: int, height: int, start: str, end: str, angle: float) -> Ima
     return Image.composite(Image.new("RGB", (width, height), end), Image.new("RGB", (width, height), start), ramp)
 
 
-def cut_text(card: Image.Image, mask: Image.Image, origin: tuple[int, int]) -> None:
+def cut_text(card: Image.Image, mask: Image.Image, origin: tuple[int, int], color: str | None = None) -> None:
     """Add grid-cut type to the sky: `mask` is the type's coverage in card coordinates.
 
     The grid takes its lines out of the type, the gradient fills it, and the result is added to
@@ -182,6 +181,9 @@ def cut_text(card: Image.Image, mask: Image.Image, origin: tuple[int, int]) -> N
         return
     x0, y0, x1, y1 = box
     coverage = ImageChops.subtract(mask.crop(box), grid_mask(x1 - x0, y1 - y0, origin[0] + x0, origin[1] + y0))
+    if color is not None:
+        card.paste(color, box, coverage)
+        return
     light = ImageChops.multiply(gradient(x1 - x0, y1 - y0, *CUT_GRADIENT, CUT_ANGLE), coverage.convert("RGB"))
     card.paste(ImageChops.add(card.crop(box), light), box[:2])
 

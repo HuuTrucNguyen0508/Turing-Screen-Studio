@@ -1479,18 +1479,19 @@ class LayoutRenderer:
         it, then place and humidity. Chips sit on the panel lattice, 448 px wide at most."""
         card = ink.card
         ox, oy = self._origin
-        left = nx.snap(ox) - ox
+        left = -ox % nx.CELL
         chip_w = min(448, (width - left) // nx.CELL * nx.CELL)
         bottom = (oy + height) // nx.CELL * nx.CELL - oy
         top = bottom - NYX_WEATHER
-        if chip_w <= 0 or top < 0:
-            return
-        nx.paste_slab(card, (left, top, left + chip_w, bottom), nx.RADIUS["chip"])
         figure = f"{settings['temperature']}°"
         figure_w = self._length(draw, figure, "figure", 96)
-        self._draw_text(draw, (left + 28, top + baseline(24, 96, 96)), figure, palette["text"], 96, "figure", "ls")
         column = left + max(204, math.ceil(28 + figure_w + 28))
         room = left + chip_w - 28 - column
+        if top < 0 or room < 112:
+            self._nyx_compact_weather(card, draw, figure, settings["condition"], palette)
+            return
+        nx.paste_slab(card, (left, top, left + chip_w, bottom), nx.RADIUS["chip"])
+        self._draw_text(draw, (left + 28, top + baseline(24, 96, 96)), figure, palette["text"], 96, "figure", "ls")
         glyph = self._nyx_glyph(34)
         condition_x = column
         if glyph is not None:
@@ -1515,6 +1516,20 @@ class LayoutRenderer:
         playing = settings.get("nowPlaying")
         if playing and top - 16 - NYX_PLAYING >= 0:
             self._nyx_playing(card, draw, (left, top - 16 - NYX_PLAYING, left + chip_w, top - 16), playing, palette)
+
+    def _nyx_compact_weather(self, card: Image.Image, draw: ImageDraw.ImageDraw, figure: str,
+                             condition: str, palette: dict) -> None:
+        width, height = card.size
+        margin = min(12, width // 8)
+        room = width - 2 * margin
+        size = min(40, height // 2, math.floor(room / max(1, self._length(draw, figure, "figure", 40)) * 40))
+        if size < 8:
+            return
+        nx.paste_slab(card, (0, 0, width, height), min(nx.RADIUS["chip"], width // 2, height // 2))
+        self._draw_text(draw, (margin, height // 4), figure, palette["text"], size, "figure")
+        if height >= 48:
+            self._draw_text(draw, (margin, height * 3 // 4),
+                            self._fit(draw, condition, "sans", 14, room), palette["muted"], 14, anchor="ls")
 
     def _nyx_playing(self, card: Image.Image, draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int],
                      playing: dict, palette: dict) -> None:
@@ -1545,7 +1560,7 @@ class LayoutRenderer:
         draw = ImageDraw.Draw(card)
         elements = [dict(item, family="display") if item["id"] == "time" else item
                     for item in resolve_elements({**widget, "settings": settings})]
-        time_left = None
+        time_design = widget["design"].get("elements", {}).get("time", {})
         for element in self._fitted_elements(draw, elements, card.width):
             if element["hidden"]:
                 continue
@@ -1559,37 +1574,35 @@ class LayoutRenderer:
                 start = x - (width / 2 if element["align"] == "center" else width if element["align"] == "end" else 0)
                 mask = Image.new("L", card.size, 0)
                 self._draw_text(ImageDraw.Draw(mask), (start, y), text, 255, size, "display", "ls")
-                box = mask.getbbox()
-                time_left = None if box is None else box[0]
-                nx.cut_text(card, mask, self._origin)
+                signature_ink = time_design.get("color", "text") == "text" and palette["text"] == nx.PALETTE["text"]
+                nx.cut_text(card, mask, self._origin, None if signature_ink else color)
                 if suffix:
                     suffix_color = element.get("suffixColor", "muted")
                     suffix_color = suffix_color if suffix_color.startswith("#") else palette[suffix_color]
                     self._draw_text(draw, (start + digits_width + element["gap"], y), suffix, suffix_color,
                                     element["suffixSize"], "sans", "ls")
-            elif element["id"] == "date":
-                self._nyx_date(card, draw, text, x if time_left is None else time_left, y, size, color)
-            else:
-                anchor = {"start": "ls", "center": "ms", "end": "rs"}[element["align"]]
-                self._draw_text(draw, (x, y), text, color, size, element["family"], anchor)
+                continue
+            align = element["align"]
+            if element["id"] == "date" and self._nyx_date(card, draw, text, element["x"], y, size, color, align):
+                continue
+            anchor = {"start": "ls", "center": "ms", "end": "rs"}[align]
+            self._draw_text(draw, (x, y), text, color, size, element["family"], anchor)
 
-    def _nyx_date(self, card: Image.Image, draw: ImageDraw.ImageDraw, text: str, ink_left: float,
-                  y: float, size: int, color: str) -> None:
-        """The date on a 48 px chip whose left edge is the lattice line just left of the time's ink,
-        centred on the date's own line and moved to the nearest lattice line."""
-        ox, oy = self._origin
-        cell, height = nx.CELL, 6 * nx.CELL
+    def _nyx_date(self, card: Image.Image, draw: ImageDraw.ImageDraw, text: str, x: float, y: float,
+                  size: int, color: str, align: str) -> bool:
+        """Place a 48 px date chip at the date's own anchor."""
+        cell, height, padding = nx.CELL, 6 * nx.CELL, 20
+        if card.width <= 2 * padding or card.height < height:
+            return False
         middle = .35 * self._nyx_px("sans", size)
-        left = math.floor((ox + ink_left - 4) / cell) * cell - ox
-        top = nx.snap(oy + y - middle - height / 2) - oy
-        width = math.ceil((self._length(draw, text, "sans", size) + 40) / cell) * cell
-        right = min(card.width, left + width)
-        top = max(0, min(top, card.height - height))
-        if right - left <= 2 * nx.RADIUS["chip"]:
-            return
-        nx.paste_slab(card, (left, top, right, top + height), nx.RADIUS["chip"])
-        self._draw_text(draw, (left + 20, round(top + height / 2 + middle)),
-                        self._fit(draw, text, "sans", size, right - left - 40), color, size, "sans", "ls")
+        width = min(card.width, math.ceil((self._length(draw, text, "sans", size) + 2 * padding) / cell) * cell)
+        left = round(x - (width / 2 if align == "center" else width if align == "end" else cell))
+        left = max(0, min(left, card.width - width))
+        top = max(0, min(round(y - middle - height / 2), card.height - height))
+        nx.paste_slab(card, (left, top, left + width, top + height), nx.RADIUS["chip"])
+        self._draw_text(draw, (left + padding, round(top + height / 2 + middle)),
+                        self._fit(draw, text, "sans", size, width - 2 * padding), color, size, "sans", "ls")
+        return True
 
     def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:
         """Draw a sheet variant; return False for widgets without one."""
@@ -1664,17 +1677,11 @@ class LayoutRenderer:
         if doc.get('chrome') != 'none':
             self._header(draw, width, stats, colors, not any(widget["type"] == "clock" for widget in doc["widgets"]), heading)
         clock_centre = (self._clock_centre(draw, doc["widgets"], stats)
-                        if any(item["type"] == "weather" and item["settings"].get("style") == "block" for item in doc["widgets"])
+                        if not nyx and any(item["type"] == "weather" and item["settings"].get("style") == "block" for item in doc["widgets"])
                         else None)
         for widget in doc["widgets"]:
             w, h = widget["width"], widget["height"]
             self._origin = widget["x"], widget["y"]
-            if nyx and widget["type"] == "weather" and widget["settings"].get("style") == "block":
-                # Nyx's weather chip ends where a slab beside it ends, as in the design.
-                slabs = [item["y"] + item["height"] - widget["y"] for item in doc["widgets"]
-                         if item.get("frame") == "glass" and item["y"] < widget["y"] + h]
-                h = min(height - widget["y"], max([h, *slabs]))
-                widget = {**widget, "height": h}
             card_colors = effective_widget_palette(colors, widget)
             if widget['type'] == 'image':
                 settings = widget['settings']
