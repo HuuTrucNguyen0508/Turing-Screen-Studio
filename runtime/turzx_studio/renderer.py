@@ -25,6 +25,7 @@ from .graph_display import GRAPH_AREA_MIX, graph_area, widget_graph
 from .calendar_display import calendar_content, calendar_geometry, calendar_month
 from .frost import FACES, FONT_DIR, FROST, ICON_AXES, ICON_FONT, LIGHT_FROM, THIN_FROM, weather_glyph
 from .sheet import HAIRLINE, INK2, TRACK, Ink, baseline, facts_from, glass_layer
+from . import nyx as nx
 
 MAX_RENDER_PIXELS = 16_000_000
 _SPARK_POINTS = (22, 23, 17, 21, 13, 16, 8, 14, 12, 19, 11, 16, 9, 13, 5, 10)
@@ -35,6 +36,8 @@ WEATHER_FIGURE = 144
 WEATHER_BLOCK = WEATHER_FIGURE + 100
 # What's playing sits above the weather: a 64 px cover beside title and artist, 36 px over the temperature.
 NOW_PLAYING_GAP, NOW_PLAYING_COVER = 36, 64
+# Nyx's chips: the weather is 20 cells tall, what's playing 12 (the cover and 16 px around it).
+NYX_WEATHER, NYX_PLAYING = 160, 96
 # Sheet readings: figures over a meter, sized for reading across a desk.
 SHEET_FIGURE = 72
 SHEET_METER = 6
@@ -210,7 +213,7 @@ class LayoutRenderer:
 
     Fonts come only from font_dir, local DejaVu files, or Pillow's fallback,
     except for Frost layouts or palettes, which use the shell's system Fira Sans and
-    Material Symbols when installed. Stats and palette are snapshots supplied by the caller. Rendering never
+    Material Symbols when installed, and the Nyx palette, which uses Rubik. Stats and palette are snapshots supplied by the caller. Rendering never
     imports the original dashboard or reads scheme, sensor, or network data.
     """
 
@@ -222,7 +225,11 @@ class LayoutRenderer:
         self._wrapped: dict[tuple[str, int], list[str]] = {}
         self._ink_spans: dict[tuple[str, str, int, bool], tuple[int, int]] = {}
         # Set per render from the layout or palette; renders are serialized by their callers.
+        # Nyx is drawn as a Frost sheet with its own ground, type, slabs and meters.
         self._frost = False
+        self._nyx = False
+        # Panel position of the widget being drawn: Nyx's cells sit on the panel's lattice.
+        self._origin = (0, 0)
 
     def _frost_font(self, family: str, size: int) -> ImageFont.FreeTypeFont | None:
         """Fira Sans: thin for large figures, light for large words, medium for names."""
@@ -234,18 +241,42 @@ class LayoutRenderer:
         except OSError:
             return None
 
+    @staticmethod
+    def _nyx_px(family: str, size: int) -> int:
+        """The pixel size Nyx sets a Frost size in: Rubik reads larger than Fira at one size."""
+        if family == "mono" and size >= THIN_FROM:
+            return max(1, round(size * nx.FIGURE_SCALE))
+        return nx.SIZES.get(size, size) if family in ("sans", "medium") else size
+
+    def _nyx_font(self, family: str, size: int) -> ImageFont.FreeTypeFont | None:
+        """Rubik: 800 for the cut clock, 500 for figures and names, 400 for words."""
+        for path in nx.FONTS:
+            try:
+                font = ImageFont.truetype(str(path), self._nyx_px(family, size))
+                font.set_variation_by_axes([nx.WEIGHTS.get(family, 400)])
+            except (OSError, ValueError):
+                continue
+            return font
+        return None
+
     def _font(self, family: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-        key = family, size, self._frost
+        key = family, size, self._frost, self._nyx
         if key not in self._fonts:
             summary_font = family.startswith("summary-")
             family = family.removeprefix("summary-")
+            if self._nyx:
+                font = self._nyx_font(family, size)
+                if font is not None:
+                    self._fonts[key] = font
+                    return font
             if self._frost:
                 font = self._frost_font(family, size)
                 if font is not None:
                     self._fonts[key] = font
                     return font
-            # Medium names fall back to the regular face outside Frost.
-            family = "sans" if family == "medium" else family
+            # Medium names fall back to the regular face outside Frost; Nyx's display
+            # and figure faces fall back to the figure face.
+            family = "sans" if family == "medium" else "mono" if family in ("display", "figure") else family
             candidates = []
             if self.font_dir is not None:
                 relative = {
@@ -283,7 +314,12 @@ class LayoutRenderer:
         return [(run, ["tnum"] if run[0].isdigit() else None) for run in _DIGIT_RUNS.findall(text)]
 
     def _tracking(self, family: str, size: int) -> float:
-        """Frost tightens its thin figures like the shell: -0.03 em, -0.035 em from 80 px."""
+        """Frost tightens its thin figures like the shell: -0.03 em, -0.035 em from 80 px.
+        Nyx tightens its figures by 0.02 em and its cut clock by 0.015 em."""
+        if self._nyx:
+            family = family.removeprefix("summary-")
+            kind = "figure" if family == "mono" and size >= THIN_FROM else family
+            return nx.TRACKING.get(kind, 0) * self._nyx_px(family, size)
         if not self._frost or family.removeprefix("summary-") != "mono" or size < THIN_FROM:
             return 0
         return -(.035 if size >= 80 else .03) * size
@@ -1076,8 +1112,7 @@ class LayoutRenderer:
         for index, (amount, word) in enumerate(facts[:2]):
             self._fact(ink, draw, (0, baseline(128 + index * 20, 20, 14)), amount, word, width)
         fraction = 0 if value is None else gauge_fraction(value, settings["min"], settings["max"])
-        ink.bar((0, 176, width, 176 + SHEET_METER), TRACK)
-        ink.bar((0, 176, round(width * fraction), 176 + SHEET_METER))
+        self._meter(ink, (0, 176, width, 176 + SHEET_METER), (0, 176, round(width * fraction), 176 + SHEET_METER), fraction)
 
     def _sheet_storage(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
         """Storage as columns: name and share, meter, used of total, how active the disk is now."""
@@ -1099,9 +1134,9 @@ class LayoutRenderer:
             name = self._fit(draw, storage_row_name(row, settings.get("filtered", False)), "medium", 15, column - share_width - 8)
             self._ink_text(ink, (left, y), name, 15, "medium")
             self._ink_text(ink, (left + column, y), share, 28, "mono", anchor="rs")
-            ink.bar((left, 64, left + column, 64 + SHEET_METER), TRACK)
-            if valid:
-                ink.bar((left, 64, left + round(column * percent / 100), 64 + SHEET_METER))
+            self._meter(ink, (left, 64, left + column, 64 + SHEET_METER),
+                        (left, 64, left + round(column * percent / 100), 64 + SHEET_METER) if valid else None,
+                        percent / 100 if valid else None)
             used, total = (storage_size(row.get(key)) for key in ("usedGiB", "totalGiB"))
             busy = row.get("busyPercent")
             busy = f"{math.floor(busy + .5)}%" if type(busy) in (int, float) and math.isfinite(busy) else "—"
@@ -1131,20 +1166,46 @@ class LayoutRenderer:
         if not shown and capacity:
             empty = "Thread activity unavailable" if data["working"] is None else "No threads working"
             self._ink_text(ink, (0, baseline(30, 24, 14)), empty, 14, alpha=INK2)
+        # Rubik is wider than Fira: Nyx gives the provider column room for "Codex Pro".
+        status_x, provider_room = (width - 100, 88) if self._nyx else (width - 90, 70)
         for index, row in enumerate(shown):
             top = 30 + index * 32
             self._ink_text(ink, (0, baseline(top, 24, 15)), self._fit(draw, row["title"], "sans", 15, min(400, width - 200)), 15)
-            self._ink_text(ink, (width - 90, baseline(top, 24, 14)), statuses.get(row["status"], "Waiting"), 14, alpha=INK2, anchor="rs")
+            status = statuses.get(row["status"], "Waiting")
+            if self._nyx and row["status"] == "running":
+                # Nyx lights what is working: the highlight, after one lit cell.
+                y = baseline(top, 24, 14)
+                self._draw_text(ink.direct, (status_x, y), status, nx.HIGHLIGHT, 14, anchor="rs")
+                mark = status_x - self._length(ink.direct, status, "sans", 14) - 16
+                ink.card.paste(nx.gradient(8, 8, *nx.MARK_GRADIENT, 135), (round(mark), y - 9))
+            else:
+                self._ink_text(ink, (status_x, baseline(top, 24, 14)), status, 14, alpha=INK2, anchor="rs")
             provider = providers.get(row["provider"], row["provider"])
-            self._ink_text(ink, (width, baseline(top, 24, 14)), self._fit(draw, provider, "sans", 14, 70), 14, alpha=INK2, anchor="rs")
+            self._ink_text(ink, (width, baseline(top, 24, 14)), self._fit(draw, provider, "sans", 14, provider_room), 14, alpha=INK2, anchor="rs")
+
+    def _meter(self, ink: Ink, track: tuple[float, float, float, float],
+               fill: tuple[float, float, float, float] | None, fraction: float | None) -> None:
+        """Frost's 6 px meter: the track at TRACK, then the fill. Nyx lights cells instead,
+        two cells tall on the panel lattice, from the track's column and top."""
+        if self._nyx:
+            nx.paint_meter(ink.card, self._origin, track[0], track[2], track[1], fraction)
+            return
+        ink.bar(track, TRACK)
+        if fill is not None:
+            ink.bar(fill)
 
     def _fact(self, ink: Ink, draw: ImageDraw.ImageDraw, xy: tuple[float, float], amount: str, word: str, width: float) -> None:
-        """One "value word" fact: the value in medium ink, the word after a two-space gap in ink2."""
+        """One "value word" fact: the value in medium ink, the word after a two-space gap in ink2.
+        Nyx sets 14 px facts in 15 px Rubik, and steps down to 13 px where that would cut the word."""
         x, y = xy
-        used = self._ink_text(ink, (x, y), self._fit(draw, amount, "medium", 14, width), 14, "medium") if amount else 0
-        gap = draw.textlength("\u00a0 ", font=self._font("sans", 14)) if amount else 0
+        size = 14
+        if self._nyx and (self._length(draw, amount, "medium", 14) if amount else 0) + (
+                draw.textlength("\u00a0 ", font=self._font("sans", 14)) if amount else 0) + self._length(draw, word, "sans", 14) > width:
+            size = 13
+        used = self._ink_text(ink, (x, y), self._fit(draw, amount, "medium", size, width), size, "medium") if amount else 0
+        gap = draw.textlength("\u00a0 ", font=self._font("sans", size)) if amount else 0
         if word and used + gap < width:
-            self._ink_text(ink, (x + used + gap, y), self._fit(draw, word, "sans", 14, width - used - gap), 14, alpha=INK2)
+            self._ink_text(ink, (x + used + gap, y), self._fit(draw, word, "sans", size, width - used - gap), size, alpha=INK2)
 
     def _sheet_limits(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, settings: dict) -> None:
         """Quota limits as figure columns: provider over its first window, the window name,
@@ -1204,9 +1265,9 @@ class LayoutRenderer:
                 self._fact(ink, draw, (left, baseline(128, 20, 14)), amount, word, column)
                 if "stale" in state and dated:
                     self._fact(ink, draw, (left, baseline(148, 20, 14)), "", f"as of {datetime.fromtimestamp(observed):%H:%M}", column)
-            ink.bar((left, 176, left + column, 176 + SHEET_METER), TRACK)
-            if known:
-                ink.bar((left, 176, left + round(column * percent / 100), 176 + SHEET_METER))
+            self._meter(ink, (left, 176, left + column, 176 + SHEET_METER),
+                        (left, 176, left + round(column * percent / 100), 176 + SHEET_METER) if known else None,
+                        percent / 100 if known else None)
 
     @staticmethod
     def _dollars(amount: str) -> str:
@@ -1263,7 +1324,7 @@ class LayoutRenderer:
 
     def _ink_span(self, draw: ImageDraw.ImageDraw, text: str, family: str, size: int) -> tuple[int, int]:
         """Left and right ink columns of `text` set from x 0: what the eye centres, not the advance."""
-        key = text, family, size, self._frost
+        key = text, family, size, self._frost, self._nyx
         if key not in self._ink_spans:
             scratch = Image.new("L", (math.ceil(self._length(draw, text, family, size)) + 4 * size, 2 * size), 0)
             self._draw_text(ImageDraw.Draw(scratch), (2 * size, size), text, 255, size, family, "ls")
@@ -1372,7 +1433,7 @@ class LayoutRenderer:
         else:
             self._ink_text(ink, (text_x, baseline(y + 19, 26, 19)), title, 19, "medium", alpha=title_alpha)
 
-    def _cover(self, path: str | None, size: int) -> Image.Image | None:
+    def _cover(self, path: str | None, size: int, radius: int = 12) -> Image.Image | None:
         """Album art cropped square, scaled and rounded to Frost's 12 px; cached by path and mtime."""
         if not path:
             return None
@@ -1380,7 +1441,7 @@ class LayoutRenderer:
             stamp = os.stat(path).st_mtime_ns
         except OSError:
             return None
-        key = path, stamp, size
+        key = path, stamp, size, radius
         cache = self.__dict__.setdefault("_covers", {})
         if key not in cache:
             try:
@@ -1392,12 +1453,143 @@ class LayoutRenderer:
             left, upper = (image.width - side) // 2, (image.height - side) // 2
             image = image.crop((left, upper, left + side, upper + side)).resize((size, size), Image.LANCZOS).convert("RGBA")
             mask = Image.new("L", (size * 4, size * 4), 0)
-            ImageDraw.Draw(mask).rounded_rectangle((0, 0, size * 4 - 1, size * 4 - 1), radius=48, fill=255)
+            ImageDraw.Draw(mask).rounded_rectangle((0, 0, size * 4 - 1, size * 4 - 1), radius=4 * radius, fill=255)
             image.putalpha(mask.resize((size, size), Image.LANCZOS))
             if len(cache) >= 16:
                 cache.clear()
             cache[key] = image
         return cache[key]
+
+    def _nyx_glyph(self, size: int) -> ImageFont.FreeTypeFont | None:
+        key = "icon", size, nx.NYX
+        if key not in self._fonts:
+            try:
+                font = ImageFont.truetype(str(FONT_DIR / ICON_FONT), size)
+                font.set_variation_by_axes(list(nx.ICON_AXES))
+            except (OSError, ValueError):
+                font = None
+            self._fonts[key] = font
+        return self._fonts[key]
+
+    def _nyx_weather(self, ink: Ink, draw: ImageDraw.ImageDraw, width: int, height: int,
+                     settings: dict, palette: dict) -> None:
+        """Weather on its own chip at the bottom of the widget, what's playing on a chip above it.
+
+        The weather chip is Nyx's: the temperature on the left, the glyph and condition beside
+        it, then place and humidity. Chips sit on the panel lattice, 448 px wide at most."""
+        card = ink.card
+        ox, oy = self._origin
+        left = nx.snap(ox) - ox
+        chip_w = min(448, (width - left) // nx.CELL * nx.CELL)
+        bottom = (oy + height) // nx.CELL * nx.CELL - oy
+        top = bottom - NYX_WEATHER
+        if chip_w <= 0 or top < 0:
+            return
+        nx.paste_slab(card, (left, top, left + chip_w, bottom), nx.RADIUS["chip"])
+        figure = f"{settings['temperature']}°"
+        figure_w = self._length(draw, figure, "figure", 96)
+        self._draw_text(draw, (left + 28, top + baseline(24, 96, 96)), figure, palette["text"], 96, "figure", "ls")
+        column = left + max(204, math.ceil(28 + figure_w + 28))
+        room = left + chip_w - 28 - column
+        glyph = self._nyx_glyph(34)
+        condition_x = column
+        if glyph is not None:
+            name = nx.weather_glyph(settings.get("icon"), settings["condition"], weather_glyph)
+            draw.text((column, top + 57), name, font=glyph, fill=nx.HIGHLIGHT, anchor="lm")
+            condition_x += 46
+        # A long condition steps down to 20 px before it is cut.
+        room_condition = left + chip_w - 28 - condition_x
+        size = next((size for size in (26, 24, 22) if self._length(draw, settings["condition"], "medium", size) <= room_condition), 20)
+        condition = self._fit(draw, settings["condition"], "medium", size, room_condition)
+        self._draw_text(draw, (condition_x, top + 57 + round(.35 * size)), condition, palette["text"], size, "medium", "ls")
+        city = settings.get("city", settings["location"])
+        if settings.get("feels") is not None:
+            lines = (f"{city}, feels like {settings['feels']}°",
+                     None if settings.get("humidity") is None else f"{settings['humidity']}% humidity")
+        else:
+            lines = (city, f"High {settings['high']}°, low {settings['low']}°")
+        for index, line in enumerate(lines):
+            if line and room > 0:
+                self._draw_text(draw, (column, top + baseline(88 + 25.5 * index, 25.5, 17)),
+                                self._fit(draw, line, "sans", 17, room), palette["muted"], 17, "sans", "ls")
+        playing = settings.get("nowPlaying")
+        if playing and top - 16 - NYX_PLAYING >= 0:
+            self._nyx_playing(card, draw, (left, top - 16 - NYX_PLAYING, left + chip_w, top - 16), playing, palette)
+
+    def _nyx_playing(self, card: Image.Image, draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int],
+                     playing: dict, palette: dict) -> None:
+        """What's playing on a chip: the cover as eight by eight cells, title over artist."""
+        left, top, right, _ = box
+        nx.paste_slab(card, box, nx.RADIUS["chip"])
+        cover = NOW_PLAYING_COVER
+        x, y = left + 16, top + 16
+        art = self._cover(playing.get("art"), cover, radius=0)
+        if art is not None:
+            card.paste(art, (x, y), art)
+        else:
+            card.paste(palette["surfaceRaised"], (x, y, x + cover, y + cover))
+        card.paste((0, 0, 0), (x, y), nx.grid_mask(cover, cover, self._origin[0] + x, self._origin[1] + y))
+        text_x, room = x + cover + 16, right - 16 - (x + cover + 16)
+        title = self._fit(draw, playing["title"], "medium", 19, room)
+        artist = " · ".join(part for part in ("" if playing["playing"] else "Paused", playing["artist"]) if part)
+        title_color = palette["text"] if playing["playing"] else palette["muted"]
+        if artist:
+            self._draw_text(draw, (text_x, baseline(y + 6, 26, 19)), title, title_color, 19, "medium", "ls")
+            self._draw_text(draw, (text_x, baseline(y + 34, 24, 16)), self._fit(draw, artist, "sans", 16, room),
+                            palette["muted"], 16, "sans", "ls")
+        else:
+            self._draw_text(draw, (text_x, baseline(y + 19, 26, 19)), title, title_color, 19, "medium", "ls")
+
+    def _nyx_clock(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> None:
+        """The time in Rubik 800, cut by the grid and added to the sky; the date on a chip."""
+        draw = ImageDraw.Draw(card)
+        elements = [dict(item, family="display") if item["id"] == "time" else item
+                    for item in resolve_elements({**widget, "settings": settings})]
+        time_left = None
+        for element in self._fitted_elements(draw, elements, card.width):
+            if element["hidden"]:
+                continue
+            text = self._safe_text(element["text"])
+            x, y, size = self._designed_x(draw, element, text), element["y"], element["size"]
+            color = element["color"] if element["color"].startswith("#") else palette[element["color"]]
+            if element["id"] == "time":
+                digits_width = self._length(draw, text, "display", size)
+                suffix = self._safe_text(element.get("suffix", ""))
+                width = digits_width + (element["gap"] + self._length(draw, suffix, "sans", element["suffixSize"]) if suffix else 0)
+                start = x - (width / 2 if element["align"] == "center" else width if element["align"] == "end" else 0)
+                mask = Image.new("L", card.size, 0)
+                self._draw_text(ImageDraw.Draw(mask), (start, y), text, 255, size, "display", "ls")
+                box = mask.getbbox()
+                time_left = None if box is None else box[0]
+                nx.cut_text(card, mask, self._origin)
+                if suffix:
+                    suffix_color = element.get("suffixColor", "muted")
+                    suffix_color = suffix_color if suffix_color.startswith("#") else palette[suffix_color]
+                    self._draw_text(draw, (start + digits_width + element["gap"], y), suffix, suffix_color,
+                                    element["suffixSize"], "sans", "ls")
+            elif element["id"] == "date":
+                self._nyx_date(card, draw, text, x if time_left is None else time_left, y, size, color)
+            else:
+                anchor = {"start": "ls", "center": "ms", "end": "rs"}[element["align"]]
+                self._draw_text(draw, (x, y), text, color, size, element["family"], anchor)
+
+    def _nyx_date(self, card: Image.Image, draw: ImageDraw.ImageDraw, text: str, ink_left: float,
+                  y: float, size: int, color: str) -> None:
+        """The date on a 48 px chip whose left edge is the lattice line just left of the time's ink,
+        centred on the date's own line and moved to the nearest lattice line."""
+        ox, oy = self._origin
+        cell, height = nx.CELL, 6 * nx.CELL
+        middle = .35 * self._nyx_px("sans", size)
+        left = math.floor((ox + ink_left - 4) / cell) * cell - ox
+        top = nx.snap(oy + y - middle - height / 2) - oy
+        width = math.ceil((self._length(draw, text, "sans", size) + 40) / cell) * cell
+        right = min(card.width, left + width)
+        top = max(0, min(top, card.height - height))
+        if right - left <= 2 * nx.RADIUS["chip"]:
+            return
+        nx.paste_slab(card, (left, top, right, top + height), nx.RADIUS["chip"])
+        self._draw_text(draw, (left + 20, round(top + height / 2 + middle)),
+                        self._fit(draw, text, "sans", size, right - left - 40), color, size, "sans", "ls")
 
     def _sheet(self, card: Image.Image, widget: dict, settings: dict, palette: dict) -> bool:
         """Draw a sheet variant; return False for widgets without one."""
@@ -1405,7 +1597,7 @@ class LayoutRenderer:
         if (kind, style) not in (("gauge", "figure"), ("storage", "columns"), ("metric", "rows"), ("metric", "figures"),
                                  ("metric", "total"), ("weather", "block")):
             return False
-        ink = Ink(card, palette["text"])
+        ink = nx.Ink(card, palette["text"], palette["muted"]) if self._nyx else Ink(card, palette["text"])
         draw, width, height = ink.direct, widget["width"], widget["height"]
         if kind == "gauge":
             self._sheet_figure(ink, draw, width, settings)
@@ -1417,6 +1609,8 @@ class LayoutRenderer:
             self._sheet_total(ink, draw, width, settings)
         elif kind == "metric":
             self._sheet_threads(ink, draw, width, height, settings)
+        elif self._nyx:
+            self._nyx_weather(ink, draw, width, height, settings, palette)
         else:
             self._sheet_weather(ink, draw, width, height, settings)
         ink.flush()
@@ -1449,16 +1643,17 @@ class LayoutRenderer:
         if width * height > MAX_RENDER_PIXELS:
             raise ValueError("$.canvas: rendering is limited to 16 million pixels")
         colors = doc["palette"] if palette is None else _palette(palette, "$.renderPalette")
-        frost = doc["palette"]["name"] == FROST or colors["name"] == FROST
-        if frost != self._frost:
+        nyx = colors["name"] == nx.NYX
+        frost = nyx or doc["palette"]["name"] == FROST or colors["name"] == FROST
+        if frost != self._frost or nyx != self._nyx:
             # Wrapped lines were measured in the other face.
             self._wrapped.clear()
-            self._frost = frost
+            self._frost, self._nyx = frost, nyx
         mode = "light" if sum(int(colors["background"][i:i + 2], 16) for i in (1, 3, 5)) > 384 else "dark"
         ground = None
         if frost and doc.get("ground") == "wallpaper" and self.ground is not None:
             try:
-                ground = self.ground((width, height), mode)
+                ground = self.ground((width, height), nx.NYX if nyx else mode)
             except Exception:
                 # The fog is decoration: a failure keeps the flat background.
                 ground = None
@@ -1473,6 +1668,13 @@ class LayoutRenderer:
                         else None)
         for widget in doc["widgets"]:
             w, h = widget["width"], widget["height"]
+            self._origin = widget["x"], widget["y"]
+            if nyx and widget["type"] == "weather" and widget["settings"].get("style") == "block":
+                # Nyx's weather chip ends where a slab beside it ends, as in the design.
+                slabs = [item["y"] + item["height"] - widget["y"] for item in doc["widgets"]
+                         if item.get("frame") == "glass" and item["y"] < widget["y"] + h]
+                h = min(height - widget["y"], max([h, *slabs]))
+                widget = {**widget, "height": h}
             card_colors = effective_widget_palette(colors, widget)
             if widget['type'] == 'image':
                 settings = widget['settings']
@@ -1496,7 +1698,8 @@ class LayoutRenderer:
                 card = Image.new("RGB", (w, h), card_colors["surface"])
             elif frame == "glass" and min(w, h) > 1:
                 card = image.crop(box).convert("RGBA")
-                card.alpha_composite(glass_layer(w, h, mode))
+                card.alpha_composite(nx.slab_layer(w, h, min(nx.RADIUS["slab"], w // 2, h // 2)) if nyx
+                                     else glass_layer(w, h, mode))
                 card = card.convert("RGB")
             else:
                 card = image.crop(box)
@@ -1509,7 +1712,9 @@ class LayoutRenderer:
                 settings["clockCentre"] = clock_centre - widget["x"]
             if frame != "card" and min(w, h) == 1:
                 # A one-pixel frameless widget is a rule: Frost's hairline, or the outline colour.
-                if frost:
+                if nyx:
+                    card.paste("#ffffff", (0, 0), Image.new("L", (w, h), round(255 * nx.HAIRLINE)))
+                elif frost:
                     card.paste(card_colors["text"], (0, 0), Image.new("L", (w, h), round(255 * HAIRLINE)))
                 else:
                     card_draw.rectangle((0, 0, w - 1, h - 1), fill=card_colors["outline"])
@@ -1523,7 +1728,9 @@ class LayoutRenderer:
                 self._weather(card_draw, w, h, settings, card_colors,
                               stats is not None and settings.get("source", "sample") == "weather")
             elif widget["type"] == "clock":
-                if "design" in widget:
+                if "design" in widget and nyx:
+                    self._nyx_clock(card, widget, settings, card_colors)
+                elif "design" in widget:
                     self._designed_text(card_draw, resolve_elements({**widget, "settings": settings}), card_colors)
                 else:
                     self._clock(card_draw, h, settings, card_colors)

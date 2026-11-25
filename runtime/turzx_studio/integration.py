@@ -14,6 +14,7 @@ from .layout import GAUGE_STYLES, METRIC_STYLES, WIDGET_TYPES, effective_palette
 from .renderer import LayoutRenderer, rendered_content
 from .watch import LayoutWatcher
 from .frost import ShellStyle
+from .nyx import NYX
 from .movie import MovieMode, MOVIE_MONITOR, render_movie
 from .movie_backlight import MovieBacklight
 from .ground import WallpaperGround
@@ -85,7 +86,7 @@ class RuntimeIntegration:
         self.layouts = LayoutWatcher(self.paths.layout, panel=True)
         # Only the real scheme follows the shell's style; an injected scheme stays as given.
         self.scheme = PaletteWatcher(scheme) if scheme else PaletteWatcher(
-            Path.home() / '.local/state/caelestia/scheme.json', ShellStyle())
+            Path.home() / '.local/state/caelestia/scheme.json', ShellStyle(), ShellStyle(style=NYX))
         self.document = None
         self.palette = None
         self.frame_revision = None

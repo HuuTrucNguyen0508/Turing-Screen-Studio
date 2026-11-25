@@ -1,4 +1,5 @@
-"""Frost's fog behind the panel: a blurred, toned crop of the shell's live wallpaper.
+"""The ground behind the panel, made from the shell's live wallpaper: Frost's fog, a
+blurred and toned crop, or Nyx's sky (mode "nyx"), the art behind the panel's grid.
 
 The panel cannot blur live, so the ground is made once per wallpaper, mode and
 canvas size, kept on disk and reused for every frame. Any failure returns None
@@ -12,6 +13,8 @@ from pathlib import Path
 import threading
 
 from PIL import Image, ImageFilter
+
+from .nyx import NYX, SKY_RECIPE, make_sky
 
 # Bump when the recipe changes so cached grounds are rebuilt.
 RECIPE = 1
@@ -42,7 +45,8 @@ def make_ground(source: Path, size: tuple[int, int], mode: str) -> Image.Image:
 
 
 class WallpaperGround:
-    """Callable ground provider for LayoutRenderer: (size, mode) -> RGB image or None."""
+    """Callable ground provider for LayoutRenderer: (size, mode) -> RGB image or None.
+    Mode is "dark" or "light" for Frost's fog, NYX for Nyx's sky."""
 
     def __init__(self, wallpaper_state: Path | None = None, cache_dir: Path | None = None) -> None:
         home = Path.home()
@@ -66,7 +70,7 @@ class WallpaperGround:
 
     def __call__(self, size: tuple[int, int], mode: str) -> Image.Image | None:
         source = self._source()
-        if source is None or mode not in TONES:
+        if source is None or (mode not in TONES and mode != NYX):
             return None
         path, identity = source
         key = (identity, tuple(size), mode)
@@ -78,7 +82,8 @@ class WallpaperGround:
             return image
 
     def _load(self, path: Path, key: tuple) -> Image.Image | None:
-        name = hashlib.sha256(repr((RECIPE, key)).encode()).hexdigest()[:24] + ".png"
+        recipe = (RECIPE, SKY_RECIPE) if key[2] == NYX else RECIPE
+        name = hashlib.sha256(repr((recipe, key)).encode()).hexdigest()[:24] + ".png"
         cached = self.cache_dir / name
         try:
             with Image.open(cached) as stored:
@@ -87,7 +92,7 @@ class WallpaperGround:
         except (OSError, ValueError):
             pass
         try:
-            image = make_ground(path, key[1], key[2])
+            image = make_sky(path, key[1]) if key[2] == NYX else make_ground(path, key[1], key[2])
         except (OSError, ValueError, Image.DecompressionBombError):
             return None
         try:

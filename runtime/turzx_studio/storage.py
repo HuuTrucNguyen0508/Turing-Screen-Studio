@@ -10,7 +10,8 @@ import tempfile
 import sys
 from threading import RLock
 
-from .frost import ShellStyle, frost_palette
+from .frost import ShellStyle, frost_palette, scheme_mode
+from .nyx import nyx_palette
 from .layout import parse_caelestia_palette
 
 MAX_FILE_BYTES = 1024 * 1024
@@ -94,12 +95,16 @@ class PaletteWatcher:
     """Poll a scheme file and return the last valid palette on every call.
 
     With a shell style, Frost's own palette replaces the scheme while the
-    shell shows Frost; the scheme still supplies light or dark.
+    shell shows Frost; the scheme still supplies light or dark. With a Nyx
+    style, Nyx's palette replaces it while the shell shows Nyx in dark mode,
+    and Frost's light palette in light mode.
     """
 
-    def __init__(self, path: str | Path, style: ShellStyle | None = None) -> None:
+    def __init__(self, path: str | Path, style: ShellStyle | None = None,
+                 nyx: ShellStyle | None = None) -> None:
         self.path = Path(path).expanduser()
         self.style = style
+        self.nyx = nyx
         self._lock = RLock()
         self._palette: dict | None = None
         self._error: str | None = None
@@ -115,7 +120,8 @@ class PaletteWatcher:
             try:
                 info = self.path.stat()
                 signature = (info.st_ino, info.st_mtime_ns, info.st_size,
-                             self.style.signature() if self.style else None)
+                             self.style.signature() if self.style else None,
+                             self.nyx.signature() if self.nyx else None)
                 if signature == self._signature:
                     return deepcopy(self._palette)
                 if not self.path.is_file():
@@ -130,6 +136,8 @@ class PaletteWatcher:
                 palette = parse_caelestia_palette(text)
                 if self.style is not None and self.style.active():
                     palette = frost_palette(text)
+                elif self.nyx is not None and self.nyx.active():
+                    palette = nyx_palette(light=scheme_mode(text) == "light")
             except (OSError, ValueError) as error:
                 # Retry failures even if a producer rewrites metadata in place.
                 self._signature = None

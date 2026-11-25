@@ -53,12 +53,12 @@ def weather_glyph(icon: object, condition: str) -> str:
 
 
 class ShellStyle:
-    """Report whether the shell's current wallpaper belongs to the Frost style."""
+    """Report whether the shell's current wallpaper belongs to one style (Frost by default)."""
 
-    def __init__(self, wallpaper: Path | None = None, manifest: Path | None = None) -> None:
+    def __init__(self, wallpaper: Path | None = None, manifest: Path | None = None, style: str = FROST) -> None:
         home = Path.home()
         self.wallpaper = wallpaper or home / ".local/state/caelestia/wallpaper/path.txt"
-        self.manifest = manifest or home / ".config/quickshell/caelestia/modules/styles/frost/style.json"
+        self.manifest = manifest or home / f".config/quickshell/caelestia/modules/styles/{style}/style.json"
 
     def signature(self) -> tuple:
         result = []
@@ -80,9 +80,14 @@ class ShellStyle:
         return bool(current) and isinstance(claimed, list) and current in claimed
 
 
-def frost_palette(scheme_text: str) -> dict:
+def scheme_mode(scheme_text: str) -> str:
+    """The scheme's mode: "light", or "dark" for anything else."""
     try:
         mode = json.loads(scheme_text).get("mode")
     except (ValueError, AttributeError):
         mode = None
-    return dict(PALETTES["light" if mode == "light" else "dark"])
+    return "light" if mode == "light" else "dark"
+
+
+def frost_palette(scheme_text: str) -> dict:
+    return dict(PALETTES[scheme_mode(scheme_text)])
