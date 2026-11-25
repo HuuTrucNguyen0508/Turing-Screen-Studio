@@ -90,7 +90,7 @@ def grid_mask(width: int, height: int, left: int = 0, top: int = 0) -> Image.Ima
     """255 on grid lines for a box whose top-left pixel sits at panel (left, top)."""
     mask = Image.new("L", (width, height), 0)
     draw = ImageDraw.Draw(mask)
-    for x in range(-((left - 0) % CELL), width, CELL):
+    for x in range(-(left % CELL), width, CELL):
         draw.rectangle((x, 0, x + LINE - 1, height - 1), fill=255)
     for y in range(CELL - LINE - (top % CELL), height, CELL):
         draw.rectangle((0, y, width - 1, y + LINE - 1), fill=255)
@@ -216,14 +216,6 @@ def paint_meter(card: Image.Image, origin: tuple[int, int], left: float, right: 
                 card.paste(color, (x, y, x + lit_size, y + lit_size))
             else:
                 card.paste(HIGHLIGHT, (x, y, x + lit_size, y + lit_size), track)
-
-
-def paint_mark(card: Image.Image, origin: tuple[int, int], x: float, y: float) -> None:
-    """One lit cell on the lattice near card (x, y), lit with the mark gradient."""
-    column, row = math.floor((origin[0] + x) / CELL), math.floor((origin[1] + y) / CELL)
-    size = CELL - LINE
-    left, top = column * CELL + LINE - origin[0], row * CELL - origin[1]
-    card.paste(gradient(size, size, *MARK_GRADIENT, 135), (left, top))
 
 
 class Ink(_SheetInk):
